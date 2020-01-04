@@ -28,7 +28,10 @@ func log_check(err error) {
 
 // Print usage error and exit
 func log_usage(format string, args ...interface{}) {
-	log_debug(format, args...)
+	if format != "" {
+		log_debug(format, args...)
+	}
+
 	log_debug("Try %s -h for more information", os.Args[0])
 	os.Exit(1)
 }

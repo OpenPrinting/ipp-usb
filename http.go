@@ -10,8 +10,16 @@ import (
 	"time"
 )
 
+// Type httpProxy represents HTTP protocol proxy backed by
+// a specified http.RoundTripper. It implements http.Handler
+// interface
+type httpProxy struct {
+	transport http.RoundTripper // Transport for outgoing requests
+	host      string            // Host: header in outgoing requests
+}
+
 // Handle HTTP request
-func httpHandler(w http.ResponseWriter, r *http.Request) {
+func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log_debug("< %s %s", r.Method, r.URL)
 
 	// Perform sanity checking
@@ -27,15 +35,21 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.IsAbs() {
+		httpError(w, r, http.StatusServiceUnavailable,
+			"Absolute URL not allowed")
+		return
+	}
+
 	// Adjust request headers
 	httpRemoveHopByHopHeaders(r.Header)
-	r.Header.Add("Connection", "close")
+	//r.Header.Add("Connection", "close")
 
 	r.URL.Scheme = "http"
-	r.URL.Host = fmt.Sprintf("localhost:%d", *flag_cport)
+	r.URL.Host = proxy.host
 
 	// Serve the request
-	resp, err := http.DefaultTransport.RoundTrip(r)
+	resp, err := proxy.transport.RoundTrip(r)
 	if err != nil {
 		httpError(w, r, http.StatusServiceUnavailable, err.Error())
 		return
@@ -111,7 +125,11 @@ func httpTimeGoroutine(tmr *time.Timer, c <-chan struct{}, src io.ReadCloser) {
 }
 
 // Run HTTP server at given address
-func HttpListenAndServe(addr string) error {
+func HttpListenAndServe(addr string, transport http.RoundTripper) error {
+	proxy := &httpProxy{
+		transport: transport,
+		host:      addr,
+	}
 	log_debug("Starting HTTP server at http://%s", addr)
-	return http.ListenAndServe(addr, http.HandlerFunc(httpHandler))
+	return http.ListenAndServe(addr, proxy)
 }

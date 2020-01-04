@@ -38,6 +38,14 @@ func main() {
 	transport, err := NewUsbTransport()
 	log_check(err)
 
+	// Register in DNS-SD
+	dnssdReg, err := DnsSdPublish()
+	if err != nil {
+		log_exit("DNS-SD: %s", err)
+	}
+
+	defer dnssdReg.Remove()
+
 	// Create HTTP server
 	addr := fmt.Sprintf("localhost:%d", *lport)
 	err = HttpListenAndServe(addr, transport)

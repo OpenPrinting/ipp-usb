@@ -20,7 +20,7 @@ type httpProxy struct {
 
 // Handle HTTP request
 func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log_debug("< %s %s", r.Method, r.URL)
+	log_debug("< %s %s %s", r.Method, r.URL, r.Proto)
 
 	// Perform sanity checking
 	if r.Method == "CONNECT" {

@@ -105,7 +105,7 @@ var _ = net.Conn(&usbConn{})
 func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 	dev := transport.dev
 
-	log_debug("%s: OPEN", ifaddr)
+	log_debug("+ USB OPEN: %s", ifaddr)
 
 	// Obtain interface
 	iface, err := ifaddr.Interface(dev)
@@ -158,7 +158,7 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 
 // Close USB connection
 func (conn *usbConn) Close() error {
-	log_debug("%s: CLOSE", conn.ifaddr)
+	log_debug("+ USB CLOSE: %s", conn.ifaddr)
 
 	conn.iface.Close()
 	conn.ifaddr.Busy = false

@@ -19,6 +19,13 @@ func log_exit(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
+// If error is not nil, print error message and exit
+func log_check(err error) {
+	if err != nil {
+		log_exit(err.Error())
+	}
+}
+
 // Print usage error and exit
 func log_usage(format string, args ...interface{}) {
 	log_debug(format, args...)

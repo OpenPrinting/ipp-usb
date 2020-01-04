@@ -26,9 +26,13 @@ func main() {
 		log_usage("Invalid argument %s", flag.Args()[0])
 	}
 
+	// Initialize USB
+	err := usbInit()
+	log_check(err)
+
 	// Create HTTP server
 	addr := fmt.Sprintf("localhost:%d", *flag_lport)
-	err := HttpListenAndServe(addr)
+	err = HttpListenAndServe(addr)
 	if err != nil {
 		log_exit("%s", err)
 	}

@@ -105,6 +105,8 @@ var _ = net.Conn(&usbConn{})
 func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 	dev := transport.dev
 
+	log_debug("%s: OPEN", ifaddr)
+
 	// Obtain interface
 	iface, err := ifaddr.Interface(dev)
 	if err != nil {
@@ -113,17 +115,18 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 
 	// Initialize connection structure
 	conn := &usbConn{
-		ifaddr: ifaddr,
-		iface:  iface,
+		transport: transport,
+		ifaddr:    ifaddr,
+		iface:     iface,
 	}
 
 	// Obtain endpoints
 	for _, ep := range iface.Setting.Endpoints {
 		switch {
 		case ep.Direction == gousb.EndpointDirectionIn && conn.in == nil:
-			conn.in, err = iface.InEndpoint(0)
+			conn.in, err = iface.InEndpoint(ep.Number)
 		case ep.Direction == gousb.EndpointDirectionOut && conn.out == nil:
-			conn.out, err = iface.OutEndpoint(0)
+			conn.out, err = iface.OutEndpoint(ep.Number)
 		}
 
 		if err != nil {
@@ -155,6 +158,8 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 
 // Close USB connection
 func (conn *usbConn) Close() error {
+	log_debug("%s: CLOSE", conn.ifaddr)
+
 	conn.iface.Close()
 	conn.ifaddr.Busy = false
 	conn.transport.dialSemSignal()

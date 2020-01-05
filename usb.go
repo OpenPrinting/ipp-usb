@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/gousb"
@@ -23,7 +24,8 @@ type UsbTransport struct {
 	http.Transport               // Underlying http.Transport
 	dev            *gousb.Device // Underlying USB device
 	ifaddrs        []*usbIfAddr  // IPP interfaces
-	dialSem        chan struct{}
+	dialSem        chan struct{} // Counts available connections
+	dialLock       sync.Mutex    // Protects access to ifaddrs
 }
 
 // Create new http.RoundTripper backed by IPP-over-USB
@@ -44,7 +46,7 @@ func NewUsbTransport() (http.RoundTripper, error) {
 		},
 		dev:     dev,
 		ifaddrs: ifaddrs,
-		dialSem: make(chan struct{}, 1),
+		dialSem: make(chan struct{}, len(ifaddrs)),
 	}
 
 	transport.DialContext = transport.dialContect
@@ -52,7 +54,9 @@ func NewUsbTransport() (http.RoundTripper, error) {
 		return nil, errors.New("No TLS over USB")
 	}
 
-	transport.dialSemSignal()
+	for i := 0; i < len(ifaddrs); i++ {
+		transport.dialSem <- struct{}{}
+	}
 
 	for _, ifaddr := range transport.ifaddrs {
 		log_debug("+ %s", ifaddr)
@@ -64,29 +68,29 @@ func NewUsbTransport() (http.RoundTripper, error) {
 // Dial new connection
 func (transport *UsbTransport) dialContect(ctx context.Context,
 	network, addr string) (net.Conn, error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-transport.dialSem:
-			for i := range transport.ifaddrs {
-				if !transport.ifaddrs[i].Busy {
-					conn, err := openUsbConn(transport,
-						transport.ifaddrs[i])
-					transport.dialSemSignal()
-					return conn, err
-				}
+
+	// Wait for available connection
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-transport.dialSem:
+	}
+
+	// Acquire a connection
+	transport.dialLock.Lock()
+	defer transport.dialLock.Unlock()
+
+	for _, ifaddr := range transport.ifaddrs {
+		if !ifaddr.Busy {
+			conn, err := openUsbConn(transport, ifaddr)
+			if err != nil {
+				transport.dialSem <- struct{}{}
 			}
+			return conn, err
 		}
 	}
-}
 
-// Signal transport.dialSem
-func (transport *UsbTransport) dialSemSignal() {
-	select {
-	case transport.dialSem <- struct{}{}:
-	default:
-	}
+	panic("internal error")
 }
 
 // ----- usbConn -----
@@ -162,7 +166,7 @@ func (conn *usbConn) Close() error {
 
 	conn.iface.Close()
 	conn.ifaddr.Busy = false
-	conn.transport.dialSemSignal()
+	conn.transport.dialSem <- struct{}{}
 	return nil
 }
 

@@ -24,6 +24,7 @@ func main() {
 		} else {
 			log_usage("")
 		}
+		return
 	}
 
 	// Verify arguments

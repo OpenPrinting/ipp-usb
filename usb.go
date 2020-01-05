@@ -28,12 +28,20 @@ type UsbTransport struct {
 	dialLock       sync.Mutex    // Protects access to ifaddrs
 }
 
+// Type UsbDeviceInfo represents device description suitable
+// for DNS-SD registration purposes
+type UsbDeviceInfo struct {
+	Manufacturer string
+	Product      string
+	SerialNumber string
+}
+
 // Create new http.RoundTripper backed by IPP-over-USB
-func NewUsbTransport() (http.RoundTripper, error) {
+func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 	// Open the device
 	dev, err := usbOpenDevice()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create UsbTransport
@@ -58,11 +66,29 @@ func NewUsbTransport() (http.RoundTripper, error) {
 		transport.dialSem <- struct{}{}
 	}
 
+	// Fill UsbDeviceInfo
+	ok := func(s string, err error) string {
+		if err == nil {
+			return s
+		} else {
+			return ""
+		}
+	}
+
+	info := &UsbDeviceInfo{
+		Manufacturer: ok(dev.Manufacturer()),
+		Product:      ok(dev.Product()),
+		SerialNumber: ok(dev.SerialNumber()),
+	}
+
+	log_debug("Manufacturer: %s", info.Manufacturer)
+	log_debug("Product: %s", info.Product)
+	log_debug("SerialNumber: %s", info.SerialNumber)
 	for _, ifaddr := range transport.ifaddrs {
 		log_debug("+ %s", ifaddr)
 	}
 
-	return transport, nil
+	return transport, info, nil
 }
 
 // Dial new connection

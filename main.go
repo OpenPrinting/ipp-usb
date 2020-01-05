@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Initialize USB
-	transport, err := NewUsbTransport()
+	transport, _, err := NewUsbTransport()
 	log_check(err)
 
 	// Register in DNS-SD

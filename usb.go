@@ -176,6 +176,7 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 	// Obtain interface
 	iface, err := ifaddr.Interface(dev)
 	if err != nil {
+		log_debug("! USB ERROR: %s", err)
 		return nil, err
 	}
 
@@ -196,6 +197,7 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 		}
 
 		if err != nil {
+			log_debug("! USB ERROR: %s", err)
 			break
 		}
 	}

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 )
@@ -34,4 +35,39 @@ func log_usage(format string, args ...interface{}) {
 
 	log_debug("Try %s -h for more information", os.Args[0])
 	os.Exit(1)
+}
+
+// Print hex dump
+func log_dump(data []byte) {
+	hex := new(bytes.Buffer)
+	chr := new(bytes.Buffer)
+
+	for len(data) > 0 {
+		hex.Reset()
+		chr.Reset()
+
+		sz := len(data)
+		if sz > 16 {
+			sz = 16
+		}
+
+		i := 0
+		for ; i < sz; i++ {
+			c := data[i]
+			fmt.Fprintf(hex, "%2.2x ", data[i])
+			if 0x20 <= c && c < 0x80 {
+				chr.WriteByte(c)
+			} else {
+				chr.WriteByte('.')
+			}
+		}
+
+		for ; i < 16; i++ {
+			hex.WriteString("   ")
+		}
+
+		log_debug("%s %s", hex, chr)
+
+		data = data[sz:]
+	}
 }

@@ -34,6 +34,39 @@ type UsbDeviceInfo struct {
 	Manufacturer string
 	Product      string
 	SerialNumber string
+	DeviceId     string
+}
+
+// Fetch IEEE 1284.4 DEVICE_ID
+func usbGetDeviceId(dev *gousb.Device) string {
+	buf := make([]byte, 2048)
+
+	for cfgNum, conf := range dev.Desc.Configs {
+		for ifNum, iface := range conf.Interfaces {
+			for altNum, alt := range iface.AltSettings {
+				if alt.Class == gousb.ClassPrinter &&
+					alt.SubClass == 1 {
+
+					n, err := dev.Control(
+						gousb.ControlClass|gousb.ControlIn|gousb.ControlInterface,
+						0,
+						uint16(cfgNum),
+						uint16((ifNum<<8)|altNum),
+						buf,
+					)
+
+					if err == nil && n >= 2 {
+						buf2 := make([]byte, n-2)
+						copy(buf2, buf[2:n])
+						return string(buf2)
+					}
+
+				}
+			}
+		}
+	}
+
+	return ""
 }
 
 // Create new http.RoundTripper backed by IPP-over-USB
@@ -79,11 +112,14 @@ func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 		Manufacturer: ok(dev.Manufacturer()),
 		Product:      ok(dev.Product()),
 		SerialNumber: ok(dev.SerialNumber()),
+		DeviceId:     usbGetDeviceId(dev),
 	}
 
 	log_debug("Manufacturer: %s", info.Manufacturer)
-	log_debug("Product: %s", info.Product)
+	log_debug("Product:      %s", info.Product)
 	log_debug("SerialNumber: %s", info.SerialNumber)
+	log_debug("DeviceId:     %s", info.DeviceId)
+
 	for _, ifaddr := range transport.ifaddrs {
 		log_debug("+ %s", ifaddr)
 	}
@@ -279,7 +315,6 @@ func usbGetIppIfAddrs(desc *gousb.DeviceDesc) []*usbIfAddr {
 						Alt:     altNum,
 					}
 
-					log_debug("%d found %s %v", len(ifaddrs), desc, alt.Endpoints)
 					ifaddrs = append(ifaddrs, addr)
 				}
 			}

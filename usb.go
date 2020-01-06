@@ -351,5 +351,7 @@ func usbOpenDevice() (*gousb.Device, error) {
 		dev.Close()
 	}
 
+	devs[0].SetAutoDetach(true)
+
 	return devs[0], nil
 }

@@ -3,8 +3,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -57,7 +59,10 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Host = proxy.host
 
 	// Serve the request
-	resp, err := proxy.transport.RoundTrip(r)
+	outreq := r.Clone(context.Background())
+	outreq.Cancel = nil
+
+	resp, err := proxy.transport.RoundTrip(outreq)
 	if err != nil {
 		httpError(session, w, r, http.StatusServiceUnavailable,
 			err.Error())
@@ -68,6 +73,7 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+	io.Copy(ioutil.Discard, resp.Body) // Make sure entire response body read
 	resp.Body.Close()
 
 	log_http_rsp(session, resp)

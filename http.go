@@ -72,8 +72,11 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpRemoveHopByHopHeaders(resp.Header)
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
-	io.Copy(ioutil.Discard, resp.Body) // Make sure entire response body read
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		// Make sure response body drained from USB
+		io.Copy(ioutil.Discard, resp.Body)
+	}
 	resp.Body.Close()
 
 	log_http_rsp(session, resp)

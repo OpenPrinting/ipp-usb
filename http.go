@@ -7,7 +7,12 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
+)
+
+var (
+	httpSessionId int32
 )
 
 // Type httpProxy represents HTTP protocol proxy backed by
@@ -20,23 +25,26 @@ type httpProxy struct {
 
 // Handle HTTP request
 func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log_debug("< %s %s %s", r.Method, r.URL, r.Proto)
+	session := atomic.AddInt32(&httpSessionId, 1) - 1
+	defer atomic.AddInt32(&httpSessionId, -1)
+
+	log_http_rq(session, r)
 
 	// Perform sanity checking
 	if r.Method == "CONNECT" {
-		httpError(w, r, http.StatusMethodNotAllowed,
+		httpError(session, w, r, http.StatusMethodNotAllowed,
 			"CONNECT not allowed")
 		return
 	}
 
 	if r.Header.Get("Upgrade") != "" {
-		httpError(w, r, http.StatusServiceUnavailable,
+		httpError(session, w, r, http.StatusServiceUnavailable,
 			"Protocol upgrade is not implemented")
 		return
 	}
 
 	if r.URL.IsAbs() {
-		httpError(w, r, http.StatusServiceUnavailable,
+		httpError(session, w, r, http.StatusServiceUnavailable,
 			"Absolute URL not allowed")
 		return
 	}
@@ -51,7 +59,8 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Serve the request
 	resp, err := proxy.transport.RoundTrip(r)
 	if err != nil {
-		httpError(w, r, http.StatusServiceUnavailable, err.Error())
+		httpError(session, w, r, http.StatusServiceUnavailable,
+			err.Error())
 		return
 	}
 
@@ -61,11 +70,11 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, resp.Body)
 	resp.Body.Close()
 
-	log_debug("> %s %s", resp.Proto, resp.Status)
+	log_http_rsp(session, resp)
 }
 
 // Reject request with a error
-func httpError(w http.ResponseWriter, r *http.Request,
+func httpError(session int32, w http.ResponseWriter, r *http.Request,
 	status int, format string, args ...interface{}) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -76,7 +85,9 @@ func httpError(w http.ResponseWriter, r *http.Request,
 	msg += "\n"
 
 	w.Write([]byte(msg))
-	log_debug("> HTTP/1.1 %d %s", status, http.StatusText(status))
+	w.Write([]byte("\n"))
+
+	log_http_err(session, status, msg)
 }
 
 // Set response headers to disable cacheing

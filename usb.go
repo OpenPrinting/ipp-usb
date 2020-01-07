@@ -216,7 +216,18 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (n int, err error) {
-	return conn.in.Read(b)
+	backoff := time.Millisecond * 100
+	for {
+		n, err := conn.in.Read(b)
+		if n != 0 || err != nil {
+			return n, err
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+		if backoff > time.Millisecond*1000 {
+			backoff = time.Millisecond * 1000
+		}
+	}
 }
 
 // Write to USB

@@ -284,7 +284,7 @@ type usbIfAddr struct {
 func (ifaddr *usbIfAddr) String() string {
 	return fmt.Sprintf("Bus %.3d Device %.3d Config %d Interface %d Alt %d",
 		ifaddr.DevDesc.Bus,
-		ifaddr.DevDesc.Device,
+		ifaddr.DevDesc.Address,
 		ifaddr.CfgNum,
 		ifaddr.Num,
 		ifaddr.Alt,

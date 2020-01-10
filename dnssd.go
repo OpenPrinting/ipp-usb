@@ -1,4 +1,10 @@
-// Publishing self via DNS-SD
+/* ipp-usb - HTTP reverse proxy, backed by IPP-over-USB connection to device
+ *
+ * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
+ * See LICENSE for license terms and conditions
+ *
+ * Publishing self via DNS-SD
+ */
 
 package main
 

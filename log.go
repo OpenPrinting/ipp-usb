@@ -57,6 +57,7 @@ func log_dump(data []byte) {
 
 	hex := new(bytes.Buffer)
 	chr := new(bytes.Buffer)
+	off := 0
 
 	for len(data) > 0 {
 		hex.Reset()
@@ -82,8 +83,9 @@ func log_dump(data []byte) {
 			hex.WriteString("   ")
 		}
 
-		log_debug("%s %s", hex, chr)
+		log_debug("%4.4x: %s %s", off, hex, chr)
 
+		off += sz
 		data = data[sz:]
 	}
 }

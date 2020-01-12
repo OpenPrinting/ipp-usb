@@ -71,7 +71,13 @@ func log_dump(data []byte) {
 		i := 0
 		for ; i < sz; i++ {
 			c := data[i]
-			fmt.Fprintf(hex, "%2.2x ", data[i])
+			fmt.Fprintf(hex, "%2.2x", data[i])
+			if i%4 == 3 {
+				hex.Write([]byte(":"))
+			} else {
+				hex.Write([]byte(" "))
+			}
+
 			if 0x20 <= c && c < 0x80 {
 				chr.WriteByte(c)
 			} else {

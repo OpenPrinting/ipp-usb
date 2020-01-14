@@ -133,6 +133,19 @@ func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 	return transport, info, nil
 }
 
+// RoundTrip executes a single HTTP transaction, returning
+// a Response for the provided Request.
+func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
+	// Prevent request from being canceled from outside
+	// We cannot do it on USB: closing USB connection
+	// doesn't drain buffered data that server is
+	// about to send to client
+	outreq := rq.Clone(context.Background())
+	outreq.Cancel = nil
+
+	return transport.Transport.RoundTrip(outreq)
+}
+
 // Dial new connection
 func (transport *UsbTransport) dialContect(ctx context.Context,
 	network, addr string) (net.Conn, error) {

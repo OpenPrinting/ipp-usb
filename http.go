@@ -9,7 +9,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -65,10 +64,7 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Host = proxy.host
 
 	// Serve the request
-	outreq := r.Clone(context.Background())
-	outreq.Cancel = nil
-
-	resp, err := proxy.transport.RoundTrip(outreq)
+	resp, err := proxy.transport.RoundTrip(r)
 	if err != nil {
 		httpError(session, w, r, http.StatusServiceUnavailable,
 			err.Error())

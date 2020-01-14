@@ -11,7 +11,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -75,10 +74,6 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		// Make sure response body drained from USB
-		io.Copy(ioutil.Discard, resp.Body)
-	}
 	resp.Body.Close()
 
 	log_http_rsp(session, resp)

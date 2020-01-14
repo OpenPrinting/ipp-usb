@@ -12,6 +12,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"sync"
@@ -133,6 +135,22 @@ func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 	return transport, info, nil
 }
 
+// usbResponseBodyWrapper wraps http.Response.Body and guarantees
+// that connection will be always drained before closed
+type usbResponseBodyWrapper struct {
+	io.ReadCloser // Underlying http.Response.Body
+}
+
+// usbResponseBodyWrapper Close method
+func (w *usbResponseBodyWrapper) Close() error {
+	go func() {
+		io.Copy(ioutil.Discard, w.ReadCloser)
+		w.ReadCloser.Close()
+	}()
+
+	return nil
+}
+
 // RoundTrip executes a single HTTP transaction, returning
 // a Response for the provided Request.
 func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
@@ -143,7 +161,12 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	outreq := rq.Clone(context.Background())
 	outreq.Cancel = nil
 
-	return transport.Transport.RoundTrip(outreq)
+	resp, err := transport.Transport.RoundTrip(outreq)
+	if err != nil {
+		resp.Body = &usbResponseBodyWrapper{resp.Body}
+	}
+
+	return resp, err
 }
 
 // Dial new connection

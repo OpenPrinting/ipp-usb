@@ -162,7 +162,7 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	outreq.Cancel = nil
 
 	resp, err := transport.Transport.RoundTrip(outreq)
-	if err != nil {
+	if err == nil {
 		resp.Body = &usbResponseBodyWrapper{resp.Body}
 	}
 

@@ -29,7 +29,7 @@ func (addr UsbAddr) String() string {
 // Compare 2 addresses, for sorting
 func (addr UsbAddr) Less(addr2 UsbAddr) bool {
 	return addr.Bus < addr2.Bus ||
-		(addr.Bus == addr2.Bus && addr.Address == addr2.Address)
+		(addr.Bus == addr2.Bus && addr.Address <= addr2.Address)
 }
 
 // Open device by address

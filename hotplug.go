@@ -44,6 +44,9 @@ package main
 // }
 import "C"
 
+// UsbHotPlugChan gets signalled on any hotplug event
+var UsbHotPlugChan = make(chan struct{})
+
 // Called by libusb on hotplug event
 //
 //export usbHotplugCallback
@@ -53,6 +56,11 @@ func usbHotplugCallback(bus, addr C.int, event C.libusb_hotplug_event) {
 		log_debug("+ HOTPLUG %d %d", bus, addr)
 	case C.LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
 		log_debug("- HOTPLUG %d %d", bus, addr)
+	}
+
+	select {
+	case UsbHotPlugChan <- struct{}{}:
+	default:
 	}
 }
 

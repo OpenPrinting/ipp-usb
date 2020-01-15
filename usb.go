@@ -26,39 +26,6 @@ var (
 	usbCtx = gousb.NewContext()
 )
 
-// UsbAddr represents an USB device address
-type UsbAddr struct {
-	Bus     int // The bus on which the device was detected
-	Address int // The address of the device on the bus
-}
-
-// String returns a human-readable representation of UsbAddr
-func (addr UsbAddr) String() string {
-	return fmt.Sprintf("Bus %.3d Device %.3d", addr.Bus, addr.Address)
-}
-
-// Open device by address
-func (addr UsbAddr) Open() (*gousb.Device, error) {
-	found := false
-	devs, err := usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		if found {
-			return false
-		}
-
-		return addr.Bus == desc.Bus && addr.Address == desc.Address
-	})
-
-	if len(devs) != 0 {
-		return devs[0], nil
-	}
-
-	if err == nil {
-		err = gousb.ErrorNotFound
-	}
-
-	return nil, fmt.Errorf("%s: %s", addr, err)
-}
-
 // ----- UsbTransport -----
 // Type UsbTransport implements http.RoundTripper over USB
 type UsbTransport struct {

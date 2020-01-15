@@ -11,8 +11,10 @@ package main
 // #cgo pkg-config: libusb-1.0
 // #include <libusb.h>
 //
+// // Go callback for hotplug events
 // void usbHotplugCallback(int bus, int addr, libusb_hotplug_event event);
 //
+// // C-to-Go adapter for hotplug callback
 // static int
 // usb_hotplug_callback (libusb_context *ctx, libusb_device *device,
 //         libusb_hotplug_event event, void *user_data)
@@ -23,6 +25,7 @@ package main
 //     return 0;
 // }
 //
+// // Subscribe to hotplug notifications
 // static void
 // usb_hotplug_init (void)
 // {
@@ -35,15 +38,8 @@ package main
 // }
 import "C"
 
-// libusb_hotplug_callback_handle
-// libusb_hotplug_register_callback
-// libusb_hotplug_callback_fn
-// typedef int (LIBUSB_CALL *libusb_hotplug_callback_fn)(libusb_context *ctx,
-//						libusb_device *device,
-//						libusb_hotplug_event event,
-//						void *user_data);
-
 // Called by libusb on hotplug event
+//
 //export usbHotplugCallback
 func usbHotplugCallback(bus, addr C.int, event C.libusb_hotplug_event) {
 	switch event {

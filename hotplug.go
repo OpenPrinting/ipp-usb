@@ -29,11 +29,17 @@ package main
 // static void
 // usb_hotplug_init (void)
 // {
-//     libusb_hotplug_register_callback(NULL,
-//             LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-//             LIBUSB_HOTPLUG_NO_FLAGS, LIBUSB_HOTPLUG_MATCH_ANY, LIBUSB_HOTPLUG_MATCH_ANY,
-//             LIBUSB_HOTPLUG_MATCH_ANY, usb_hotplug_callback,
-//             NULL, NULL
+//     libusb_hotplug_register_callback(
+//         NULL,                                  // libusb_context
+//         LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED |  // events mask
+//             LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
+//         LIBUSB_HOTPLUG_NO_FLAGS,               // flags
+//         LIBUSB_HOTPLUG_MATCH_ANY,              // vendor_id
+//         LIBUSB_HOTPLUG_MATCH_ANY,              // product_id
+//         LIBUSB_HOTPLUG_MATCH_ANY,              // dev_class
+//         usb_hotplug_callback,                  // callback
+//         NULL,                                  // callback's data
+//         NULL                                   // deregister handle
 //     );
 // }
 import "C"

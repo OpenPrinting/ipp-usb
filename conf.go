@@ -20,9 +20,6 @@ import (
 const (
 	// Configuration file name
 	ConfFileName = "ipp-usb.conf"
-
-	// Configuration directory
-	ConfFileDir = "/etc/ipp-usb"
 )
 
 // Conf represents a program configuration
@@ -64,7 +61,7 @@ func confLoadInternal() error {
 
 	// Load configuration file
 	inifile, err := ini.LooseLoad(
-		filepath.Join(ConfFileDir, ConfFileName),
+		filepath.Join(PathConfDir, ConfFileName),
 		filepath.Join(exepath, ConfFileName))
 
 	if err != nil {

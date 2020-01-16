@@ -24,14 +24,17 @@ const (
 
 // Conf represents a program configuration
 type Configuration struct {
-	HttpMinPort int  // Starting port number for HTTP to bind to
-	HttpMaxPort int  // Ending port number for HTTP to bind to
-	DnsSdEnable bool // Enable DNS-SD advertising
+	HttpMinPort  int  // Starting port number for HTTP to bind to
+	HttpMaxPort  int  // Ending port number for HTTP to bind to
+	DnsSdEnable  bool // Enable DNS-SD advertising
+	LoopbackOnly bool // Use only loopback interface
 }
 
 var Conf = Configuration{
-	HttpMinPort: 60000,
-	DnsSdEnable: true,
+	HttpMinPort:  60000,
+	HttpMaxPort:  65535,
+	DnsSdEnable:  true,
+	LoopbackOnly: true,
 }
 
 // Load the program configuration
@@ -109,6 +112,18 @@ func confLoadInternal() error {
 				Conf.DnsSdEnable = false
 			default:
 				return confBadValue(key, "must be enable or disable")
+			}
+		}
+
+		key, err = section.GetKey("interface")
+		if key != nil {
+			switch key.String() {
+			case "loopback":
+				Conf.LoopbackOnly = true
+			case "all":
+				Conf.LoopbackOnly = false
+			default:
+				return confBadValue(key, "must be loopback or all")
 			}
 		}
 	}

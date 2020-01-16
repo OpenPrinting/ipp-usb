@@ -43,6 +43,10 @@ func main() {
 		log_usage("Invalid argument %s", flagset.Args()[0])
 	}
 
+	// Load configuration file
+	err = ConfLoad()
+	log_check(err)
+
 	// Initialize USB
 	transport, _, err := NewUsbTransport()
 	log_check(err)

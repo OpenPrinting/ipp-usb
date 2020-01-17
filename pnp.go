@@ -13,30 +13,28 @@ func PnPStart() {
 	devices := UsbAddrList{}
 	devByAddr := make(map[string]*Device)
 
-	go func() {
-		for {
-			newdevices := BuildUsbAddrList()
-			added, removed := devices.Diff(newdevices)
-			devices = newdevices
+	for {
+		newdevices := BuildUsbAddrList()
+		added, removed := devices.Diff(newdevices)
+		devices = newdevices
 
-			for _, addr := range added {
-				log_debug("+ PNP %s: added", addr)
-				dev, err := NewDevice(addr)
-				if err == nil {
-					devByAddr[addr.MapKey()] = dev
-				}
+		for _, addr := range added {
+			log_debug("+ PNP %s: added", addr)
+			dev, err := NewDevice(addr)
+			if err == nil {
+				devByAddr[addr.MapKey()] = dev
 			}
-
-			for _, addr := range removed {
-				log_debug("- PNP %s: removed", addr)
-				dev, ok := devByAddr[addr.MapKey()]
-				if ok {
-					dev.Close()
-					delete(devByAddr, addr.MapKey())
-				}
-			}
-
-			<-UsbHotPlugChan
 		}
-	}()
+
+		for _, addr := range removed {
+			log_debug("- PNP %s: removed", addr)
+			dev, ok := devByAddr[addr.MapKey()]
+			if ok {
+				dev.Close()
+				delete(devByAddr, addr.MapKey())
+			}
+		}
+
+		<-UsbHotPlugChan
+	}
 }

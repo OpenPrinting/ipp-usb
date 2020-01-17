@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -141,12 +142,17 @@ func httpTimeGoroutine(tmr *time.Timer, c <-chan struct{}, src io.ReadCloser) {
 	}
 }
 
-// Run HTTP server at given address
-func HttpListenAndServe(addr string, transport http.RoundTripper) error {
+// Create new HTTP server, using given net.Listener
+func NewHttpServer(listener net.Listener, transport http.RoundTripper) *http.Server {
 	proxy := &httpProxy{
 		transport: transport,
-		host:      addr,
+		host:      "localhost", // FIXME
 	}
-	log_debug("Starting HTTP server at http://%s", addr)
-	return http.ListenAndServe(addr, proxy)
+	server := &http.Server{
+		Handler: proxy,
+	}
+
+	go server.Serve(listener)
+
+	return server
 }

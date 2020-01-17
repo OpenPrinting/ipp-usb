@@ -50,6 +50,7 @@ func (addr UsbAddr) Open() (*gousb.Device, error) {
 	})
 
 	if len(devs) != 0 {
+		devs[0].SetAutoDetach(true)
 		return devs[0], nil
 	}
 

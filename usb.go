@@ -36,13 +36,20 @@ type UsbTransport struct {
 	dialLock       sync.Mutex    // Protects access to ifaddrs
 }
 
-// Type UsbDeviceInfo represents device description suitable
-// for DNS-SD registration purposes
+// Type UsbDeviceInfo represents USB device information
 type UsbDeviceInfo struct {
+	Vendor       gousb.ID
+	SerialNumber string
 	Manufacturer string
 	Product      string
-	SerialNumber string
 	DeviceId     string
+}
+
+// Ident returns device identification string, suitable as
+// persistent state identifier
+func (info UsbDeviceInfo) Ident() string {
+	return fmt.Sprintf(fmt.Sprintf("%s-%s",
+		info.Vendor, info.SerialNumber))
 }
 
 // Fetch IEEE 1284.4 DEVICE_ID
@@ -78,11 +85,11 @@ func usbGetDeviceId(dev *gousb.Device) string {
 }
 
 // Create new http.RoundTripper backed by IPP-over-USB
-func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
+func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	// Open the device
-	dev, err := usbOpenDevice()
+	dev, err := addr.Open()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create UsbTransport
@@ -107,7 +114,23 @@ func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 		transport.dialSem <- struct{}{}
 	}
 
-	// Fill UsbDeviceInfo
+	for _, ifaddr := range transport.ifaddrs {
+		log_debug("+ %s", ifaddr)
+	}
+
+	return transport, nil
+}
+
+// Close the transport
+func (transport *UsbTransport) Close() {
+	// FIXME
+}
+
+// UsbDeviceInfo returns USB device information for the device
+// behind the transport
+func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
+	dev := transport.dev
+
 	ok := func(s string, err error) string {
 		if err == nil {
 			return s
@@ -116,23 +139,14 @@ func NewUsbTransport() (http.RoundTripper, *UsbDeviceInfo, error) {
 		}
 	}
 
-	info := &UsbDeviceInfo{
+	return UsbDeviceInfo{
+		Vendor:       dev.Desc.Vendor,
+		SerialNumber: ok(dev.SerialNumber()),
 		Manufacturer: ok(dev.Manufacturer()),
 		Product:      ok(dev.Product()),
-		SerialNumber: ok(dev.SerialNumber()),
 		DeviceId:     usbGetDeviceId(dev),
 	}
 
-	log_debug("Manufacturer: %s", info.Manufacturer)
-	log_debug("Product:      %s", info.Product)
-	log_debug("SerialNumber: %s", info.SerialNumber)
-	log_debug("DeviceId:     %s", info.DeviceId)
-
-	for _, ifaddr := range transport.ifaddrs {
-		log_debug("+ %s", ifaddr)
-	}
-
-	return transport, info, nil
 }
 
 // usbResponseBodyWrapper wraps http.Response.Body and guarantees
@@ -382,29 +396,4 @@ func usbGetIppIfAddrs(desc *gousb.DeviceDesc) []*usbIfAddr {
 // Check if device implements IPP over USB
 func usbIsIppUsbDevice(desc *gousb.DeviceDesc) bool {
 	return len(usbGetIppIfAddrs(desc)) >= 2
-}
-
-// Find and open IPP-over-USB device
-func usbOpenDevice() (*gousb.Device, error) {
-	// Open confirming devices
-	devs, err := usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		return usbIsIppUsbDevice(desc)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(devs) == 0 {
-		return nil, errors.New("IPP-over-USB device not found")
-	}
-
-	// We are only interested in a first device
-	for _, dev := range devs[1:] {
-		dev.Close()
-	}
-
-	devs[0].SetAutoDetach(true)
-
-	return devs[0], nil
 }

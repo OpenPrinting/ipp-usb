@@ -27,7 +27,6 @@ var (
 // interface
 type httpProxy struct {
 	transport http.RoundTripper // Transport for outgoing requests
-	host      string            // Host: header in outgoing requests
 }
 
 // Handle HTTP request
@@ -61,7 +60,12 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//r.Header.Add("Connection", "close")
 
 	r.URL.Scheme = "http"
-	r.URL.Host = proxy.host
+	if r.Host != "" {
+		r.URL.Host = r.Host
+	} else {
+		r.Host = r.RemoteAddr
+		r.URL.Host = r.RemoteAddr
+	}
 
 	// Serve the request
 	resp, err := proxy.transport.RoundTrip(r)
@@ -146,7 +150,6 @@ func httpTimeGoroutine(tmr *time.Timer, c <-chan struct{}, src io.ReadCloser) {
 func NewHttpServer(listener net.Listener, transport http.RoundTripper) *http.Server {
 	proxy := &httpProxy{
 		transport: transport,
-		host:      "localhost", // FIXME
 	}
 	server := &http.Server{
 		Handler: proxy,

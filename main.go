@@ -47,6 +47,9 @@ func main() {
 	err = ConfLoad()
 	log_check(err)
 
+	// Run PnP manager
+	PnPStart()
+
 	// Initialize USB
 	transport, _, err := NewUsbTransport()
 	log_check(err)

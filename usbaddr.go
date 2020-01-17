@@ -62,6 +62,20 @@ func (addr UsbAddr) Open() (*gousb.Device, error) {
 // (*UsbAddrList) Add() function
 type UsbAddrList []UsbAddr
 
+// Build UsbAddrList, collection all IPP-over-USB devices
+func BuildUsbAddrList() UsbAddrList {
+	var list UsbAddrList
+
+	usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
+		if usbIsIppUsbDevice(desc) {
+			list.Add(UsbAddr{desc.Bus, desc.Address})
+		}
+		return false
+	})
+
+	return list
+}
+
 // Add UsbAddr to UsbAddrList
 func (list *UsbAddrList) Add(addr UsbAddr) {
 	// Find the smallest index of address list

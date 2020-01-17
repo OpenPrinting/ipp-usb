@@ -3,7 +3,7 @@
  * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
  * See LICENSE for license terms and conditions
  *
- * Handling USB hotplug events
+ * USB hotplug events notifications
  */
 
 package main

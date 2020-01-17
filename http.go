@@ -59,13 +59,19 @@ func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpRemoveHopByHopHeaders(r.Header)
 	//r.Header.Add("Connection", "close")
 
-	r.URL.Scheme = "http"
-	if r.Host != "" {
-		r.URL.Host = r.Host
-	} else {
-		r.Host = r.RemoteAddr
-		r.URL.Host = r.RemoteAddr
+	if r.Host == "" {
+		// It's a pure black magic how to obtain Host if
+		// it is missed in request (i.e., it's HTTP/1.0)
+		v := r.Context().Value(http.LocalAddrContextKey)
+		if v != nil {
+			if addr, ok := v.(net.Addr); ok {
+				r.Host = addr.String()
+			}
+		}
 	}
+
+	r.URL.Scheme = "http"
+	r.URL.Host = r.Host
 
 	// Serve the request
 	resp, err := proxy.transport.RoundTrip(r)

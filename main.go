@@ -42,6 +42,11 @@ func main() {
 		log_usage("Invalid argument %s", flagset.Args()[0])
 	}
 
+	// Check user privileges
+	if os.Geteuid() != 0 {
+		log_exit("This program requires root privileges")
+	}
+
 	// Load configuration file
 	err = ConfLoad()
 	log_check(err)

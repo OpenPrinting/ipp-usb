@@ -10,7 +10,8 @@ package main
 
 // Start PnP manager
 func PnPStart() {
-	var devices UsbAddrList
+	devices := UsbAddrList{}
+	devByAddr := make(map[string]*Device)
 
 	go func() {
 		for {
@@ -20,10 +21,19 @@ func PnPStart() {
 
 			for _, addr := range added {
 				log_debug("+ PNP %s: added", addr)
+				dev, err := NewDevice(addr)
+				if err == nil {
+					devByAddr[addr.MapKey()] = dev
+				}
 			}
 
 			for _, addr := range removed {
 				log_debug("- PNP %s: removed", addr)
+				dev, ok := devByAddr[addr.MapKey()]
+				if ok {
+					dev.Close()
+					delete(devByAddr, addr.MapKey())
+				}
 			}
 
 			<-UsbHotPlugChan

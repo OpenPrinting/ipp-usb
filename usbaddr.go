@@ -26,6 +26,12 @@ func (addr UsbAddr) String() string {
 	return fmt.Sprintf("Bus %.3d Device %.3d", addr.Bus, addr.Address)
 }
 
+// MapKey() returns a string suitable as a map key
+// It is not even guaranteed that this string is printable
+func (addr UsbAddr) MapKey() string {
+	return fmt.Sprintf("%d:%d", addr.Bus, addr.Address)
+}
+
 // Compare 2 addresses, for sorting
 func (addr UsbAddr) Less(addr2 UsbAddr) bool {
 	return addr.Bus < addr2.Bus ||

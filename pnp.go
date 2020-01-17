@@ -23,6 +23,8 @@ func PnPStart() {
 			dev, err := NewDevice(addr)
 			if err == nil {
 				devByAddr[addr.MapKey()] = dev
+			} else {
+				log_debug("! %s: %s", addr, err)
 			}
 		}
 

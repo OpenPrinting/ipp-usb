@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,6 +51,21 @@ type UsbDeviceInfo struct {
 func (info UsbDeviceInfo) Ident() string {
 	return fmt.Sprintf(fmt.Sprintf("%s-%s",
 		info.Vendor, info.SerialNumber))
+}
+
+// Comment returns a short comment, describing a device
+func (info UsbDeviceInfo) Comment() string {
+	c := ""
+
+	if !strings.HasPrefix(info.Product, info.Manufacturer) {
+		c += info.Manufacturer + " " + info.Product
+	} else {
+		c = info.Product
+	}
+
+	c += " serial=" + info.SerialNumber
+
+	return c
 }
 
 // Fetch IEEE 1284.4 DEVICE_ID

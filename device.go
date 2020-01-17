@@ -46,6 +46,9 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	info = dev.UsbTransport.UsbDeviceInfo()
 	dev.State = LoadDevState(info.Ident())
 
+	// Update comment
+	dev.State.SetComment(info.Comment())
+
 	// Create net.Listener
 	listener, err = dev.State.HttpListen()
 	if err != nil {

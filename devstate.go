@@ -22,6 +22,7 @@ import (
 // port allocation etc)
 type DevState struct {
 	Ident    string // Device identification
+	Comment  string // Device comment
 	HttpPort int    // Allocated HTTP port
 
 	path string // Path to the disk file
@@ -46,6 +47,8 @@ func LoadDevState(ident string) *DevState {
 	// Extract data
 	var update bool
 	if section, _ := inifile.GetSection("device"); section != nil {
+		state.Comment = section.Comment
+
 		err = state.loadTCPPort(section, &state.HttpPort, "http-port")
 		if err != nil {
 			err = state.error("%s", err)
@@ -90,6 +93,7 @@ func (state *DevState) Save() {
 
 	inifile := ini.Empty()
 	section, _ := inifile.NewSection("device")
+	section.Comment = state.Comment
 
 	if state.HttpPort > 0 {
 		section.NewKey("http-port", strconv.Itoa(state.HttpPort))
@@ -143,4 +147,12 @@ func (state *DevState) devStatePath() string {
 // error creates a state-related error
 func (state *DevState) error(format string, args ...interface{}) error {
 	return fmt.Errorf(state.Ident+": "+format, args...)
+}
+
+// Set device comment
+func (state *DevState) SetComment(comment string) {
+	if comment != state.Comment {
+		state.Comment = comment
+		state.Save()
+	}
 }

@@ -28,6 +28,7 @@ type Configuration struct {
 	HttpMaxPort  int  // Ending port number for HTTP to bind to
 	DnsSdEnable  bool // Enable DNS-SD advertising
 	LoopbackOnly bool // Use only loopback interface
+	IpV6Enable   bool // Enable IPv6 advertising
 }
 
 var Conf = Configuration{
@@ -35,6 +36,7 @@ var Conf = Configuration{
 	HttpMaxPort:  65535,
 	DnsSdEnable:  true,
 	LoopbackOnly: true,
+	IpV6Enable:   true,
 }
 
 // Load the program configuration
@@ -72,59 +74,39 @@ func confLoadInternal() error {
 	}
 
 	// Extract options
-	var section *ini.Section
-	var key *ini.Key
-
-	section, err = inifile.GetSection("network")
-	if section != nil {
-		key, err = section.GetKey("http-min-port")
-		if key != nil {
-			port, err := key.Uint()
-			if err == nil && (port < 1 || port > 65535) {
-				err = confBadValue(key, "must be in range 1...65535")
-			}
-			if err != nil {
-				return err
-			}
-
-			Conf.HttpMinPort = int(port)
+	if section, _ := inifile.GetSection("network"); section != nil {
+		err = confLoadIPPortKey(&Conf.HttpMinPort, section, "http-min-port")
+		if err != nil {
+			return err
 		}
 
-		key, err = section.GetKey("http-max-port")
-		if key != nil {
-			port, err := key.Uint()
-			if err == nil && (port < 1 || port > 65535) {
-				err = confBadValue(key, "must be in range 1...65535")
-			}
-			if err != nil {
-				return err
-			}
-
-			Conf.HttpMaxPort = int(port)
+		err = confLoadIPPortKey(&Conf.HttpMaxPort, section, "http-max-port")
+		if err != nil {
+			return err
 		}
 
-		key, err = section.GetKey("dns-sd")
-		if key != nil {
-			switch key.String() {
-			case "enable":
-				Conf.DnsSdEnable = true
-			case "disable":
-				Conf.DnsSdEnable = false
-			default:
-				return confBadValue(key, "must be enable or disable")
-			}
+		err = confLoadBinaryKey(&Conf.DnsSdEnable, section,
+			"dns-sd", "disable", "enable")
+		if err != nil {
+			return err
 		}
 
-		key, err = section.GetKey("interface")
-		if key != nil {
-			switch key.String() {
-			case "loopback":
-				Conf.LoopbackOnly = true
-			case "all":
-				Conf.LoopbackOnly = false
-			default:
-				return confBadValue(key, "must be loopback or all")
-			}
+		err = confLoadBinaryKey(&Conf.LoopbackOnly, section,
+			"interface", "all", "loopback")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadBinaryKey(&Conf.DnsSdEnable, section,
+			"ipv6-sd", "disable", "enable")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadBinaryKey(&Conf.IpV6Enable, section,
+			"ipv6", "disable", "enable")
+		if err != nil {
+			return err
 		}
 	}
 
@@ -134,4 +116,44 @@ func confLoadInternal() error {
 	}
 
 	return nil
+}
+
+// Load IP port key
+func confLoadIPPortKey(out *int, section *ini.Section, name string) error {
+	key, _ := section.GetKey(name)
+	if key != nil {
+		port, err := key.Uint()
+		if err == nil && (port < 1 || port > 65535) {
+			err = confBadValue(key, "must be in range 1...65535")
+		}
+		if err != nil {
+			return err
+		}
+
+		*out = int(port)
+	}
+
+	return nil // Missed key is not error
+}
+
+// Load the binary key
+func confLoadBinaryKey(out *bool,
+	section *ini.Section, name, vFalse, vTrue string) error {
+
+	key, _ := section.GetKey(name)
+	if key != nil {
+		switch key.String() {
+		case vFalse:
+			*out = false
+			return nil
+		case vTrue:
+			*out = true
+			return nil
+		default:
+			return confBadValue(key,
+				"must be %s or %s", vFalse, vTrue)
+		}
+	}
+
+	return nil // Missed key is not error
 }

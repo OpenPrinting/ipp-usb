@@ -13,54 +13,94 @@ import (
 	"github.com/holoplot/go-avahi"
 )
 
+// DnsSdTxtItem represents a single TXT record item
+type DnsSdTxtItem struct {
+	Key, Value string
+}
+
+// DnsDsTxtRecord represents a TXT record
+type DnsDsTxtRecord []DnsSdTxtItem
+
+// DnsSdService represents a DNS-SD service information
+type DnsSdInfo struct {
+	Port     int            // TCP port
+	Type     string         // Service type, i.e. "_ipp._tcp"
+	Instance string         // Service Instance Name
+	Txt      DnsDsTxtRecord // TXT record
+}
+
 // Type DnsSd represents a DNS-SD service registration
 type DnsSd struct {
 	server *avahi.Server
 }
 
 // Publish self on DNS-SD
-func DnsSdPublish() (*DnsSd, error) {
-	var host, fqdn string
+func DnsSdPublish(info DnsSdInfo) (*DnsSd, error) {
+	var fqdn string
+	var txt [][]byte
+	var iface, protocol int
+	var conn *dbus.Conn
+	var server *avahi.Server
+	var eg *avahi.EntryGroup
+	var err error
+
+	// Compute iface and protocol
+	iface = avahi.InterfaceUnspec
+	if Conf.LoopbackOnly {
+		iface, err = Loopback()
+		if err != nil {
+			goto ERROR
+		}
+	}
+
+	protocol = avahi.ProtoUnspec
+	if !Conf.IpV6Enable {
+		protocol = avahi.ProtoInet
+	}
 
 	// Connect to dbus
-	conn, err := dbus.SystemBus()
+	conn, err = dbus.SystemBus()
 	if err != nil {
-		return nil, err
+		goto ERROR
 	}
 
 	// create avahi.Server
-	server, err := avahi.ServerNew(conn)
+	server, err = avahi.ServerNew(conn)
 	if err != nil {
-		conn.Close()
-		return nil, err
+		goto ERROR
 	}
 
 	// Create new entry group. Have no idea what does it mean, though
-	eg, err := server.EntryGroupNew()
+	eg, err = server.EntryGroupNew()
 	if err != nil {
 		goto ERROR
 	}
 
-	host, err = server.GetHostName()
-	if err != nil {
-		goto ERROR
-	}
-
+	// Obtain fully qualified host name
 	fqdn, err = server.GetHostNameFqdn()
 	if err != nil {
 		goto ERROR
 	}
 
+	// Register a service
+	for _, item := range info.Txt {
+		one := item.Key
+		if item.Value != "" {
+			one += "=" + item.Value
+		}
+		txt = append(txt, []byte(one))
+	}
+
 	err = eg.AddService(
-		avahi.InterfaceUnspec,
-		avahi.ProtoUnspec,
+		int32(iface),
+		int32(protocol),
 		0,
-		host,
-		"_test._tcp",
+		info.Instance,
+		info.Type,
 		"local",
 		fqdn,
-		1234,
-		nil,
+		uint16(info.Port),
+		txt,
 	)
 
 	if err != nil {
@@ -77,6 +117,8 @@ func DnsSdPublish() (*DnsSd, error) {
 ERROR:
 	if server != nil {
 		server.Close()
+	} else if conn != nil {
+		conn.Close()
 	}
 
 	return nil, err

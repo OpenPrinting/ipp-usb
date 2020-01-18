@@ -104,6 +104,7 @@ func NewDnsSdPublisher(instanse string, port int) (*DnsSdPublisher, error) {
 	// Build DnsSdPublisher
 	publisher = &DnsSdPublisher{
 		Instance: instanse,
+		Port:     port,
 		iface:    iface,
 		proto:    proto,
 		server:   server,

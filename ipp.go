@@ -46,7 +46,83 @@ func IppService(c *http.Client) (dnssd_name string, info DnsSdInfo, err error) {
 		return
 	}
 
-	//msg.Print(os.Stdout, false)
+	// Decode service info
+	attrs := newIppDecoder(msg)
+	dnssd_name, info = attrs.Decode()
 
 	return
+}
+
+// ippAttrs represents a collection of IPP printer attributes,
+// enrolled into a map for convenient access
+type ippAttrs map[string]goipp.Values
+
+// Create new ippAttrs
+func newIppDecoder(msg *goipp.Message) ippAttrs {
+	attrs := make(ippAttrs)
+
+	// Note, we move from the end of list to the beginning, so
+	// in a case of duplicated attributes, first occurrence wins
+	for i := len(msg.Printer) - 1; i >= 0; i-- {
+		attr := msg.Printer[i]
+		attrs[attr.Name] = attr.Values
+	}
+
+	return attrs
+}
+
+// Decode printer attributes
+func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
+	var ok bool
+	dnssd_name, ok = attrs.getString("printer-dns-sd-name", "printer-info")
+
+	_ = ok
+
+	return
+}
+
+// Get attribute's string value by attribute name
+// Multiple names may be specified, for fallback purposes
+func (attrs ippAttrs) getString(names ...string) (string, bool) {
+	vals, ok := attrs.getAttr(goipp.TypeString, names...)
+	if !ok {
+		return "", ok
+	}
+
+	return string(vals[0].(goipp.String)), true
+}
+
+// Get attribute's []string value by attribute name
+// Multiple names may be specified, for fallback purposes
+func (attrs ippAttrs) getStrings(names ...string) ([]string, bool) {
+	vals, ok := attrs.getAttr(goipp.TypeString, names...)
+	if !ok {
+		return nil, ok
+	}
+
+	strings := make([]string, len(vals))
+	for i := range vals {
+		strings[i] = string(vals[i].(goipp.String))
+	}
+
+	return strings, true
+}
+
+// Get attribute's value by attribute name
+// Multiple names may be specified, for fallback purposes
+// Value type is checked and enforced
+func (attrs ippAttrs) getAttr(t goipp.Type, names ...string) ([]goipp.Value, bool) {
+
+	for _, name := range names {
+		v, ok := attrs[name]
+		if ok && v[0].V.Type() == t {
+			var vals []goipp.Value
+			for i := range v {
+				vals = append(vals, v[i].V)
+			}
+			return vals, true
+		}
+	}
+
+	return nil, false
 }

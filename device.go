@@ -22,6 +22,7 @@ import (
 type Device struct {
 	UsbAddr      UsbAddr
 	State        *DevState
+	HttpClient   *http.Client
 	HttpServer   *http.Server
 	UsbTransport *UsbTransport
 }
@@ -49,6 +50,11 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Update comment
 	dev.State.SetComment(info.Comment())
 
+	// Create HTTP client for local queries
+	dev.HttpClient = &http.Client{
+		Transport: dev.UsbTransport,
+	}
+
 	// Create net.Listener
 	listener, err = dev.State.HttpListen()
 	if err != nil {
@@ -57,8 +63,14 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 
 	// Create HTTP server
 	dev.HttpServer = NewHttpServer(listener, dev.UsbTransport)
-	return dev, nil
 
+	// Setup DNS-SD
+	_, _, err = IppService(dev.HttpClient)
+	if err != nil {
+		goto ERROR
+	}
+
+	return dev, nil
 ERROR:
 	if dev.UsbTransport != nil {
 		dev.UsbTransport.Close()

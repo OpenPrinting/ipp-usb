@@ -43,8 +43,15 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		goto ERROR
 	}
 
-	// Load persistent state
+	// Obtain device info
 	info = dev.UsbTransport.UsbDeviceInfo()
+	log_debug("+ %s: device info", addr)
+	log_debug("  Ident:        %s", info.Ident())
+	log_debug("  Manufacturer: %s", info.Manufacturer)
+	log_debug("  Product:      %s", info.Product)
+	log_debug("  DeviceId:     %s", info.DeviceId)
+
+	// Load persistent state
 	dev.State = LoadDevState(info.Ident())
 
 	// Update comment

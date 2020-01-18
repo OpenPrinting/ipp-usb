@@ -19,15 +19,8 @@ func Loopback() (int, error) {
 	interfaces, err := net.Interfaces()
 	if err == nil {
 		for _, iface := range interfaces {
-			var addrs []net.Addr
-			addrs, err = iface.Addrs()
-			if err == nil {
-				for _, addr := range addrs {
-					ip, ok := addr.(*net.IPNet)
-					if ok && ip.IP.IsLoopback() {
-						return iface.Index, nil
-					}
-				}
+			if (iface.Flags & net.FlagLoopback) != 0 {
+				return iface.Index, nil
 			}
 		}
 	}

@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -40,10 +41,17 @@ func IppService(c *http.Client) (dnssd_name string, info DnsSdInfo, err error) {
 	}
 
 	// Decode IPP response message
-	err = msg.Decode(resp.Body)
+	respData, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
-
 	if err != nil {
+		return
+	}
+
+	err = msg.DecodeBytes(respData)
+	if err != nil {
+		log_debug("! IPP: %s", err)
+		log_dump(respData)
+		err = nil // FIXME - ignore error for now
 		return
 	}
 

@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"net/http"
+	"strings"
 
 	"github.com/alexpevzner/goipp"
 )
@@ -73,45 +74,68 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 
 // Decode printer attributes
 func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
-	var ok bool
-	dnssd_name, ok = attrs.getString("printer-dns-sd-name", "printer-info")
+	info = DnsSdInfo{Type: "_ipp._tcp"}
 
-	_ = ok
+	dnssd_name = attrs.getString("printer-dns-sd-name",
+		"printer-info", "printer-make-and-model")
+
+	info.Txt.Add("note", attrs.getString("printer-location"))
+	attrs.addTxtJoined(&info.Txt, "pdl", "document-format-supported")
+	info.Txt.Add("rp", "ipp/print")
+	info.Txt.Add("txtvers", "1")
+	attrs.addTxtSingle(&info.Txt, "ty", "printer-make-and-model")
+
+	log_debug("> %q: %s TXT record", dnssd_name, info.Type)
+	for _, txt := range info.Txt {
+		log_debug("  %s=%s", txt.Key, txt.Value)
+	}
 
 	return
 }
 
+// Add single string to TXT record
+func (attrs ippAttrs) addTxtSingle(txt *DnsDsTxtRecord, key string, names ...string) {
+	s := attrs.getString(names...)
+	if s != "" {
+		txt.Add(key, s)
+	}
+}
+
+// Add list of strings to TXT record, comma-separated
+func (attrs ippAttrs) addTxtJoined(txt *DnsDsTxtRecord, key string, names ...string) {
+	s := strings.Join(attrs.getStrings(names...), ",")
+	if s != "" {
+		txt.Add(key, s)
+	}
+}
+
 // Get attribute's string value by attribute name
 // Multiple names may be specified, for fallback purposes
-func (attrs ippAttrs) getString(names ...string) (string, bool) {
-	vals, ok := attrs.getAttr(goipp.TypeString, names...)
-	if !ok {
-		return "", ok
+func (attrs ippAttrs) getString(names ...string) string {
+	strings := attrs.getStrings(names...)
+	if strings == nil {
+		return ""
 	}
 
-	return string(vals[0].(goipp.String)), true
+	return strings[0]
 }
 
 // Get attribute's []string value by attribute name
 // Multiple names may be specified, for fallback purposes
-func (attrs ippAttrs) getStrings(names ...string) ([]string, bool) {
-	vals, ok := attrs.getAttr(goipp.TypeString, names...)
-	if !ok {
-		return nil, ok
-	}
-
+func (attrs ippAttrs) getStrings(names ...string) []string {
+	vals := attrs.getAttr(goipp.TypeString, names...)
 	strings := make([]string, len(vals))
 	for i := range vals {
 		strings[i] = string(vals[i].(goipp.String))
 	}
 
-	return strings, true
+	return strings
 }
 
 // Get attribute's value by attribute name
 // Multiple names may be specified, for fallback purposes
 // Value type is checked and enforced
-func (attrs ippAttrs) getAttr(t goipp.Type, names ...string) ([]goipp.Value, bool) {
+func (attrs ippAttrs) getAttr(t goipp.Type, names ...string) []goipp.Value {
 
 	for _, name := range names {
 		v, ok := attrs[name]
@@ -120,9 +144,9 @@ func (attrs ippAttrs) getAttr(t goipp.Type, names ...string) ([]goipp.Value, boo
 			for i := range v {
 				vals = append(vals, v[i].V)
 			}
-			return vals, true
+			return vals
 		}
 	}
 
-	return nil, false
+	return nil
 }

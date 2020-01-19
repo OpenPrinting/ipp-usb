@@ -2,6 +2,8 @@ github.com/alexpevzner/goipp v0.0.0-20200115124818-7a163000f221 h1:mJ9bGhd05ouXV
 github.com/alexpevzner/goipp v0.0.0-20200115124818-7a163000f221/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
 github.com/alexpevzner/goipp v0.0.0-20200119132536-824b49bba96f h1:4EvepbCWEV7DG6Je4UW+cSzX1ga36UcNOUcBkqBn7PM=
 github.com/alexpevzner/goipp v0.0.0-20200119132536-824b49bba96f/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
+github.com/alexpevzner/goipp v0.0.0-20200119203939-d690e5179421 h1:vg2YujvSIpfhZTcXDpoe89u6p2RPvWtrmhQJ+rEvML8=
+github.com/alexpevzner/goipp v0.0.0-20200119203939-d690e5179421/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/godbus/dbus v4.1.0+incompatible h1:WqqLRTsQic3apZUK9qC5sGNfXthmPXzUZ7nQPrNITa4=
 github.com/godbus/dbus v4.1.0+incompatible/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=

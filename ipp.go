@@ -84,14 +84,26 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info = DnsSdInfo{Type: "_ipp._tcp"}
 
+	// Obtain dnssd_name
 	dnssd_name = attrs.getString("printer-dns-sd-name",
 		"printer-info", "printer-make-and-model")
 
+	// Obtain and parse IEEE 1284 device ID
+	devid := make(map[string]string)
+	for _, id := range strings.Split(attrs.getString("printer-device-id"), ";") {
+		keyval := strings.SplitN(id, ":", 2)
+		if len(keyval) == 2 {
+			devid[keyval[0]] = keyval[1]
+		}
+	}
+
 	info.Txt.Add("note", attrs.getString("printer-location"))
-	attrs.addTxtJoined(&info.Txt, "pdl", "document-format-supported")
+	info.Txt.JoinNotEmpty("pdl", attrs.getStrings("document-format-supported"))
 	info.Txt.Add("rp", "ipp/print")
+	info.Txt.AddNotEmpty("URF", devid["URF"])
+	info.Txt.AddNotEmpty("UUID", strings.TrimPrefix(attrs.getString("printer-uuid"), "urn:uuid:"))
 	info.Txt.Add("txtvers", "1")
-	attrs.addTxtSingle(&info.Txt, "ty", "printer-make-and-model")
+	info.Txt.AddNotEmpty("ty", attrs.getString("printer-make-and-model"))
 
 	log_debug("> %q: %s TXT record", dnssd_name, info.Type)
 	for _, txt := range info.Txt {
@@ -99,22 +111,6 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	}
 
 	return
-}
-
-// Add single string to TXT record
-func (attrs ippAttrs) addTxtSingle(txt *DnsDsTxtRecord, key string, names ...string) {
-	s := attrs.getString(names...)
-	if s != "" {
-		txt.Add(key, s)
-	}
-}
-
-// Add list of strings to TXT record, comma-separated
-func (attrs ippAttrs) addTxtJoined(txt *DnsDsTxtRecord, key string, names ...string) {
-	s := strings.Join(attrs.getStrings(names...), ",")
-	if s != "" {
-		txt.Add(key, s)
-	}
 }
 
 // Get attribute's string value by attribute name

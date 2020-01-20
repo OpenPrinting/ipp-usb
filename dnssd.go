@@ -9,8 +9,6 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/godbus/dbus/v5"
 	"github.com/holoplot/go-avahi"
 )
@@ -32,20 +30,6 @@ func (txt *DnsDsTxtRecord) Add(key, value string) {
 func (txt *DnsDsTxtRecord) AddNotEmpty(key, value string) {
 	if value != "" {
 		txt.Add(key, value)
-	}
-}
-
-// Join joins values into a single comma-separated string, and add
-// it to DnsDsTxtRecord
-func (txt *DnsDsTxtRecord) Join(key string, values []string) {
-	txt.Add(key, strings.Join(values, ","))
-}
-
-// Join joins values into a single comma-separated string, and add
-// it to DnsDsTxtRecord, if slice of values is not empty
-func (txt *DnsDsTxtRecord) JoinNotEmpty(key string, values []string) {
-	if len(values) > 0 {
-		txt.Join(key, values)
 	}
 }
 

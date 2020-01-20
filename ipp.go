@@ -85,26 +85,30 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info = DnsSdInfo{Type: "_ipp._tcp"}
 
 	// Obtain dnssd_name
-	dnssd_name = attrs.getString("printer-dns-sd-name",
+	dnssd_name = attrs.strSingle("printer-dns-sd-name",
 		"printer-info", "printer-make-and-model")
 
 	// Obtain and parse IEEE 1284 device ID
 	devid := make(map[string]string)
-	for _, id := range strings.Split(attrs.getString("printer-device-id"), ";") {
+	for _, id := range strings.Split(attrs.strSingle("printer-device-id"), ";") {
 		keyval := strings.SplitN(id, ":", 2)
 		if len(keyval) == 2 {
 			devid[keyval[0]] = keyval[1]
 		}
 	}
 
-	info.Txt.Add("note", attrs.getString("printer-location"))
-	info.Txt.JoinNotEmpty("pdl", attrs.getStrings("document-format-supported"))
+	info.Txt.Add("air", "none")
+	info.Txt.AddNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
 	info.Txt.Add("rp", "ipp/print")
+	info.Txt.AddNotEmpty("kind", attrs.strJoined("printer-kind"))
 	info.Txt.AddNotEmpty("URF", devid["URF"])
-	info.Txt.AddNotEmpty("UUID", strings.TrimPrefix(attrs.getString("printer-uuid"), "urn:uuid:"))
-	info.Txt.Add("txtvers", "1")
-	info.Txt.AddNotEmpty("ty", attrs.getString("printer-make-and-model"))
+	info.Txt.AddNotEmpty("UUID", strings.TrimPrefix(attrs.strSingle("printer-uuid"), "urn:uuid:"))
 	info.Txt.AddNotEmpty("Color", attrs.getBool("color-supported"))
+	info.Txt.AddNotEmpty("Duplex", attrs.getDuplex())
+	info.Txt.Add("note", attrs.strSingle("printer-location"))
+	info.Txt.AddNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
+	info.Txt.AddNotEmpty("pdl", attrs.strJoined("document-format-supported"))
+	info.Txt.Add("txtvers", "1")
 
 	log_debug("> %q: %s TXT record", dnssd_name, info.Type)
 	for _, txt := range info.Txt {
@@ -114,27 +118,58 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	return
 }
 
-// Get attribute's string value by attribute name
-// Multiple names may be specified, for fallback purposes
-func (attrs ippAttrs) getString(names ...string) string {
-	strings := attrs.getStrings(names...)
-	if strings == nil {
+// getDuplex returns "T" if printer supports two-sided
+// printing, "F" if not and "" if it cant' tell
+func (attrs ippAttrs) getDuplex() string {
+	vals := attrs.getAttr(goipp.TypeString, "sides-supported")
+	one, two := false, false
+	for _, v := range vals {
+		s := string(v.(goipp.String))
+		switch {
+		case strings.HasPrefix(s, "one"):
+			one = true
+		case strings.HasPrefix(s, "two"):
+			two = true
+		}
+	}
+
+	if two {
+		return "T"
+	}
+
+	if one {
+		return "F"
+	}
+
+	return ""
+}
+
+// Get a single-string attribute
+func (attrs ippAttrs) strSingle(names ...string) string {
+	strs := attrs.getStrings(names...)
+	if strs == nil {
 		return ""
 	}
 
-	return strings[0]
+	return strs[0]
+}
+
+// Get a multi-string attribute, represented as a comma-separated list
+func (attrs ippAttrs) strJoined(names ...string) string {
+	strs := attrs.getStrings(names...)
+	return strings.Join(strs, ",")
 }
 
 // Get attribute's []string value by attribute name
 // Multiple names may be specified, for fallback purposes
 func (attrs ippAttrs) getStrings(names ...string) []string {
 	vals := attrs.getAttr(goipp.TypeString, names...)
-	strings := make([]string, len(vals))
+	strs := make([]string, len(vals))
 	for i := range vals {
-		strings[i] = string(vals[i].(goipp.String))
+		strs[i] = string(vals[i].(goipp.String))
 	}
 
-	return strings
+	return strs
 }
 
 // Get boolean attribute. Returns "F" or "T" if attribute is found,

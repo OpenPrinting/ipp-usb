@@ -104,6 +104,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.AddNotEmpty("UUID", strings.TrimPrefix(attrs.getString("printer-uuid"), "urn:uuid:"))
 	info.Txt.Add("txtvers", "1")
 	info.Txt.AddNotEmpty("ty", attrs.getString("printer-make-and-model"))
+	info.Txt.AddNotEmpty("Color", attrs.getBool("color-supported"))
 
 	log_debug("> %q: %s TXT record", dnssd_name, info.Type)
 	for _, txt := range info.Txt {
@@ -134,6 +135,20 @@ func (attrs ippAttrs) getStrings(names ...string) []string {
 	}
 
 	return strings
+}
+
+// Get boolean attribute. Returns "F" or "T" if attribute is found,
+// empty string otherwise.
+// Multiple names may be specified, for fallback purposes
+func (attrs ippAttrs) getBool(names ...string) string {
+	vals := attrs.getAttr(goipp.TypeBoolean, names...)
+	if vals == nil {
+		return ""
+	}
+	if vals[0].(goipp.Boolean) {
+		return "T"
+	}
+	return "F"
 }
 
 // Get attribute's value by attribute name

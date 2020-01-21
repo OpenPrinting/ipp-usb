@@ -99,6 +99,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //                       prefix "one" or "two"
 //     note:             "printer-location"
 //     ty:               "printer-make-and-model"
+//     priority:         hardcoded as "50"
 //     product:          "printer-make-and-model", in round brackets
 //     pdl:              "document-format-supported"
 //     txtvers:          hardcoded as "1"
@@ -122,6 +123,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.Add("air", "none")
 	info.Txt.AddNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
 	info.Txt.Add("rp", "ipp/print")
+	info.Txt.Add("priority", "50")
 	info.Txt.AddNotEmpty("kind", attrs.strJoined("printer-kind"))
 	if !info.Txt.AddNotEmpty("URF", attrs.strJoined("urf-supported")) {
 		info.Txt.AddNotEmpty("URF", devid["URF"])

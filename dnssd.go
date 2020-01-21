@@ -26,8 +26,10 @@ func (txt *DnsDsTxtRecord) Add(key, value string) {
 	*txt = append(*txt, DnsSdTxtItem{key, value})
 }
 
-// AddNotEmpty adds item to DnsDsTxtRecord if its value is not empty
-func (txt *DnsDsTxtRecord) AddNotEmpty(key, value string) bool {
+// IfNotEmpty adds item to DnsDsTxtRecord if its value is not empty
+//
+// It returns true if item was actually added, false otherwise
+func (txt *DnsDsTxtRecord) IfNotEmpty(key, value string) bool {
 	if value != "" {
 		txt.Add(key, value)
 		return true

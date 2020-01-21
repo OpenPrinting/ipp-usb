@@ -101,7 +101,9 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.AddNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
 	info.Txt.Add("rp", "ipp/print")
 	info.Txt.AddNotEmpty("kind", attrs.strJoined("printer-kind"))
-	info.Txt.AddNotEmpty("URF", devid["URF"])
+	if !info.Txt.AddNotEmpty("URF", attrs.strJoined("urf-supported")) {
+		info.Txt.AddNotEmpty("URF", devid["URF"])
+	}
 	info.Txt.AddNotEmpty("UUID", strings.TrimPrefix(attrs.strSingle("printer-uuid"), "urn:uuid:"))
 	info.Txt.AddNotEmpty("Color", attrs.getBool("color-supported"))
 	info.Txt.AddNotEmpty("Duplex", attrs.getDuplex())

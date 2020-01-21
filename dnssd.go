@@ -27,10 +27,12 @@ func (txt *DnsDsTxtRecord) Add(key, value string) {
 }
 
 // AddNotEmpty adds item to DnsDsTxtRecord if its value is not empty
-func (txt *DnsDsTxtRecord) AddNotEmpty(key, value string) {
+func (txt *DnsDsTxtRecord) AddNotEmpty(key, value string) bool {
 	if value != "" {
 		txt.Add(key, value)
+		return true
 	}
+	return false
 }
 
 // export DnsDsTxtRecord into Avahi format

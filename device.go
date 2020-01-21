@@ -119,6 +119,7 @@ ERROR:
 
 // Close the Device
 func (dev *Device) Close() {
+	dev.DnsSdPublisher.Close()
 	dev.HttpServer.Close()
 	dev.UsbTransport.Close()
 }

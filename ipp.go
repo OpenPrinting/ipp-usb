@@ -99,6 +99,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //                       prefix "one" or "two"
 //     note:             "printer-location"
 //     ty:               "printer-make-and-model"
+//     product:          "printer-make-and-model", in round brackets
 //     pdl:              "document-format-supported"
 //     txtvers:          hardcoded as "1"
 //
@@ -130,6 +131,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.AddNotEmpty("Duplex", attrs.getDuplex())
 	info.Txt.Add("note", attrs.strSingle("printer-location"))
 	info.Txt.AddNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
+	info.Txt.AddNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	info.Txt.AddNotEmpty("pdl", attrs.strJoined("document-format-supported"))
 	info.Txt.Add("txtvers", "1")
 
@@ -181,6 +183,15 @@ func (attrs ippAttrs) strSingle(names ...string) string {
 func (attrs ippAttrs) strJoined(names ...string) string {
 	strs := attrs.getStrings(names...)
 	return strings.Join(strs, ",")
+}
+
+// Get a single string, and put it into brackets
+func (attrs ippAttrs) strBrackets(names ...string) string {
+	s := attrs.strSingle(names...)
+	if s != "" {
+		s = "(" + s + ")"
+	}
+	return s
 }
 
 // Get attribute's []string value by attribute name

@@ -95,7 +95,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     PaperMax:         based on decoding "media-size-supported"
 //     URF:              "urf-supported" with fallback to
 //                       URF extracted from "printer-device-id"
-//     UUID:             "printer-uuid"
+//     UUID:             "printer-uuid", without "urn:uuid:" prefix
 //     Color:            "color-supported"
 //     Duplex:           search "sides-supported" for strings with
 //                       prefix "one" or "two"
@@ -135,7 +135,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	if !info.Txt.IfNotEmpty("URF", attrs.strJoined("urf-supported")) {
 		info.Txt.IfNotEmpty("URF", devid["URF"])
 	}
-	info.Txt.IfNotEmpty("UUID", strings.TrimPrefix(attrs.strSingle("printer-uuid"), "urn:uuid:"))
+	info.Txt.IfNotEmpty("UUID", attrs.getUUID())
 	info.Txt.IfNotEmpty("Color", attrs.getBool("color-supported"))
 	info.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
 	info.Txt.Add("note", attrs.strSingle("printer-location"))
@@ -154,6 +154,11 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	}
 
 	return
+}
+
+// getUUID returns printer UUID, or "", if UUID not available
+func (attrs ippAttrs) getUUID() string {
+	return strings.TrimPrefix(attrs.strSingle("printer-uuid"), "urn:uuid:")
 }
 
 // getDuplex returns "T" if printer supports two-sided

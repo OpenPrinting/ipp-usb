@@ -103,6 +103,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     qtotal:           hardcoded as "1"
 //     usb_MDL:          MDL, extracted from "printer-device-id"
 //     usb_MFG:          MFG, extracted from "printer-device-id"
+//     usb_CMD:          CMD, extracted from "printer-device-id"
 //     ty:               "printer-make-and-model"
 //     priority:         hardcoded as "50"
 //     product:          "printer-make-and-model", in round brackets
@@ -141,6 +142,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.Add("qtotal", "1")
 	info.Txt.AddNotEmpty("usb_MDL", devid["MDL"])
 	info.Txt.AddNotEmpty("usb_MFG", devid["MFG"])
+	info.Txt.AddNotEmpty("usb_CMD", devid["CMD"])
 	info.Txt.AddNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
 	info.Txt.AddNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	info.Txt.AddNotEmpty("pdl", attrs.strJoined("document-format-supported"))

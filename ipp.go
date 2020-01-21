@@ -92,6 +92,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     mopria-certified: "mopria-certified"
 //     rp:               hardcoded as "ipp/print"
 //     kind:             "printer-kind"
+//     PaperMax:         based on decoding "media-size-supported"
 //     URF:              "urf-supported" with fallback to
 //                       URF extracted from "printer-device-id"
 //     UUID:             "printer-uuid"
@@ -129,6 +130,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.Add("rp", "ipp/print")
 	info.Txt.Add("priority", "50")
 	info.Txt.AddNotEmpty("kind", attrs.strJoined("printer-kind"))
+	info.Txt.AddNotEmpty("PaperMax", attrs.getPaperMax())
 	if !info.Txt.AddNotEmpty("URF", attrs.strJoined("urf-supported")) {
 		info.Txt.AddNotEmpty("URF", devid["URF"])
 	}
@@ -176,6 +178,106 @@ func (attrs ippAttrs) getDuplex() string {
 	}
 
 	return ""
+}
+
+// getPaperMax returns max paper size, supported by printer
+//
+// According to Bonjour Printing Specification, Version 1.2.1,
+// it can take one of following values:
+//   "<legal-A4"
+//   "legal-A4"
+//   "tabloid-A3"
+//   "isoC-A2"
+//   ">isoC-A2"
+//
+// If PaperMax cannot be guessed, it returns empty string
+func (attrs ippAttrs) getPaperMax() string {
+	// Roll over "media-size-supported", extract
+	// max x-dimension and max y-dimension
+	vals := attrs.getAttr(goipp.TypeCollection, "media-size-supported")
+	if vals == nil {
+		return ""
+	}
+
+	var x_dim_max, y_dim_max int
+
+	for _, collection := range vals {
+		var x_dim_attr, y_dim_attr goipp.Attribute
+		attrs := collection.(goipp.Collection)
+		for i := len(attrs) - 1; i >= 0; i-- {
+			switch attrs[i].Name {
+			case "x-dimension":
+				x_dim_attr = attrs[i]
+			case "y-dimension":
+				y_dim_attr = attrs[i]
+			}
+		}
+
+		if len(x_dim_attr.Values) > 0 {
+			switch dim := x_dim_attr.Values[0].V.(type) {
+			case goipp.Integer:
+				if int(dim) > x_dim_max {
+					x_dim_max = int(dim)
+				}
+			case goipp.Range:
+				if int(dim.Upper) > x_dim_max {
+					x_dim_max = int(dim.Upper)
+				}
+			}
+		}
+
+		if len(y_dim_attr.Values) > 0 {
+			switch dim := y_dim_attr.Values[0].V.(type) {
+			case goipp.Integer:
+				if int(dim) > y_dim_max {
+					y_dim_max = int(dim)
+				}
+			case goipp.Range:
+				if int(dim.Upper) > y_dim_max {
+					y_dim_max = int(dim.Upper)
+				}
+			}
+		}
+	}
+
+	if x_dim_max == 0 || y_dim_max == 0 {
+		return ""
+	}
+
+	// Now classify by printer size
+	//                  US name      US inches   US mm       ISO mm
+	//   "legal-A4"     A, Legal     8.5 x 11    216 x 354   A4: 210 x 297
+	//   "tabloid-A3"   B, Tabloid   11 x 17     279 x 432   A3: 297 x 420
+	//   "isoC-A2"      C            17 × 22     432 × 559   A2: 420 x 594
+	//
+	// Please note, Apple in the "Bonjour Printing Specification"
+	// incorrectly states paper sizes as 9x14, 13x19 and 18x24 inches
+
+	const (
+		legal_a4_x   = 21600
+		legal_a4_y   = 35400
+		tabloid_a3_x = 27900
+		tabloid_a3_y = 43200
+		isoC_a2_x    = 43200
+		isoC_a2_y    = 55900
+	)
+
+	switch {
+	case x_dim_max > isoC_a2_x && y_dim_max > isoC_a2_y:
+		return ">isoC-A2"
+
+	case x_dim_max >= isoC_a2_x && y_dim_max >= isoC_a2_y:
+		return "isoC-A2"
+
+	case x_dim_max >= tabloid_a3_x && y_dim_max >= tabloid_a3_y:
+		return "tabloid-A3"
+
+	case x_dim_max >= legal_a4_x && y_dim_max >= legal_a4_y:
+		return "legal-A4"
+
+	default:
+		return "<legal-A4"
+	}
 }
 
 // Get a single-string attribute

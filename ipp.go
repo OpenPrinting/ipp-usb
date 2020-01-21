@@ -80,7 +80,28 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 	return attrs
 }
 
-// Decode printer attributes
+// Decode printer attributes and build TXT record for IPP service
+//
+// This is where information comes from:
+//
+//   DNS-SD name: "printer-dns-sd-name" with fallback to
+//                "printer-info" and "printer-make-and-model"
+//
+//   TXT fields:
+//     air:              hardcoded as "none"
+//     mopria-certified: "mopria-certified"
+//     rp:               hardcoded as "ipp/print"
+//     kind:             "printer-kind"
+//     URF:              "urf-supported" with fallback to "printer-device-id"
+//     UUID:             "printer-uuid"
+//     Color:            "color-supported"
+//     Duplex:           search "sides-supported" for strings with
+//                       prefix "one" or "two"
+//     note:             "printer-location"
+//     ty:               "printer-make-and-model"
+//     pdl:              "document-format-supported"
+//     txtvers:          hardcoded as "1"
+//
 func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info = DnsSdInfo{Type: "_ipp._tcp"}
 

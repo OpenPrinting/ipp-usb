@@ -41,7 +41,10 @@ func (txt *DnsDsTxtRecord) IfNotEmpty(key, value string) bool {
 func (txt DnsDsTxtRecord) export() [][]byte {
 	var exported [][]byte
 
-	for _, item := range txt {
+	// Note, for a some strange reason, Avahi published
+	// TXT record in reverse order, so compensate it here
+	for i := len(txt) - 1; i >= 0; i-- {
+		item := txt[i]
 		exported = append(exported, []byte(item.Key+"="+item.Value))
 	}
 
@@ -144,21 +147,15 @@ func (publisher *DnsSdPublisher) Close() {
 
 // Add service to the publisher
 func (publisher *DnsSdPublisher) Add(info DnsSdInfo) error {
-	// Obtain fully qualified host name
-	fqdn, err := publisher.server.GetHostNameFqdn()
-	if err != nil {
-		return err
-	}
-
 	// Register a service
-	err = publisher.egroup.AddService(
+	err := publisher.egroup.AddService(
 		int32(publisher.iface),
 		int32(publisher.proto),
 		0,
 		publisher.Instance,
 		info.Type,
-		"local",
-		fqdn,
+		"", // Domain, let Avahi choose
+		"", // Host, let Avahi choose
 		uint16(publisher.Port),
 		info.Txt.export(),
 	)

@@ -20,11 +20,12 @@ import (
 //
 // There is one instance of IppUsb object per USB device
 type Device struct {
-	UsbAddr      UsbAddr
-	State        *DevState
-	HttpClient   *http.Client
-	HttpServer   *http.Server
-	UsbTransport *UsbTransport
+	UsbAddr        UsbAddr
+	State          *DevState
+	HttpClient     *http.Client
+	HttpServer     *http.Server
+	UsbTransport   *UsbTransport
+	DnsSdPublisher *DnsSdPublisher
 }
 
 // NewIppUsb creates new IppUsb object
@@ -36,6 +37,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var err error
 	var info UsbDeviceInfo
 	var listener net.Listener
+	var dnssd_ipp DnsSdInfo
+	var dnssd_name string
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(addr)
@@ -72,13 +75,37 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	dev.HttpServer = NewHttpServer(listener, dev.UsbTransport)
 
 	// Setup DNS-SD
-	_, _, err = IppService(dev.HttpClient)
+	dnssd_name, dnssd_ipp, err = IppService(dev.HttpClient)
+	if err != nil {
+		goto ERROR
+	}
+
+	// Start DNS-SD published
+	dev.DnsSdPublisher, err = NewDnsSdPublisher(dnssd_name, dev.State.HttpPort)
+	if err != nil {
+		goto ERROR
+	}
+
+	err = dev.DnsSdPublisher.Add(dnssd_ipp)
+	if err != nil {
+		goto ERROR
+	}
+
+	err = dev.DnsSdPublisher.Publish()
 	if err != nil {
 		goto ERROR
 	}
 
 	return dev, nil
 ERROR:
+	if dev.DnsSdPublisher != nil {
+		dev.DnsSdPublisher.Close()
+	}
+
+	if dev.HttpServer != nil {
+		dev.HttpServer.Close()
+	}
+
 	if dev.UsbTransport != nil {
 		dev.UsbTransport.Close()
 	}

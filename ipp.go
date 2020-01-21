@@ -51,13 +51,17 @@ func IppService(c *http.Client) (dnssd_name string, info DnsSdInfo, err error) {
 	if err != nil {
 		log_debug("! IPP: %s", err)
 		log_dump(respData)
-		err = nil // FIXME - ignore error for now
+		//err = nil // FIXME - ignore error for now
 		return
 	}
 
 	// Decode service info
 	attrs := newIppDecoder(msg)
 	dnssd_name, info = attrs.Decode()
+
+	// FIXME -- it's a temporary hack until DNS-SD conflict resolution
+	// will be implemented
+	dnssd_name += " (USB)"
 
 	return
 }

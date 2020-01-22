@@ -15,6 +15,12 @@ const (
 	// Path to program state directory
 	PathProgState = "/var/ipp-usb"
 
+	// Path to directory that contains lock files
+	PathLockDir = PathProgState + "/lock"
+
+	// Path to lock file
+	PathLockFile = PathLockDir + "/ipp-usb.lock"
+
 	// Path to directory where per-device state is saved to
 	PathProgStateDev = PathProgState + "/dev"
 )

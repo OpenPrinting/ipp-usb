@@ -47,6 +47,20 @@ func main() {
 		log_exit("This program requires root privileges")
 	}
 
+	// Prevent multiple copies of ipp-usb from being running
+	// in a same time
+	os.MkdirAll(PathLockDir, 0755)
+	lock, err := os.OpenFile(PathLockFile,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	log_check(err)
+	defer lock.Close()
+
+	err = FileLock(lock, true, false)
+	if err == ErrLockIsBusy {
+		log_exit("ipp-usb already running")
+	}
+	log_check(err)
+
 	// Load configuration file
 	err = ConfLoad()
 	log_check(err)

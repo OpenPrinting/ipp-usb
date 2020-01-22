@@ -69,16 +69,6 @@ func IppService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
 		Txt:  nil,
 	}
 
-	for _, txt := range ippInfo.Txt {
-		switch txt.Key {
-		case "rp":
-			lpdInfo.Txt.Add("rp", "auto")
-		case "air", "mopria-certified":
-		default:
-			lpdInfo.Txt.Add(txt.Key, txt.Value)
-		}
-	}
-
 	// Pack it all tigether
 	ippInfo.Port = port
 	infos = []DnsSdInfo{lpdInfo, ippInfo}

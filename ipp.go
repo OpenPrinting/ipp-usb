@@ -20,7 +20,9 @@ import (
 // IppService performs IPP Get-Printer-Attributes query using provided
 // http.Client and decodes received information into the form suitable
 // for DNS-SD registration
-func IppService(c *http.Client) (dnssd_name string, info DnsSdInfo, err error) {
+func IppService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
+	dnssd_name string, infos []DnsSdInfo, err error) {
+
 	uri := "http://localhost/ipp/print"
 
 	// Query printer attributes
@@ -55,9 +57,31 @@ func IppService(c *http.Client) (dnssd_name string, info DnsSdInfo, err error) {
 		return
 	}
 
-	// Decode service info
+	// Decode IPP service info
 	attrs := newIppDecoder(msg)
-	dnssd_name, info = attrs.Decode()
+	dnssd_name, ippInfo := attrs.Decode()
+
+	// Construct LPD info. Per Apple spec, we MUST advertise
+	// LPD with zero port, even if we don't support it
+	lpdInfo := DnsSdInfo{
+		Type: "_printer._tcp",
+		Port: 0,
+		Txt:  nil,
+	}
+
+	for _, txt := range ippInfo.Txt {
+		switch txt.Key {
+		case "rp":
+			lpdInfo.Txt.Add("rp", "auto")
+		case "air", "mopria-certified":
+		default:
+			lpdInfo.Txt.Add(txt.Key, txt.Value)
+		}
+	}
+
+	// Pack it all tigether
+	ippInfo.Port = port
+	infos = []DnsSdInfo{lpdInfo, ippInfo}
 
 	// FIXME -- it's a temporary hack until DNS-SD conflict resolution
 	// will be implemented

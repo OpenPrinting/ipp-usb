@@ -54,6 +54,7 @@ func (txt DnsDsTxtRecord) export() [][]byte {
 // DnsSdService represents a DNS-SD service information
 type DnsSdInfo struct {
 	Type string         // Service type, i.e. "_ipp._tcp"
+	Port int            // TCP port
 	Txt  DnsDsTxtRecord // TXT record
 }
 
@@ -62,14 +63,13 @@ type DnsSdInfo struct {
 // same Service Instance Name
 type DnsSdPublisher struct {
 	Instance     string            // Service Instance Name
-	Port         int               // TCP port
 	iface, proto int               // interface and protocol IDs
 	server       *avahi.Server     // Avahi Server connection
 	egroup       *avahi.EntryGroup // Avahi Entry Group
 }
 
 // NewDnsSdPublisher creates new DnsSdPublisher
-func NewDnsSdPublisher(instanse string, port int) (*DnsSdPublisher, error) {
+func NewDnsSdPublisher(instanse string) (*DnsSdPublisher, error) {
 	var iface, proto int
 	var conn *dbus.Conn
 	var server *avahi.Server
@@ -114,7 +114,6 @@ func NewDnsSdPublisher(instanse string, port int) (*DnsSdPublisher, error) {
 	// Build DnsSdPublisher
 	publisher = &DnsSdPublisher{
 		Instance: instanse,
-		Port:     port,
 		iface:    iface,
 		proto:    proto,
 		server:   server,
@@ -156,7 +155,7 @@ func (publisher *DnsSdPublisher) Add(info DnsSdInfo) error {
 		info.Type,
 		"", // Domain, let Avahi choose
 		"", // Host, let Avahi choose
-		uint16(publisher.Port),
+		uint16(info.Port),
 		info.Txt.export(),
 	)
 

@@ -38,7 +38,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var info UsbDeviceInfo
 	var listener net.Listener
 	var dnssd_name string
-	var dnssd_services []DnsSdInfo
+	var dnssd_ipp []DnsSdInfo
+	var dnssd_escl []DnsSdInfo
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(addr)
@@ -74,10 +75,17 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Create HTTP server
 	dev.HttpServer = NewHttpServer(listener, dev.UsbTransport)
 
-	// Setup DNS-SD
-	dnssd_name, dnssd_services, err = IppService(dev.State.HttpPort, info, dev.HttpClient)
+	// Obtain DNS-SD info for IPP, this is required, we are
+	// IPP-USB gate, after all :-)
+	dnssd_name, dnssd_ipp, err = IppService(dev.State.HttpPort, info, dev.HttpClient)
 	if err != nil {
 		goto ERROR
+	}
+
+	// Obtain DNS-SD info for eSCL, this is optional
+	dnssd_escl, err = EsclService(dev.State.HttpPort, info, dev.HttpClient)
+	if err != nil {
+		log_debug("! %s", err)
 	}
 
 	// Start DNS-SD publisher
@@ -86,7 +94,12 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		goto ERROR
 	}
 
-	for _, svc := range dnssd_services {
+	for _, svc := range append(dnssd_ipp, dnssd_escl...) {
+		log_debug("> %s: %s TXT record:", dnssd_name, svc.Type)
+		for _, txt := range svc.Txt {
+			log_debug("    %s=%s", txt.Key, txt.Value)
+		}
+
 		err = dev.DnsSdPublisher.Add(svc)
 		if err != nil {
 			goto ERROR

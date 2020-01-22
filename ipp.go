@@ -166,11 +166,6 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 	info.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
 	info.Txt.Add("txtvers", "1")
 
-	log_debug("> %q: %s TXT record", dnssd_name, info.Type)
-	for _, txt := range info.Txt {
-		log_debug("  %s=%s", txt.Key, txt.Value)
-	}
-
 	return
 }
 

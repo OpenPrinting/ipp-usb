@@ -275,6 +275,8 @@ func (attrs ippAttrs) getPaperMax() string {
 		}
 	}
 
+	log_debug("  PaperMax: x=%d y=%d", x_dim_max, y_dim_max)
+
 	if x_dim_max == 0 || y_dim_max == 0 {
 		return ""
 	}

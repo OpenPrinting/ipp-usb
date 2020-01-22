@@ -282,21 +282,21 @@ func (attrs ippAttrs) getPaperMax() string {
 	}
 
 	// Now classify by printer size
-	//                  US name      US inches   US mm       ISO mm
-	//   "legal-A4"     A, Legal     8.5 x 11    216 x 354   A4: 210 x 297
-	//   "tabloid-A3"   B, Tabloid   11 x 17     279 x 432   A3: 297 x 420
-	//   "isoC-A2"      C            17 × 22     432 × 559   A2: 420 x 594
+	//                  US name      US inches   US mm           ISO mm
+	//   "legal-A4"     A, Legal     8.5 x 14    215.9 x 355.6   A4: 210 x 297
+	//   "tabloid-A3"   B, Tabloid   11 x 17     279.4 x 431.8   A3: 297 x 420
+	//   "isoC-A2"      C            17 × 22     431.8 × 558,8   A2: 420 x 594
 	//
 	// Please note, Apple in the "Bonjour Printing Specification"
 	// incorrectly states paper sizes as 9x14, 13x19 and 18x24 inches
 
 	const (
-		legal_a4_x   = 21600
-		legal_a4_y   = 35400
-		tabloid_a3_x = 27900
-		tabloid_a3_y = 43200
-		isoC_a2_x    = 43200
-		isoC_a2_y    = 55900
+		legal_a4_x   = 21590
+		legal_a4_y   = 35560
+		tabloid_a3_x = 29700
+		tabloid_a3_y = 43180
+		isoC_a2_x    = 43180
+		isoC_a2_y    = 55880
 	)
 
 	switch {

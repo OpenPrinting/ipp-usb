@@ -40,6 +40,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var dnssd_name string
 	var dnssd_ipp []DnsSdInfo
 	var dnssd_escl []DnsSdInfo
+	var dnssd_all []DnsSdInfo
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(addr)
@@ -89,34 +90,23 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	}
 
 	// Start DNS-SD publisher
-	dev.DnsSdPublisher, err = NewDnsSdPublisher(dnssd_name)
-	if err != nil {
-		goto ERROR
-	}
-
-	for _, svc := range append(dnssd_ipp, dnssd_escl...) {
+	dnssd_all = append(dnssd_ipp, dnssd_escl...)
+	for _, svc := range dnssd_all {
 		log_debug("> %s: %s TXT record:", dnssd_name, svc.Type)
 		for _, txt := range svc.Txt {
 			log_debug("    %s=%s", txt.Key, txt.Value)
 		}
-
-		err = dev.DnsSdPublisher.Add(svc)
-		if err != nil {
-			goto ERROR
-		}
 	}
 
-	err = dev.DnsSdPublisher.Publish()
+	dev.DnsSdPublisher = NewDnsSdPublisher(dnssd_all)
+	err = dev.DnsSdPublisher.Publish(dnssd_name)
 	if err != nil {
 		goto ERROR
 	}
 
 	return dev, nil
-ERROR:
-	if dev.DnsSdPublisher != nil {
-		dev.DnsSdPublisher.Close()
-	}
 
+ERROR:
 	if dev.HttpServer != nil {
 		dev.HttpServer.Close()
 	}
@@ -134,7 +124,7 @@ ERROR:
 
 // Close the Device
 func (dev *Device) Close() {
-	dev.DnsSdPublisher.Close()
+	dev.DnsSdPublisher.Unpublish()
 	dev.HttpServer.Close()
 	dev.UsbTransport.Close()
 }

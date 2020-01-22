@@ -9,6 +9,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/godbus/dbus/v5"
 	"github.com/holoplot/go-avahi"
 )
@@ -63,32 +65,55 @@ type DnsSdInfo struct {
 // same Service Instance Name
 type DnsSdPublisher struct {
 	Instance     string            // Service Instance Name
+	Services     []DnsSdInfo       // Registered services
 	iface, proto int               // interface and protocol IDs
 	server       *avahi.Server     // Avahi Server connection
 	egroup       *avahi.EntryGroup // Avahi Entry Group
 }
 
 // NewDnsSdPublisher creates new DnsSdPublisher
-func NewDnsSdPublisher(instanse string) (*DnsSdPublisher, error) {
-	var iface, proto int
-	var conn *dbus.Conn
-	var server *avahi.Server
-	var egroup *avahi.EntryGroup
-	var publisher *DnsSdPublisher
+func NewDnsSdPublisher(services []DnsSdInfo) *DnsSdPublisher {
+	return &DnsSdPublisher{
+		Services: services,
+	}
+
+}
+
+// Unpublish everything
+func (publisher *DnsSdPublisher) Unpublish() {
+	publisher.server.Close()
+
+	if publisher.egroup != nil {
+		publisher.server.EntryGroupFree(publisher.egroup)
+		publisher.egroup = nil
+	}
+
+	if publisher.server != nil {
+		publisher.server.Close()
+		publisher.server = nil
+	}
+}
+
+// Publish all services
+func (publisher *DnsSdPublisher) Publish(instance string) error {
 	var err error
+	var conn *dbus.Conn
+
+	// Save instance
+	publisher.Instance = instance
 
 	// Compute iface and proto
-	iface = avahi.InterfaceUnspec
+	publisher.iface = avahi.InterfaceUnspec
 	if Conf.LoopbackOnly {
-		iface, err = Loopback()
+		publisher.iface, err = Loopback()
 		if err != nil {
 			goto ERROR
 		}
 	}
 
-	proto = avahi.ProtoUnspec
+	publisher.proto = avahi.ProtoUnspec
 	if !Conf.IpV6Enable {
-		proto = avahi.ProtoInet
+		publisher.proto = avahi.ProtoInet
 	}
 
 	// Connect to dbus
@@ -98,71 +123,53 @@ func NewDnsSdPublisher(instanse string) (*DnsSdPublisher, error) {
 	}
 
 	// create avahi.Server
-	server, err = avahi.ServerNew(conn)
+	publisher.server, err = avahi.ServerNew(conn)
 	if err != nil {
 		goto ERROR
 	}
 
-	conn = nil // Now owned by server
+	conn = nil // Now owned by publisher.server
 
 	// Create new entry group
-	egroup, err = server.EntryGroupNew()
+	publisher.egroup, err = publisher.server.EntryGroupNew()
 	if err != nil {
 		goto ERROR
 	}
 
-	// Build DnsSdPublisher
-	publisher = &DnsSdPublisher{
-		Instance: instanse,
-		iface:    iface,
-		proto:    proto,
-		server:   server,
-		egroup:   egroup,
+	// Add all services
+	for _, svc := range publisher.Services {
+		err = publisher.egroup.AddService(
+			int32(publisher.iface),
+			int32(publisher.proto),
+			0,
+			publisher.Instance,
+			svc.Type,
+			"", // Domain, let Avahi choose
+			"", // Host, let Avahi choose
+			uint16(svc.Port),
+			svc.Txt.export(),
+		)
+
+		if err != nil {
+			goto ERROR
+		}
 	}
 
-	return publisher, nil
+	// Commit everything
+	err = publisher.egroup.Commit()
+	if err != nil {
+		goto ERROR
+	}
+
+	return nil
 
 	// Error: cleanup and exit
 ERROR:
-	if egroup != nil {
-		server.EntryGroupFree(egroup)
-	}
-
-	if server != nil {
-		server.Close()
-	}
-
 	if conn != nil {
 		conn.Close()
 	}
 
-	return nil, err
-}
+	publisher.Unpublish()
 
-// Close DNS-SD publisher
-func (publisher *DnsSdPublisher) Close() {
-	publisher.server.Close()
-}
-
-// Add service to the publisher
-func (publisher *DnsSdPublisher) Add(info DnsSdInfo) error {
-	// Register a service
-	err := publisher.egroup.AddService(
-		int32(publisher.iface),
-		int32(publisher.proto),
-		0,
-		publisher.Instance,
-		info.Type,
-		"", // Domain, let Avahi choose
-		"", // Host, let Avahi choose
-		uint16(info.Port),
-		info.Txt.export(),
-	)
-
-	return err
-}
-
-// Publish all previously added services
-func (publisher *DnsSdPublisher) Publish() error {
-	return publisher.egroup.Commit()
+	return fmt.Errorf("DNS-SD: %s", err)
 }

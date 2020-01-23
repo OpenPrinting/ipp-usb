@@ -14,4 +14,5 @@ import (
 
 var (
 	ErrLockIsBusy = errors.New("Lock is busy")
+	ErrNoMemory   = errors.New("Not enough memory")
 )

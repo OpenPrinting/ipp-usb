@@ -4,6 +4,8 @@
  * See LICENSE for license terms and conditions
  *
  * File locking -- UNIX version
+ *
+ * +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
  */
 
 package main

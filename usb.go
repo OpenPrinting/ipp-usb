@@ -49,8 +49,19 @@ type UsbDeviceInfo struct {
 // Ident returns device identification string, suitable as
 // persistent state identifier
 func (info UsbDeviceInfo) Ident() string {
-	return fmt.Sprintf(fmt.Sprintf("%s-%s",
-		info.Vendor, info.SerialNumber))
+	id := info.Vendor.String() + "-" + info.SerialNumber + "-" + info.Product
+	id = strings.Map(func(c rune) rune {
+		switch {
+		case '0' <= c && c <= '9':
+		case 'a' <= c && c <= 'z':
+		case 'A' <= c && c <= 'Z':
+		case c == '-' || c == '_':
+		default:
+			c = '-'
+		}
+		return c
+	}, id)
+	return id
 }
 
 // Comment returns a short comment, describing a device

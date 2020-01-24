@@ -121,14 +121,15 @@ func NewDnsSdPublisher(devstate *DevState, services DnsSdServices) *DnsSdPublish
 func (publisher *DnsSdPublisher) Publish() error {
 	var err error
 
-	publisher.sysdep, err = newDnssdSysdep(publisher.DevState.DnsSdOverride,
+	instance := publisher.instance(0)
+	publisher.sysdep, err = newDnssdSysdep(instance,
 		publisher.Services)
 
 	if err != nil {
 		return err
 	}
 
-	log_debug("+ DNS-SD: %s published", publisher.DevState.DnsSdOverride)
+	log_debug("+ DNS-SD: %s published", instance)
 
 	publisher.finDone.Add(1)
 	go publisher.goroutine()
@@ -143,7 +144,20 @@ func (publisher *DnsSdPublisher) Unpublish() {
 
 	publisher.sysdep.Close()
 
-	log_debug("- DNS-SD: %s removed", publisher.DevState.DnsSdOverride)
+	log_debug("- DNS-SD: %s removed", publisher.instance(0))
+}
+
+// Build service instance name with optional collision-resolution suffix
+func (publisher *DnsSdPublisher) instance(suffix int) string {
+	if suffix == 0 {
+		if publisher.DevState.DnsSdName == publisher.DevState.DnsSdOverride {
+			return publisher.DevState.DnsSdName + " (USB)"
+		} else {
+			return publisher.DevState.DnsSdOverride
+		}
+	} else {
+		return publisher.DevState.DnsSdName + fmt.Sprintf(" (USB %d)", suffix)
+	}
 }
 
 // Event handling goroutine
@@ -157,7 +171,7 @@ func (publisher *DnsSdPublisher) goroutine() {
 	var err error
 	var suffix int
 
-	instance := publisher.DevState.DnsSdOverride
+	instance := publisher.instance(0)
 	for {
 		fail := false
 
@@ -185,13 +199,7 @@ func (publisher *DnsSdPublisher) goroutine() {
 			}
 
 		case <-timer.C:
-			instance = publisher.DevState.DnsSdName
-			if suffix == 1 {
-				instance += " (USB)"
-			} else if suffix > 1 {
-				instance += fmt.Sprintf(" (USB %d)", suffix-1)
-			}
-
+			instance = publisher.instance(suffix)
 			publisher.sysdep, err = newDnssdSysdep(instance,
 				publisher.Services)
 

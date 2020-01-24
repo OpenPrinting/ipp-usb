@@ -23,4 +23,7 @@ const (
 
 	// Path to directory where per-device state is saved to
 	PathProgStateDev = PathProgState + "/dev"
+
+	// Path to log directory
+	PathLogDir = "/var/log/ipp-usb"
 )

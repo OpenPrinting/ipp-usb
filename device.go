@@ -26,6 +26,7 @@ type Device struct {
 	HttpServer     *http.Server
 	UsbTransport   *UsbTransport
 	DnsSdPublisher *DnsSdPublisher
+	Log            *Logger
 }
 
 // NewIppUsb creates new IppUsb object
@@ -46,8 +47,20 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		goto ERROR
 	}
 
-	// Obtain device info
+	// Obtain device info and create logger
 	info = dev.UsbTransport.UsbDeviceInfo()
+	dev.Log = NewDeviceLogger(info)
+
+	dev.Log.Begin().
+		Debug(' ', "===============================").
+		Debug('+', "%s: device info", addr).
+		Debug(' ', "Ident:        %s", info.Ident()).
+		Debug(' ', "Manufacturer: %s", info.Manufacturer).
+		Debug(' ', "Product:      %s", info.Product).
+		Debug(' ', "DeviceId:     %s", info.DeviceId).
+		Commit()
+
+	// Write log messages
 	log_debug("+ %s: device info", addr)
 	log_debug("  Ident:        %s", info.Ident())
 	log_debug("  Manufacturer: %s", info.Manufacturer)
@@ -131,4 +144,6 @@ func (dev *Device) Close() {
 	dev.DnsSdPublisher.Unpublish()
 	dev.HttpServer.Close()
 	dev.UsbTransport.Close()
+	dev.Log.Debug(' ', "device closed")
+	dev.Log.Close()
 }

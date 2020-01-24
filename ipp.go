@@ -20,8 +20,10 @@ import (
 // IppService performs IPP Get-Printer-Attributes query using provided
 // http.Client and decodes received information into the form suitable
 // for DNS-SD registration
-func IppService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
-	dnssd_name string, infos []DnsSdInfo, err error) {
+//
+// Discovered services will be added to the services collection
+func IppService(services *DnsSdServices,
+	port int, usbinfo UsbDeviceInfo, c *http.Client) (dnssd_name string, err error) {
 
 	uri := "http://localhost/ipp/print"
 
@@ -59,19 +61,20 @@ func IppService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)
-	dnssd_name, ippInfo := attrs.Decode()
+	dnssd_name, ippScv := attrs.Decode()
 
 	// Construct LPD info. Per Apple spec, we MUST advertise
 	// LPD with zero port, even if we don't support it
-	lpdInfo := DnsSdInfo{
+	lpdScv := DnsSdSvcInfo{
 		Type: "_printer._tcp",
 		Port: 0,
 		Txt:  nil,
 	}
 
-	// Pack it all tigether
-	ippInfo.Port = port
-	infos = []DnsSdInfo{lpdInfo, ippInfo}
+	// Pack it all together
+	ippScv.Port = port
+	services.Add(lpdScv)
+	services.Add(ippScv)
 
 	// FIXME -- it's a temporary hack until DNS-SD conflict resolution
 	// will be implemented
@@ -128,8 +131,8 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     pdl:              "document-format-supported"
 //     txtvers:          hardcoded as "1"
 //
-func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
-	info = DnsSdInfo{Type: "_ipp._tcp"}
+func (attrs ippAttrs) Decode() (dnssd_name string, svc DnsSdSvcInfo) {
+	svc = DnsSdSvcInfo{Type: "_ipp._tcp"}
 
 	// Obtain dnssd_name
 	dnssd_name = attrs.strSingle("printer-dns-sd-name",
@@ -144,27 +147,27 @@ func (attrs ippAttrs) Decode() (dnssd_name string, info DnsSdInfo) {
 		}
 	}
 
-	info.Txt.Add("air", "none")
-	info.Txt.IfNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
-	info.Txt.Add("rp", "ipp/print")
-	info.Txt.Add("priority", "50")
-	info.Txt.IfNotEmpty("kind", attrs.strJoined("printer-kind"))
-	info.Txt.IfNotEmpty("PaperMax", attrs.getPaperMax())
-	if !info.Txt.IfNotEmpty("URF", attrs.strJoined("urf-supported")) {
-		info.Txt.IfNotEmpty("URF", devid["URF"])
+	svc.Txt.Add("air", "none")
+	svc.Txt.IfNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
+	svc.Txt.Add("rp", "ipp/print")
+	svc.Txt.Add("priority", "50")
+	svc.Txt.IfNotEmpty("kind", attrs.strJoined("printer-kind"))
+	svc.Txt.IfNotEmpty("PaperMax", attrs.getPaperMax())
+	if !svc.Txt.IfNotEmpty("URF", attrs.strJoined("urf-supported")) {
+		svc.Txt.IfNotEmpty("URF", devid["URF"])
 	}
-	info.Txt.IfNotEmpty("UUID", attrs.getUUID())
-	info.Txt.IfNotEmpty("Color", attrs.getBool("color-supported"))
-	info.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
-	info.Txt.Add("note", attrs.strSingle("printer-location"))
-	info.Txt.Add("qtotal", "1")
-	info.Txt.IfNotEmpty("usb_MDL", devid["MDL"])
-	info.Txt.IfNotEmpty("usb_MFG", devid["MFG"])
-	info.Txt.IfNotEmpty("usb_CMD", devid["CMD"])
-	info.Txt.IfNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
-	info.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
-	info.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
-	info.Txt.Add("txtvers", "1")
+	svc.Txt.IfNotEmpty("UUID", attrs.getUUID())
+	svc.Txt.IfNotEmpty("Color", attrs.getBool("color-supported"))
+	svc.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
+	svc.Txt.Add("note", attrs.strSingle("printer-location"))
+	svc.Txt.Add("qtotal", "1")
+	svc.Txt.IfNotEmpty("usb_MDL", devid["MDL"])
+	svc.Txt.IfNotEmpty("usb_MFG", devid["MFG"])
+	svc.Txt.IfNotEmpty("usb_CMD", devid["CMD"])
+	svc.Txt.IfNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
+	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
+	svc.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
+	svc.Txt.Add("txtvers", "1")
 
 	return
 }

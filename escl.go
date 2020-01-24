@@ -23,12 +23,14 @@ import (
 // EsclService queries eSCL ScannerCapabilities using provided
 // http.Client and decodes received information into the form
 // suitable for DNS-SD registration
-func EsclService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
-	infos []DnsSdInfo, err error) {
+//
+// Discovered services will be added to the services collection
+func EsclService(services *DnsSdServices,
+	port int, usbinfo UsbDeviceInfo, c *http.Client) (err error) {
 
 	uri := "http://localhost/eSCL/ScannerCapabilities"
 	decoder := newEsclCapsDecoder()
-	info := DnsSdInfo{
+	svc := DnsSdSvcInfo{
 		Type: "_uscan._tcp",
 		Port: port,
 	}
@@ -70,18 +72,18 @@ func EsclService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
 	// Build eSCL DnsSdInfo
 
 	if decoder.duplex {
-		info.Txt.Add("duplex", "T")
+		svc.Txt.Add("duplex", "T")
 	} else {
-		info.Txt.Add("duplex", "F")
+		svc.Txt.Add("duplex", "F")
 	}
 
 	switch {
 	case decoder.platen && !decoder.adf:
-		info.Txt.Add("is", "platen")
+		svc.Txt.Add("is", "platen")
 	case !decoder.platen && decoder.adf:
-		info.Txt.Add("is", "adf")
+		svc.Txt.Add("is", "adf")
 	case decoder.platen && decoder.adf:
-		info.Txt.Add("is", "platen,adf")
+		svc.Txt.Add("is", "platen,adf")
 	}
 
 	list = []string{}
@@ -89,24 +91,24 @@ func EsclService(port int, usbinfo UsbDeviceInfo, c *http.Client) (
 		list = append(list, c)
 	}
 	sort.Strings(list)
-	info.Txt.IfNotEmpty("cs", strings.Join(list, ","))
+	svc.Txt.IfNotEmpty("cs", strings.Join(list, ","))
 
-	info.Txt.IfNotEmpty("UUID", decoder.uuid)
+	svc.Txt.IfNotEmpty("UUID", decoder.uuid)
 
 	list = []string{}
 	for p := range decoder.pdl {
 		list = append(list, p)
 	}
 	sort.Strings(list)
-	info.Txt.IfNotEmpty("pdl", strings.Join(list, ","))
+	svc.Txt.IfNotEmpty("pdl", strings.Join(list, ","))
 
-	info.Txt.Add("ty", usbinfo.Product)
-	info.Txt.Add("rs", "eSCL")
-	info.Txt.IfNotEmpty("vers", decoder.version)
-	info.Txt.IfNotEmpty("txtvers", "1")
+	svc.Txt.Add("ty", usbinfo.Product)
+	svc.Txt.Add("rs", "eSCL")
+	svc.Txt.IfNotEmpty("vers", decoder.version)
+	svc.Txt.IfNotEmpty("txtvers", "1")
 
-	// Pack the reply
-	infos = []DnsSdInfo{info}
+	// Add to services
+	services.Add(svc)
 
 	return
 

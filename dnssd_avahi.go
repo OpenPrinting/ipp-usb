@@ -3,7 +3,7 @@
  * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
  * See LICENSE for license terms and conditions
  *
- * DNS-SD, Avahi-based system-dependent part
+ * DNS-SD publisher: Avahi-based system-dependent part
  *
  * +build linux
  */
@@ -42,7 +42,7 @@ type dnssdSysdep struct {
 }
 
 // newDnssdSysdep creates new dnssdSysdep instance
-func newDnssdSysdep(instance string, services []DnsSdInfo) (
+func newDnssdSysdep(instance string, services DnsSdServices) (
 	*dnssdSysdep, error) {
 
 	var err error

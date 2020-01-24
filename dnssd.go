@@ -3,7 +3,7 @@
  * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
  * See LICENSE for license terms and conditions
  *
- * Publishing self via DNS-SD
+ * DNS-SD publisher: system-independent stuff
  */
 
 package main
@@ -46,25 +46,32 @@ func (txt DnsDsTxtRecord) export() [][]byte {
 	return exported
 }
 
-// DnsSdService represents a DNS-SD service information
-type DnsSdInfo struct {
+// DnsSdSvcInfo represents a DNS-SD service information
+type DnsSdSvcInfo struct {
 	Type string         // Service type, i.e. "_ipp._tcp"
 	Port int            // TCP port
 	Txt  DnsDsTxtRecord // TXT record
+}
+
+// DnsSdServices represents a collection of DNS-SD services
+type DnsSdServices []DnsSdSvcInfo
+
+// Add DnsSdSvcInfo to DnsSdServices
+func (services *DnsSdServices) Add(srv DnsSdSvcInfo) {
+	*services = append(*services, srv)
 }
 
 // DnsSdPublisher represents a DNS-SD service publisher
 // One publisher may publish multiple services unser the
 // same Service Instance Name
 type DnsSdPublisher struct {
-	Instance     string       // Service Instance Name
-	Services     []DnsSdInfo  // Registered services
-	iface, proto int          // interface and protocol IDs
-	sysdep       *dnssdSysdep // System-dependent stuff
+	Instance string        // Service Instance Name
+	Services DnsSdServices // Registered services
+	sysdep   *dnssdSysdep  // System-dependent stuff
 }
 
 // NewDnsSdPublisher creates new DnsSdPublisher
-func NewDnsSdPublisher(services []DnsSdInfo) *DnsSdPublisher {
+func NewDnsSdPublisher(services DnsSdServices) *DnsSdPublisher {
 	return &DnsSdPublisher{
 		Services: services,
 	}

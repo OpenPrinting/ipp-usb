@@ -22,7 +22,7 @@ import (
 // for DNS-SD registration
 //
 // Discovered services will be added to the services collection
-func IppService(services *DnsSdServices,
+func IppService(log *LogMessage, services *DnsSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (dnssd_name string, err error) {
 
 	uri := "http://localhost/ipp/print"
@@ -37,6 +37,9 @@ func IppService(services *DnsSdServices,
 		goipp.TagURI, goipp.String(uri)))
 	msg.Operation.Add(goipp.MakeAttribute("requested-attributes",
 		goipp.TagKeyword, goipp.String("all")))
+
+	log.Debug(' ', "IPP request:")
+	msg.Print(log, true)
 
 	req, _ := msg.EncodeBytes()
 	resp, err := c.Post(uri, goipp.ContentType, bytes.NewBuffer(req))
@@ -55,9 +58,11 @@ func IppService(services *DnsSdServices,
 	if err != nil {
 		log_debug("! IPP: %s", err)
 		log_dump(respData)
-		//err = nil // FIXME - ignore error for now
 		return
 	}
+
+	log.Debug(' ', "IPP response:")
+	msg.Print(log, false)
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)

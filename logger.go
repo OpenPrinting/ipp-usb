@@ -214,6 +214,44 @@ func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
 	return msg
 }
 
+// Write implements io.Writer interface. Text is automatically
+// split into lines
+func (msg *LogMessage) Write(text []byte) (n int, err error) {
+	n, err = len(text), nil
+
+	for len(text) > 0 {
+		// Fetch next line
+		var line []byte
+
+		if l := bytes.IndexByte(text, '\n'); l >= 0 {
+			l++
+			line = text[:l]
+			text = text[l:]
+		} else {
+			line = text
+			text = nil
+		}
+
+		// Save the line
+		if cnt := len(msg.lines); cnt > 0 && !logBufTerminated(msg.lines[cnt-1]) {
+			buf := msg.lines[cnt-1]
+			if buf.Len() == 0 {
+				buf.Write([]byte("  "))
+			}
+			buf.Write(line)
+		} else {
+			buf := logBufAlloc()
+			if len(line) != 0 {
+				buf.Write([]byte("  "))
+				buf.Write(line)
+			}
+			msg.lines = append(msg.lines, buf)
+		}
+	}
+
+	return
+}
+
 // Write HEX dump with optional title. If title is not "", it is formatted,
 // as fmt.Printf does, and prepended to the dump
 func (msg *LogMessage) Dump(data []byte, title string, args ...interface{}) *LogMessage {
@@ -270,10 +308,20 @@ func (msg *LogMessage) Dump(data []byte, title string, args ...interface{}) *Log
 
 // Commit message to the log
 func (msg *LogMessage) Commit() {
+	// Don't forget to free the message
+	defer msg.free()
+
+	// Ignore empty messages
+	if len(msg.lines) == 0 {
+		return
+	}
+
+	// Lock the logger
 	msg.logger.lock.Lock()
 	defer msg.logger.lock.Unlock()
 
-	if msg.logger.file == nil {
+	// Open log file on demand
+	if msg.logger.file == nil && !msg.logger.console {
 		os.MkdirAll(PathLogDir, 0755)
 		msg.logger.file, _ = os.OpenFile(msg.logger.path,
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
@@ -283,13 +331,18 @@ func (msg *LogMessage) Commit() {
 		return
 	}
 
+	// Rotate now
+	msg.logger.rotate()
+
+	// Send message content to the logger
 	msg.logger.fmtTime()
 	for _, l := range msg.lines {
+		if !logBufTerminated(l) {
+			l.WriteByte('\n')
+		}
 		msg.logger.file.Write(msg.logger.time.Bytes())
 		msg.logger.file.Write(l.Bytes())
 	}
-
-	msg.logger.rotate()
 }
 
 // Reject the message
@@ -314,6 +367,14 @@ func (msg *LogMessage) free() {
 
 	// Put the message
 	logMessagePool.Put(msg)
+}
+
+// Check if line buffer is '\n'-terminated
+func logBufTerminated(buf *bytes.Buffer) bool {
+	if l := buf.Len(); l > 0 {
+		return buf.Bytes()[l-1] == '\n'
+	}
+	return false
 }
 
 // Allocate a buffer

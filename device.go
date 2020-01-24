@@ -40,6 +40,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var listener net.Listener
 	var dnssd_name string
 	var dnssd_services DnsSdServices
+	var log *LogMessage
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(addr)
@@ -89,7 +90,11 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 
 	// Obtain DNS-SD info for IPP, this is required, we are
 	// IPP-USB gate, after all :-)
-	dnssd_name, err = IppService(&dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
+	log = dev.Log.Begin()
+	dnssd_name, err = IppService(log, &dnssd_services,
+		dev.State.HttpPort, info, dev.HttpClient)
+	log.Commit()
+
 	if err != nil {
 		goto ERROR
 	}

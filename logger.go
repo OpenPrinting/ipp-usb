@@ -29,6 +29,16 @@ var (
 	logBufferPool  = sync.Pool{New: func() interface{} { return &bytes.Buffer{} }}
 )
 
+// LogLevel enumerates possible log levels
+type LogLevel int
+
+const (
+	LogError LogLevel = iota
+	LogInfo
+	LogDebug
+	LogTrace
+)
+
 // Logger implements logging facilities
 type Logger struct {
 	lock    sync.Mutex   // Write lock
@@ -67,17 +77,17 @@ func (l *Logger) Begin() *LogMessage {
 	return msg
 }
 
-// Write debug message
+// Debug writes a LogDebug message
 func (l *Logger) Debug(prefix byte, format string, args ...interface{}) {
 	l.Begin().Debug(prefix, format, args...).Commit()
 }
 
-// Write info massage
+// Info writes a LogInfo message
 func (l *Logger) Info(format string, args ...interface{}) {
 	l.Begin().Info(format, args...).Commit()
 }
 
-// Write error massage
+// Error writes a LogError message
 func (l *Logger) Error(format string, args ...interface{}) {
 	l.Begin().Error(format, args...).Commit()
 }
@@ -183,35 +193,31 @@ type LogMessage struct {
 	lines  []*bytes.Buffer // One buffer per line
 }
 
-// Write debug message
+// add formats a next line of log message, with level and prefix char
+func (msg *LogMessage) add(level LogLevel, prefix byte,
+	format string, args ...interface{}) *LogMessage {
+
+	buf := logBufAlloc()
+	buf.Write([]byte{prefix, ' '})
+	fmt.Fprintf(buf, format, args...)
+	buf.WriteByte('\n')
+	msg.lines = append(msg.lines, buf)
+	return msg
+}
+
+// Debug writes a LogDebug message
 func (msg *LogMessage) Debug(prefix byte, format string, args ...interface{}) *LogMessage {
-	buf := logBufAlloc()
-	buf.WriteByte(prefix)
-	buf.WriteByte(' ')
-	fmt.Fprintf(buf, format, args...)
-	buf.WriteByte('\n')
-	msg.lines = append(msg.lines, buf)
-	return msg
+	return msg.add(LogDebug, prefix, format, args...)
 }
 
-// Write info massage
+// Info writes a LogInfo message
 func (msg *LogMessage) Info(format string, args ...interface{}) *LogMessage {
-	buf := logBufAlloc()
-	buf.Write([]byte("  "))
-	fmt.Fprintf(buf, format, args...)
-	buf.WriteByte('\n')
-	msg.lines = append(msg.lines, buf)
-	return msg
+	return msg.add(LogInfo, ' ', format, args...)
 }
 
-// Write error massage
+// Error writes a LogError message
 func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
-	buf := logBufAlloc()
-	buf.Write([]byte("! "))
-	fmt.Fprintf(buf, format, args...)
-	buf.WriteByte('\n')
-	msg.lines = append(msg.lines, buf)
-	return msg
+	return msg.add(LogError, '!', format, args...)
 }
 
 // Write implements io.Writer interface. Text is automatically

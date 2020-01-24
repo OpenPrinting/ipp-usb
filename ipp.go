@@ -76,10 +76,6 @@ func IppService(services *DnsSdServices,
 	services.Add(lpdScv)
 	services.Add(ippScv)
 
-	// FIXME -- it's a temporary hack until DNS-SD conflict resolution
-	// will be implemented
-	dnssd_name += " (USB)"
-
 	return
 }
 

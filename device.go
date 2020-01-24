@@ -81,6 +81,13 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		goto ERROR
 	}
 
+	// Update device state, if name changed
+	if dnssd_name != dev.State.DnsSdName {
+		dev.State.DnsSdName = dnssd_name
+		dev.State.DnsSdOverride = dnssd_name
+		dev.State.Save()
+	}
+
 	// Obtain DNS-SD info for eSCL, this is optional
 	err = EsclService(&dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
 	if err != nil {
@@ -95,8 +102,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		}
 	}
 
-	dev.DnsSdPublisher = NewDnsSdPublisher(dnssd_services)
-	err = dev.DnsSdPublisher.Publish(dnssd_name)
+	dev.DnsSdPublisher = NewDnsSdPublisher(dev.State, dnssd_services)
+	err = dev.DnsSdPublisher.Publish()
 	if err != nil {
 		goto ERROR
 	}

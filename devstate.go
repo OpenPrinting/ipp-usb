@@ -21,9 +21,11 @@ import (
 // DevState manages a per-device persistent state (such as HTTP
 // port allocation etc)
 type DevState struct {
-	Ident    string // Device identification
-	Comment  string // Device comment
-	HttpPort int    // Allocated HTTP port
+	Ident         string // Device identification
+	Comment       string // Device comment
+	HttpPort      int    // Allocated HTTP port
+	DnsSdName     string // DNS-SD name, as reported by device
+	DnsSdOverride string // DNS-SD name after collision resolution
 
 	path string // Path to the disk file
 }
@@ -55,6 +57,9 @@ func LoadDevState(ident string) *DevState {
 			log_debug("! STATE LOAD: %s", err)
 			update = true
 		}
+
+		state.DnsSdName = state.loadString(section, "dns-sd-name")
+		state.DnsSdOverride = state.loadString(section, "dns-sd-override")
 	}
 
 	if update {
@@ -87,6 +92,17 @@ func (state *DevState) loadTCPPort(section *ini.Section,
 	return nil
 }
 
+// Load string, defaults to ""
+func (state *DevState) loadString(section *ini.Section,
+	name string) string {
+
+	if key, _ := section.GetKey(name); key != nil {
+		return key.String()
+	}
+
+	return ""
+}
+
 // Save updates DevState on disk
 func (state *DevState) Save() {
 	os.MkdirAll(PathProgStateDev, 0755)
@@ -97,6 +113,14 @@ func (state *DevState) Save() {
 
 	if state.HttpPort > 0 {
 		section.NewKey("http-port", strconv.Itoa(state.HttpPort))
+	}
+
+	if state.DnsSdName != "" {
+		section.NewKey("dns-sd-name", state.DnsSdName)
+	}
+
+	if state.DnsSdOverride != "" {
+		section.NewKey("dns-sd-override", state.DnsSdOverride)
 	}
 
 	err := inifile.SaveTo(state.path)

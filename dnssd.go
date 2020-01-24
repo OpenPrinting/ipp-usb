@@ -71,7 +71,7 @@ func (services *DnsSdServices) Add(srv DnsSdSvcInfo) {
 // One publisher may publish multiple services unser the
 // same Service Instance Name
 type DnsSdPublisher struct {
-	Instance string         // Service Instance Name
+	DevState *DevState      // Device persistent state
 	Services DnsSdServices  // Registered services
 	fin      chan struct{}  // Closed to terminate publisher goroutine
 	finDone  sync.WaitGroup // To wait for goroutine termination
@@ -105,26 +105,30 @@ func (status DnsSdStatus) String() string {
 }
 
 // NewDnsSdPublisher creates new DnsSdPublisher
-func NewDnsSdPublisher(services DnsSdServices) *DnsSdPublisher {
+//
+// Service instanse name comes from the DevState, and if
+// name changes as result of name collision resolution,
+// DevState will be updated
+func NewDnsSdPublisher(devstate *DevState, services DnsSdServices) *DnsSdPublisher {
 	return &DnsSdPublisher{
+		DevState: devstate,
 		Services: services,
 		fin:      make(chan struct{}),
 	}
 }
 
 // Publish all services
-func (publisher *DnsSdPublisher) Publish(instance string) error {
+func (publisher *DnsSdPublisher) Publish() error {
 	var err error
 
-	publisher.Instance = instance
-	publisher.sysdep, err = newDnssdSysdep(publisher.Instance,
+	publisher.sysdep, err = newDnssdSysdep(publisher.DevState.DnsSdOverride,
 		publisher.Services)
 
 	if err != nil {
 		return err
 	}
 
-	log_debug("+ DNS-SD: %s published", instance)
+	log_debug("+ DNS-SD: %s published", publisher.DevState.DnsSdOverride)
 
 	publisher.finDone.Add(1)
 	go publisher.goroutine()
@@ -139,7 +143,7 @@ func (publisher *DnsSdPublisher) Unpublish() {
 
 	publisher.sysdep.Close()
 
-	log_debug("- DNS-SD: %s removed", publisher.Instance)
+	log_debug("- DNS-SD: %s removed", publisher.DevState.DnsSdOverride)
 }
 
 // Event handling goroutine
@@ -153,6 +157,7 @@ func (publisher *DnsSdPublisher) goroutine() {
 	var err error
 	var suffix int
 
+	instance := publisher.DevState.DnsSdOverride
 	for {
 		fail := false
 
@@ -162,17 +167,25 @@ func (publisher *DnsSdPublisher) goroutine() {
 
 		case status := <-publisher.sysdep.Chan():
 			log_debug("  DNS-SD: %s", status)
-			if status != DnsSdSuccess {
+
+			switch status {
+			case DnsSdSuccess:
+				if instance != publisher.DevState.DnsSdOverride {
+					publisher.DevState.DnsSdOverride = instance
+					publisher.DevState.Save()
+				}
+
+			case DnsSdCollision:
+				suffix++
+				fallthrough
+
+			default:
 				fail = true
 				publisher.sysdep.Close()
-
-				if status == DnsSdCollision {
-					suffix++
-				}
 			}
 
 		case <-timer.C:
-			instance := publisher.Instance
+			instance = publisher.DevState.DnsSdName
 			if suffix == 1 {
 				instance += " (USB)"
 			} else if suffix > 1 {

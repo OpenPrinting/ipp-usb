@@ -33,12 +33,15 @@ import (
 var (
 	avahiInitLock     sync.Mutex
 	avahiThreadedPoll *C.AvahiThreadedPoll
+	avahiClientMap    = make(map[*C.AvahiClient]*dnssdSysdep)
+	avahiEgroupMap    = make(map[*C.AvahiEntryGroup]*dnssdSysdep)
 )
 
 // dnssdSysdep represents a system-dependent
 type dnssdSysdep struct {
-	client *C.AvahiClient     // Avahi client
-	egroup *C.AvahiEntryGroup // Avahi entry group
+	client     *C.AvahiClient     // Avahi client
+	egroup     *C.AvahiEntryGroup // Avahi entry group
+	statusChan chan DnsSdStatus   // Status notifications channel
 }
 
 // newDnssdSysdep creates new dnssdSysdep instance
@@ -48,9 +51,11 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 	var err error
 	var poll *C.AvahiPoll
 	var rc C.int
-	var client *C.AvahiClient
-	var egroup *C.AvahiEntryGroup
 	var proto, iface int
+
+	sysdep := &dnssdSysdep{
+		statusChan: make(chan DnsSdStatus, 1),
+	}
 
 	c_instance := C.CString(instance)
 	defer C.free(unsafe.Pointer(c_instance))
@@ -66,7 +71,7 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 	defer avahiThreadUnlock()
 
 	// Create Avahi client
-	client = C.avahi_client_new(
+	sysdep.client = C.avahi_client_new(
 		poll,
 		C.AVAHI_CLIENT_NO_FAIL,
 		C.AvahiClientCallback(C.avahiClientCallback),
@@ -74,21 +79,25 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 		&rc,
 	)
 
-	if client == nil {
+	if sysdep.client == nil {
 		goto AVAHI_ERROR
 	}
 
+	avahiClientMap[sysdep.client] = sysdep
+
 	// Create entry group
-	egroup = C.avahi_entry_group_new(
-		client,
+	sysdep.egroup = C.avahi_entry_group_new(
+		sysdep.client,
 		C.AvahiEntryGroupCallback(C.avahiEntryGroupCallback),
 		nil,
 	)
 
-	if egroup == nil {
-		rc = C.avahi_client_errno(client)
+	if sysdep.egroup == nil {
+		rc = C.avahi_client_errno(sysdep.client)
 		goto AVAHI_ERROR
 	}
+
+	avahiEgroupMap[sysdep.egroup] = sysdep
 
 	// Compute iface and proto
 	iface = C.AVAHI_IF_UNSPEC
@@ -115,7 +124,7 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 		}
 
 		rc = C.avahi_entry_group_add_service_strlst(
-			egroup,
+			sysdep.egroup,
 			C.AvahiIfIndex(iface),
 			C.AvahiProtocol(proto),
 			0,
@@ -136,38 +145,60 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 	}
 
 	// Commit changes
-	rc = C.avahi_entry_group_commit(egroup)
+	rc = C.avahi_entry_group_commit(sysdep.egroup)
 	if rc != C.AVAHI_OK {
 		goto AVAHI_ERROR
 	}
 
 	// Create and return dnssdSysdep
-	return &dnssdSysdep{client: client, egroup: egroup}, nil
+	return sysdep, nil
 
 AVAHI_ERROR:
 	err = errors.New(C.GoString(C.avahi_strerror(rc)))
 
 ERROR:
-	if egroup != nil {
-		C.avahi_entry_group_free(egroup)
-	}
-
-	if client != nil {
-		C.avahi_client_free(client)
-	}
 
 	return nil, fmt.Errorf("AVAHI: %s", err)
 }
 
 // Close dnssdSysdep
-func (sd *dnssdSysdep) Close() {
-	// Synchronize with Avahi thread
+func (sysdep *dnssdSysdep) Close() {
 	avahiThreadLock()
-	defer avahiThreadUnlock()
+	sysdep.destroy()
+	avahiThreadUnlock()
+}
 
-	// Free everything
-	C.avahi_entry_group_free(sd.egroup)
-	C.avahi_client_free(sd.client)
+// Get termination status signalling channel
+func (sysdep *dnssdSysdep) Chan() <-chan DnsSdStatus {
+	return sysdep.statusChan
+}
+
+// destroy dnssdSysdep
+// Must be called under avahiThreadLock
+// Can be used with semi-constructed dnssdSysdep
+func (sysdep *dnssdSysdep) destroy() {
+	if sysdep.egroup != nil {
+		C.avahi_entry_group_free(sysdep.egroup)
+		delete(avahiEgroupMap, sysdep.egroup)
+	}
+
+	if sysdep.client != nil {
+		C.avahi_client_free(sysdep.client)
+		delete(avahiClientMap, sysdep.client)
+	}
+
+	close(sysdep.statusChan)
+}
+
+// Push status change notification
+func (sd *dnssdSysdep) notify(status DnsSdStatus) {
+	// Don't block; first notification; we are interested
+	// only in the first notification, and it may be already
+	// pending in a channel
+	select {
+	case sd.statusChan <- status:
+	default:
+	}
 }
 
 // avahiTxtRecord converts DnsDsTxtRecord to AvahiStringList
@@ -203,7 +234,12 @@ func avahiTxtRecord(txt DnsDsTxtRecord) (*C.AvahiStringList, error) {
 //
 //export avahiClientCallback
 func avahiClientCallback(client *C.AvahiClient,
-	state C.AvahiClientState, data unsafe.Pointer) {
+	state C.AvahiClientState, _ unsafe.Pointer) {
+
+	sysdep := avahiClientMap[client]
+	if sysdep == nil {
+		return
+	}
 
 	switch state {
 	case C.AVAHI_CLIENT_S_REGISTERING:
@@ -212,8 +248,10 @@ func avahiClientCallback(client *C.AvahiClient,
 		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_S_RUNNING")
 	case C.AVAHI_CLIENT_S_COLLISION:
 		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_S_COLLISION")
+		sysdep.notify(DnsSdFailure)
 	case C.AVAHI_CLIENT_FAILURE:
 		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_FAILURE")
+		sysdep.notify(DnsSdFailure)
 	case C.AVAHI_CLIENT_CONNECTING:
 		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_CONNECTING")
 	}
@@ -224,7 +262,13 @@ func avahiClientCallback(client *C.AvahiClient,
 //
 //export avahiEntryGroupCallback
 func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
-	state C.AvahiEntryGroupState, data unsafe.Pointer) {
+	state C.AvahiEntryGroupState, _ unsafe.Pointer) {
+
+	sysdep := avahiEgroupMap[egroup]
+	if sysdep == nil {
+		return
+	}
+
 	switch state {
 	case C.AVAHI_ENTRY_GROUP_UNCOMMITED:
 		log_debug("  AVAHI_ENTRY_GROUP_UNCOMMITED")
@@ -234,8 +278,10 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		log_debug("  AVAHI_ENTRY_GROUP_ESTABLISHED")
 	case C.AVAHI_ENTRY_GROUP_COLLISION:
 		log_debug("  AVAHI_ENTRY_GROUP_COLLISION")
+		sysdep.notify(DnsSdInstanceCollision)
 	case C.AVAHI_ENTRY_GROUP_FAILURE:
 		log_debug("  AVAHI_ENTRY_GROUP_FAILURE")
+		sysdep.notify(DnsSdFailure)
 	}
 }
 

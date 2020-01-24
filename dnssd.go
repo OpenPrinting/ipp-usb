@@ -70,16 +70,21 @@ type DnsSdPublisher struct {
 	sysdep   *dnssdSysdep  // System-dependent stuff
 }
 
+// DnsSdStatus represents DNS-SD publisher termination status
+type DnsSdStatus int
+
+const (
+	DnsSdNoStatus          DnsSdStatus = iota // Invalid status
+	DnsSdClosed                               // Publisher closed
+	DnsSdInstanceCollision                    // Service instance name collision
+	DnsSdFailure                              // Publisher failed
+)
+
 // NewDnsSdPublisher creates new DnsSdPublisher
 func NewDnsSdPublisher(services DnsSdServices) *DnsSdPublisher {
 	return &DnsSdPublisher{
 		Services: services,
 	}
-}
-
-// Unpublish everything
-func (publisher *DnsSdPublisher) Unpublish() {
-	publisher.sysdep.Close()
 }
 
 // Publish all services
@@ -91,4 +96,9 @@ func (publisher *DnsSdPublisher) Publish(instance string) error {
 		publisher.Services)
 
 	return err
+}
+
+// Unpublish everything
+func (publisher *DnsSdPublisher) Unpublish() {
+	publisher.sysdep.Close()
 }

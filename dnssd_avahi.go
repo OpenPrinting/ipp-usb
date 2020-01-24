@@ -157,7 +157,7 @@ AVAHI_ERROR:
 	err = errors.New(C.GoString(C.avahi_strerror(rc)))
 
 ERROR:
-
+	sysdep.destroy()
 	return nil, fmt.Errorf("AVAHI: %s", err)
 }
 

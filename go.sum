@@ -1,5 +1,7 @@
 github.com/alexpevzner/goipp v0.0.0-20200119203939-d690e5179421 h1:vg2YujvSIpfhZTcXDpoe89u6p2RPvWtrmhQJ+rEvML8=
 github.com/alexpevzner/goipp v0.0.0-20200119203939-d690e5179421/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
+github.com/alexpevzner/goipp v0.0.0-20200124154120-47cb8cd46533 h1:qeiWcuOVqVb6BNEjElVUszNjRgRyhrOyuxS4QW4KUGU=
+github.com/alexpevzner/goipp v0.0.0-20200124154120-47cb8cd46533/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
 github.com/google/gousb v0.0.0-20190812193832-18f4c1d8a750 h1:DVKHLo3yE4psTjD9aM2pY7EHoicaQbgmaxxvvHC6ZSM=
 github.com/google/gousb v0.0.0-20190812193832-18f4c1d8a750/go.mod h1:Tl4HdAs1ThE3gECkNwz+1MWicX6FXddhJEw7L8jRDiI=
 gopkg.in/ini.v1 v1.51.1 h1:GyboHr4UqMiLUybYjd22ZjQIKEJEpgtLXtuGbR21Oho=

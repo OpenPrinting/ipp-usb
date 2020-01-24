@@ -48,13 +48,15 @@ type dnssdSysdep struct {
 func newDnssdSysdep(instance string, services DnsSdServices) (
 	*dnssdSysdep, error) {
 
+	log_debug("+ DNS-SD: trying %s", instance)
+
 	var err error
 	var poll *C.AvahiPoll
 	var rc C.int
 	var proto, iface int
 
 	sysdep := &dnssdSysdep{
-		statusChan: make(chan DnsSdStatus, 1),
+		statusChan: make(chan DnsSdStatus, 10),
 	}
 
 	c_instance := C.CString(instance)
@@ -154,6 +156,12 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 	return sysdep, nil
 
 AVAHI_ERROR:
+	// Report name collision as event rather that error
+	if rc == C.AVAHI_ERR_COLLISION {
+		sysdep.notify(DnsSdCollision)
+		return sysdep, nil
+	}
+
 	err = errors.New(C.GoString(C.avahi_strerror(rc)))
 
 ERROR:
@@ -168,7 +176,7 @@ func (sysdep *dnssdSysdep) Close() {
 	avahiThreadUnlock()
 }
 
-// Get termination status signalling channel
+// Get status change notification channel
 func (sysdep *dnssdSysdep) Chan() <-chan DnsSdStatus {
 	return sysdep.statusChan
 }
@@ -177,6 +185,7 @@ func (sysdep *dnssdSysdep) Chan() <-chan DnsSdStatus {
 // Must be called under avahiThreadLock
 // Can be used with semi-constructed dnssdSysdep
 func (sysdep *dnssdSysdep) destroy() {
+	// Free all Avahi stuff
 	if sysdep.egroup != nil {
 		C.avahi_entry_group_free(sysdep.egroup)
 		delete(avahiEgroupMap, sysdep.egroup)
@@ -187,18 +196,15 @@ func (sysdep *dnssdSysdep) destroy() {
 		delete(avahiClientMap, sysdep.client)
 	}
 
-	close(sysdep.statusChan)
+	// Drain status channel
+	for len(sysdep.statusChan) > 0 {
+		<-sysdep.statusChan
+	}
 }
 
 // Push status change notification
 func (sd *dnssdSysdep) notify(status DnsSdStatus) {
-	// Don't block; first notification; we are interested
-	// only in the first notification, and it may be already
-	// pending in a channel
-	select {
-	case sd.statusChan <- status:
-	default:
-	}
+	sd.statusChan <- status
 }
 
 // avahiTxtRecord converts DnsDsTxtRecord to AvahiStringList
@@ -276,9 +282,10 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		log_debug("  AVAHI_ENTRY_GROUP_REGISTERING")
 	case C.AVAHI_ENTRY_GROUP_ESTABLISHED:
 		log_debug("  AVAHI_ENTRY_GROUP_ESTABLISHED")
+		sysdep.notify(DnsSdSuccess)
 	case C.AVAHI_ENTRY_GROUP_COLLISION:
 		log_debug("  AVAHI_ENTRY_GROUP_COLLISION")
-		sysdep.notify(DnsSdInstanceCollision)
+		sysdep.notify(DnsSdCollision)
 	case C.AVAHI_ENTRY_GROUP_FAILURE:
 		log_debug("  AVAHI_ENTRY_GROUP_FAILURE")
 		sysdep.notify(DnsSdFailure)

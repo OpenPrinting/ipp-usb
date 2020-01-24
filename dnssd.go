@@ -8,6 +8,12 @@
 
 package main
 
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
 // DnsSdTxtItem represents a single TXT record item
 type DnsSdTxtItem struct {
 	Key, Value string
@@ -65,25 +71,44 @@ func (services *DnsSdServices) Add(srv DnsSdSvcInfo) {
 // One publisher may publish multiple services unser the
 // same Service Instance Name
 type DnsSdPublisher struct {
-	Instance string        // Service Instance Name
-	Services DnsSdServices // Registered services
-	sysdep   *dnssdSysdep  // System-dependent stuff
+	Instance string         // Service Instance Name
+	Services DnsSdServices  // Registered services
+	fin      chan struct{}  // Closed to terminate publisher goroutine
+	finDone  sync.WaitGroup // To wait for goroutine termination
+	sysdep   *dnssdSysdep   // System-dependent stuff
 }
 
-// DnsSdStatus represents DNS-SD publisher termination status
+// DnsSdStatus represents DNS-SD publisher status
 type DnsSdStatus int
 
 const (
-	DnsSdNoStatus          DnsSdStatus = iota // Invalid status
-	DnsSdClosed                               // Publisher closed
-	DnsSdInstanceCollision                    // Service instance name collision
-	DnsSdFailure                              // Publisher failed
+	DnsSdNoStatus  DnsSdStatus = iota // Invalid status
+	DnsSdCollision                    // Service instance name collision
+	DnsSdFailure                      // Publisher failed
+	DnsSdSuccess                      // Services successfully published
 )
+
+// String returns human-readable representation of DnsSdStatus
+func (status DnsSdStatus) String() string {
+	switch status {
+	case DnsSdNoStatus:
+		return "DnsSdNoStatus"
+	case DnsSdCollision:
+		return "DnsSdCollision"
+	case DnsSdFailure:
+		return "DnsSdFailure"
+	case DnsSdSuccess:
+		return "DnsSdSuccess"
+	}
+
+	return fmt.Sprintf("Unknown DnsSdStatus %d", status)
+}
 
 // NewDnsSdPublisher creates new DnsSdPublisher
 func NewDnsSdPublisher(services DnsSdServices) *DnsSdPublisher {
 	return &DnsSdPublisher{
 		Services: services,
+		fin:      make(chan struct{}),
 	}
 }
 
@@ -95,10 +120,76 @@ func (publisher *DnsSdPublisher) Publish(instance string) error {
 	publisher.sysdep, err = newDnssdSysdep(publisher.Instance,
 		publisher.Services)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	log_debug("+ DNS-SD: %s published", instance)
+
+	publisher.finDone.Add(1)
+	go publisher.goroutine()
+
+	return nil
 }
 
 // Unpublish everything
 func (publisher *DnsSdPublisher) Unpublish() {
+	close(publisher.fin)
+	publisher.finDone.Wait()
+
 	publisher.sysdep.Close()
+
+	log_debug("- DNS-SD: %s removed", publisher.Instance)
+}
+
+// Event handling goroutine
+func (publisher *DnsSdPublisher) goroutine() {
+	defer publisher.finDone.Done()
+
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()       // Not ticking now
+	defer timer.Stop() // And cleanup at return
+
+	var err error
+	var suffix int
+
+	for {
+		fail := false
+
+		select {
+		case <-publisher.fin:
+			return
+
+		case status := <-publisher.sysdep.Chan():
+			log_debug("  DNS-SD: %s", status)
+			if status != DnsSdSuccess {
+				fail = true
+				publisher.sysdep.Close()
+
+				if status == DnsSdCollision {
+					suffix++
+				}
+			}
+
+		case <-timer.C:
+			instance := publisher.Instance
+			if suffix == 1 {
+				instance += " (USB)"
+			} else if suffix > 1 {
+				instance += fmt.Sprintf(" (USB %d)", suffix-1)
+			}
+
+			publisher.sysdep, err = newDnssdSysdep(instance,
+				publisher.Services)
+
+			if err != nil {
+				log_debug("+ DNS-SD: %s", err)
+				fail = true
+			}
+		}
+
+		if fail {
+			timer.Reset(1 * time.Second)
+		}
+	}
 }

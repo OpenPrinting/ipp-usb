@@ -205,7 +205,7 @@ func (l *Logger) gzip(ipath, opath string) error {
 
 // LogMessage represents a single (possible multi line) log
 // message, which will appear in the output log atomically,
-// and will be interrupted in the middle by other log activity
+// and will be not interrupted in the middle by other log activity
 type LogMessage struct {
 	logger *Logger       // Underlying logger
 	lines  []*logLineBuf // One buffer per line

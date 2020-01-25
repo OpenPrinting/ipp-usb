@@ -198,6 +198,7 @@ func (l *Logger) gzip(ipath, opath string) error {
 type LogMessage struct {
 	logger *Logger       // Underlying logger
 	lines  []*logLineBuf // One buffer per line
+	writer *LineWriter   // Write() helper, may be nil
 }
 
 // Add formats a next line of log message, with level and prefix char
@@ -211,6 +212,14 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	msg.lines = append(msg.lines, buf)
 
 	return msg
+}
+
+// addBytes adds a next line of log message, taking slice of bytes as input
+func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) {
+	buf := logLineBufAlloc(level)
+	buf.Write([]byte{prefix, ' '})
+	buf.Write(line)
+	msg.lines = append(msg.lines, buf)
 }
 
 // Debug appends a LogDebug line to the message
@@ -289,40 +298,14 @@ func (msg *LogMessage) IppResponse(level LogLevel, m *goipp.Message) {
 
 // Write implements io.Writer interface. Text is automatically
 // split into lines
-func (msg *LogMessage) Write(text []byte) (n int, err error) {
-	n, err = len(text), nil
-
-	for len(text) > 0 {
-		// Fetch next line
-		var line []byte
-
-		if l := bytes.IndexByte(text, '\n'); l >= 0 {
-			l++
-			line = text[:l]
-			text = text[l:]
-		} else {
-			line = text
-			text = nil
-		}
-
-		// Save the line
-		if cnt := len(msg.lines); cnt > 0 && !msg.lines[cnt-1].terminated() {
-			buf := msg.lines[cnt-1]
-			if buf.Len() == 0 {
-				buf.Write([]byte("  "))
-			}
-			buf.Write(line)
-		} else {
-			buf := logLineBufAlloc(LogDebug)
-			if len(line) != 0 {
-				buf.Write([]byte("  "))
-				buf.Write(line)
-			}
-			msg.lines = append(msg.lines, buf)
+func (msg *LogMessage) Write(text []byte) (int, error) {
+	if msg.writer == nil {
+		msg.writer = &LineWriter{
+			Func: func(line []byte) { msg.addBytes(LogDebug, ' ', line) },
 		}
 	}
 
-	return
+	return msg.writer.Write(text)
 }
 
 // Commit message to the log

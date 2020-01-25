@@ -17,11 +17,11 @@ import (
 // It splits stream into text lines and calls a proviced
 // callback for each complete line.
 //
-// Line passed to callback is always terminated by '\n'
+// Line passed to callback is not terminated by '\n'
 // character. Close flushes last incomplete line, if any
 type LineWriter struct {
-	Callback func([]byte)
-	buf      bytes.Buffer
+	Func func([]byte) // write-line callback
+	buf  bytes.Buffer // buffer for incomplete lines
 }
 
 // Write implements io.Writer interface
@@ -35,7 +35,7 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 
 		if l := bytes.IndexByte(text, '\n'); l >= 0 {
 			l++
-			line = text[:l]
+			line = text[:l-1]
 			text = text[l:]
 		} else {
 			line = text
@@ -50,7 +50,7 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 		}
 
 		if !unfinished {
-			lw.Callback(line)
+			lw.Func(line)
 			lw.buf.Reset()
 		}
 	}
@@ -62,7 +62,7 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 func (lw *LineWriter) Close() error {
 	if lw.buf.Len() > 0 {
 		lw.buf.WriteByte('\n')
-		lw.Callback(lw.buf.Bytes())
+		lw.Func(lw.buf.Bytes())
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -32,17 +33,18 @@ type HttpProxy struct {
 }
 
 // Create new HTTP proxy
-func NewHttpProxy(log *Logger,
+func NewHttpProxy(logger *Logger,
 	listener net.Listener, transport http.RoundTripper) *HttpProxy {
 
 	proxy := &HttpProxy{
-		log:       log,
+		log:       logger,
 		transport: transport,
 		closeWait: make(chan struct{}),
 	}
 
 	proxy.server = &http.Server{
-		Handler: proxy,
+		Handler:  proxy,
+		ErrorLog: log.New(logger.LineWriter(LogError, '!'), "", 0),
 	}
 
 	go func() {

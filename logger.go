@@ -371,6 +371,7 @@ func (msg *LogMessage) Reject() {
 
 // Return message to the logMessagePool
 func (msg *LogMessage) free() {
+	// Free all lines
 	for _, l := range msg.lines {
 		l.free()
 	}
@@ -379,7 +380,7 @@ func (msg *LogMessage) free() {
 	if len(msg.lines) < 16 {
 		msg.lines = msg.lines[:0] // Keep memory, reset content
 	} else {
-		msg.lines = nil
+		msg.lines = nil // Drop this large buffer
 	}
 
 	msg.logger = nil

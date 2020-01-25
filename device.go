@@ -91,9 +91,10 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Obtain DNS-SD info for IPP, this is required, we are
 	// IPP-USB gate, after all :-)
 	log = dev.Log.Begin()
+	defer log.Commit()
+
 	dnssd_name, err = IppService(log, &dnssd_services,
 		dev.State.HttpPort, info, dev.HttpClient)
-	log.Commit()
 
 	if err != nil {
 		goto ERROR
@@ -107,7 +108,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	}
 
 	// Obtain DNS-SD info for eSCL, this is optional
-	err = EsclService(&dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
+	err = EsclService(log, &dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
 	if err != nil {
 		log_debug("! %s", err)
 	}

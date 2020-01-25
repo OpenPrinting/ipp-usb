@@ -25,7 +25,7 @@ import (
 // suitable for DNS-SD registration
 //
 // Discovered services will be added to the services collection
-func EsclService(services *DnsSdServices,
+func EsclService(log *LogMessage, services *DnsSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (err error) {
 
 	uri := "http://localhost/eSCL/ScannerCapabilities"
@@ -55,6 +55,9 @@ func EsclService(services *DnsSdServices,
 	if err != nil {
 		goto ERROR
 	}
+
+	log.Add(LogTraceEscl, ' ', "ESCL Scanner Capabilities:")
+	log.LineWriter(LogTraceEscl, ' ').WriteClose(xmlData)
 
 	// Decode the XML
 	err = decoder.decode(bytes.NewBuffer(xmlData))

@@ -47,11 +47,10 @@ const (
 
 // Logger implements logging facilities
 type Logger struct {
-	lock    sync.Mutex   // Write lock
-	path    string       // Path to log file
-	time    bytes.Buffer // Time prefix buffer
-	out     io.Writer    // Output stream, may be *os.File
-	console bool         // true for console logger
+	lock    sync.Mutex // Write lock
+	path    string     // Path to log file
+	out     io.Writer  // Output stream, may be *os.File
+	console bool       // true for console logger
 }
 
 // Create new device logger
@@ -101,20 +100,22 @@ func (l *Logger) Error(format string, args ...interface{}) {
 }
 
 // Format a time prefix
-func (l *Logger) fmtTime() {
-	if !l.console {
-		l.time.Reset()
+func (l *Logger) fmtTime() *logLineBuf {
+	buf := logLineBufAlloc(0)
 
+	if !l.console {
 		now := time.Now()
 
 		year, month, day := now.Date()
-		fmt.Fprintf(&l.time, "%2.2d-%2.2d-%4.4d ", day, month, year)
+		fmt.Fprintf(buf, "%2.2d-%2.2d-%4.4d ", day, month, year)
 
 		hour, min, sec := now.Clock()
-		fmt.Fprintf(&l.time, "%2.2d:%2.2d:%2.2d", hour, min, sec)
+		fmt.Fprintf(buf, "%2.2d:%2.2d:%2.2d", hour, min, sec)
 
-		l.time.WriteString(": ")
+		buf.WriteByte(':')
 	}
+
+	return buf
 }
 
 // Handle log rotation
@@ -198,7 +199,6 @@ func (l *Logger) gzip(ipath, opath string) error {
 type LogMessage struct {
 	logger *Logger       // Underlying logger
 	lines  []*logLineBuf // One buffer per line
-	writer *LineWriter   // Write() helper, may be nil
 }
 
 // Add formats a next line of log message, with level and prefix char
@@ -208,7 +208,6 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	buf := logLineBufAlloc(level)
 	buf.Write([]byte{prefix, ' '})
 	fmt.Fprintf(buf, format, args...)
-	buf.WriteByte('\n')
 	msg.lines = append(msg.lines, buf)
 
 	return msg
@@ -217,9 +216,10 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 // addBytes adds a next line of log message, taking slice of bytes as input
 func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) {
 	buf := logLineBufAlloc(level)
-	buf.Write([]byte{prefix, ' '})
-	buf.Write(line)
-	buf.WriteByte('\n')
+	if len(line) > 0 {
+		buf.Write([]byte{prefix, ' '})
+		buf.Write(line)
+	}
 	msg.lines = append(msg.lines, buf)
 }
 
@@ -289,24 +289,20 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 
 // IppRequest dumps IPP request into the log message
 func (msg *LogMessage) IppRequest(level LogLevel, m *goipp.Message) {
-	m.Print(msg, true)
+	m.Print(msg.LineWriter(level, ' '), true)
 }
 
 // IppResponse dumps IPP response into the log message
 func (msg *LogMessage) IppResponse(level LogLevel, m *goipp.Message) {
-	m.Print(msg, false)
+	m.Print(msg.LineWriter(level, ' '), false)
 }
 
-// Write implements io.Writer interface. Text is automatically
-// split into lines
-func (msg *LogMessage) Write(text []byte) (int, error) {
-	if msg.writer == nil {
-		msg.writer = &LineWriter{
-			Func: func(line []byte) { msg.addBytes(LogDebug, ' ', line) },
-		}
+// LineWriter creates a LineWriter that writes to the LogMessage,
+// using specified LogLevel and prefix
+func (msg *LogMessage) LineWriter(level LogLevel, prefix byte) *LineWriter {
+	return &LineWriter{
+		Func: func(line []byte) { msg.addBytes(level, prefix, line) },
 	}
-
-	return msg.writer.Write(text)
 }
 
 // Commit message to the log
@@ -338,10 +334,19 @@ func (msg *LogMessage) Commit() {
 	msg.logger.rotate()
 
 	// Send message content to the logger
-	msg.logger.fmtTime()
+	buf := msg.logger.fmtTime()
+	defer buf.free()
+
+	buflen := buf.Len()
 	for _, l := range msg.lines {
-		msg.logger.out.Write(msg.logger.time.Bytes())
-		msg.logger.out.Write(l.Bytes())
+		buf.Truncate(buflen)
+		if l.Len() > 0 {
+			buf.WriteByte(' ')
+			buf.Write(l.Bytes())
+		}
+		buf.WriteByte('\n')
+
+		msg.logger.out.Write(buf.Bytes())
 	}
 }
 

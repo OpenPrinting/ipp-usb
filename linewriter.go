@@ -50,6 +50,10 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 		}
 
 		if !unfinished {
+			if l := len(line); l > 0 && line[l-1] == '\r' {
+				line = line[:l-1]
+			}
+
 			lw.Func(line)
 			lw.buf.Reset()
 		}
@@ -71,4 +75,10 @@ func (lw *LineWriter) Close() error {
 		lw.Func(lw.buf.Bytes())
 	}
 	return nil
+}
+
+// WriteClose writes text to LineWriter and then closes it
+func (lw *LineWriter) WriteClose(text []byte) {
+	lw.Write(text)
+	lw.Close()
 }

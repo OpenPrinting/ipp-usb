@@ -56,8 +56,9 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 		goto ERROR
 	}
 
-	log.Add(LogTraceEscl, ' ', "ESCL Scanner Capabilities:")
-	log.LineWriter(LogTraceEscl, ' ').WriteClose(xmlData)
+	log.Add(LogTraceEscl, '<', "ESCL Scanner Capabilities:")
+	log.LineWriter(LogTraceEscl, '<').WriteClose(xmlData)
+	log.Nl(LogTraceEscl)
 
 	// Decode the XML
 	err = decoder.decode(bytes.NewBuffer(xmlData))

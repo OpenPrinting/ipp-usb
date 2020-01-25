@@ -216,20 +216,35 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	format string, args ...interface{}) *LogMessage {
 
 	buf := logLineBufAlloc(level)
-	buf.Write([]byte{prefix, ' '})
-	fmt.Fprintf(buf, format, args...)
+
+	if format != "" {
+		buf.Write([]byte{prefix, ' '})
+		fmt.Fprintf(buf, format, args...)
+	} else if prefix != ' ' {
+		buf.WriteByte(prefix)
+	}
+
 	msg.lines = append(msg.lines, buf)
 
 	return msg
 }
 
+// Nl adds empty line to the log message
+func (msg *LogMessage) Nl(level LogLevel) *LogMessage {
+	return msg.Add(LogTraceEscl, ' ', "")
+}
+
 // addBytes adds a next line of log message, taking slice of bytes as input
 func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) *LogMessage {
 	buf := logLineBufAlloc(level)
+
 	if len(line) > 0 {
 		buf.Write([]byte{prefix, ' '})
 		buf.Write(line)
+	} else if prefix != ' ' {
+		buf.WriteByte(prefix)
 	}
+
 	msg.lines = append(msg.lines, buf)
 
 	return msg
@@ -300,13 +315,13 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 }
 
 // IppRequest dumps IPP request into the log message
-func (msg *LogMessage) IppRequest(level LogLevel, m *goipp.Message) {
-	m.Print(msg.LineWriter(level, ' '), true)
+func (msg *LogMessage) IppRequest(level LogLevel, prefix byte, m *goipp.Message) {
+	m.Print(msg.LineWriter(level, prefix), true)
 }
 
 // IppResponse dumps IPP response into the log message
-func (msg *LogMessage) IppResponse(level LogLevel, m *goipp.Message) {
-	m.Print(msg.LineWriter(level, ' '), false)
+func (msg *LogMessage) IppResponse(level LogLevel, prefix byte, m *goipp.Message) {
+	m.Print(msg.LineWriter(level, prefix), false)
 }
 
 // LineWriter creates a LineWriter that writes to the LogMessage,

@@ -71,7 +71,6 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 // will be lost)
 func (lw *LineWriter) Close() error {
 	if lw.buf.Len() > 0 {
-		lw.buf.WriteByte('\n')
 		lw.Func(lw.buf.Bytes())
 	}
 	return nil

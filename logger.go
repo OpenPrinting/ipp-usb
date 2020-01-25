@@ -28,7 +28,6 @@ const (
 
 var (
 	logMessagePool = sync.Pool{New: func() interface{} { return &LogMessage{} }}
-	logBufferPool  = sync.Pool{New: func() interface{} { return &bytes.Buffer{} }}
 )
 
 // LogLevel enumerates possible log levels
@@ -197,19 +196,20 @@ func (l *Logger) gzip(ipath, opath string) error {
 // message, which will appear in the output log atomically,
 // and will be interrupted in the middle by other log activity
 type LogMessage struct {
-	logger *Logger         // Underlying logger
-	lines  []*bytes.Buffer // One buffer per line
+	logger *Logger       // Underlying logger
+	lines  []*logLineBuf // One buffer per line
 }
 
 // Add formats a next line of log message, with level and prefix char
 func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	format string, args ...interface{}) *LogMessage {
 
-	buf := logBufAlloc()
+	buf := logLineBufAlloc(level)
 	buf.Write([]byte{prefix, ' '})
 	fmt.Fprintf(buf, format, args...)
 	buf.WriteByte('\n')
 	msg.lines = append(msg.lines, buf)
+
 	return msg
 }
 
@@ -230,11 +230,11 @@ func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
 
 // Dump appends a HEX dump to the log message
 func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
-	hex := logBufAlloc()
-	chr := logBufAlloc()
+	hex := logLineBufAlloc(level)
+	chr := logLineBufAlloc(level)
 
-	defer logBufFree(hex)
-	defer logBufFree(chr)
+	defer hex.free()
+	defer chr.free()
 
 	off := 0
 
@@ -306,14 +306,14 @@ func (msg *LogMessage) Write(text []byte) (n int, err error) {
 		}
 
 		// Save the line
-		if cnt := len(msg.lines); cnt > 0 && !logBufTerminated(msg.lines[cnt-1]) {
+		if cnt := len(msg.lines); cnt > 0 && !msg.lines[cnt-1].terminated() {
 			buf := msg.lines[cnt-1]
 			if buf.Len() == 0 {
 				buf.Write([]byte("  "))
 			}
 			buf.Write(line)
 		} else {
-			buf := logBufAlloc()
+			buf := logLineBufAlloc(LogDebug)
 			if len(line) != 0 {
 				buf.Write([]byte("  "))
 				buf.Write(line)
@@ -356,7 +356,7 @@ func (msg *LogMessage) Commit() {
 	// Send message content to the logger
 	msg.logger.fmtTime()
 	for _, l := range msg.lines {
-		if !logBufTerminated(l) {
+		if !l.terminated() {
 			l.WriteByte('\n')
 		}
 		msg.logger.out.Write(msg.logger.time.Bytes())
@@ -372,7 +372,7 @@ func (msg *LogMessage) Reject() {
 // Return message to the logMessagePool
 func (msg *LogMessage) free() {
 	for _, l := range msg.lines {
-		logBufFree(l)
+		l.free()
 	}
 
 	// Reset the message and put it to the pool
@@ -388,23 +388,38 @@ func (msg *LogMessage) free() {
 	logMessagePool.Put(msg)
 }
 
-// Check if line buffer is '\n'-terminated
-func logBufTerminated(buf *bytes.Buffer) bool {
+// logLineBuf represents a single log line buffer
+type logLineBuf struct {
+	bytes.Buffer          // Underlying buffer
+	level        LogLevel // Log level the line was written on
+}
+
+// logLinePool manages a pool of reusable logLines
+var logLineBufPool = sync.Pool{New: func() interface{} {
+	return &logLineBuf{
+		Buffer: bytes.Buffer{},
+	}
+}}
+
+// logLineAlloc() allocates a logLineBuf
+func logLineBufAlloc(level LogLevel) *logLineBuf {
+	buf := logLineBufPool.Get().(*logLineBuf)
+	buf.level = level
+	return buf
+}
+
+// free returns the logLineBuf to the pool
+func (buf *logLineBuf) free() {
+	if buf.Cap() <= 256 {
+		buf.Reset()
+		logLineBufPool.Put(buf)
+	}
+}
+
+// terminated check that log line is '\n'-terminated
+func (buf *logLineBuf) terminated() bool {
 	if l := buf.Len(); l > 0 {
 		return buf.Bytes()[l-1] == '\n'
 	}
 	return false
-}
-
-// Allocate a buffer
-func logBufAlloc() *bytes.Buffer {
-	return logBufferPool.Get().(*bytes.Buffer)
-}
-
-// Free a buffer
-func logBufFree(buf *bytes.Buffer) {
-	if buf.Cap() <= 256 {
-		buf.Reset()
-		logBufferPool.Put(buf)
-	}
 }

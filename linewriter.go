@@ -58,7 +58,13 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 	return
 }
 
-// Write implements io.Closer interface
+// Close implements io.Closer interface
+//
+// Close flushes the last incomplete line from the
+// internal buffer. Close is not needed, if it is
+// known that there is no such a line, or if its
+// presence doesn't matter (without Close its content
+// will be lost)
 func (lw *LineWriter) Close() error {
 	if lw.buf.Len() > 0 {
 		lw.buf.WriteByte('\n')

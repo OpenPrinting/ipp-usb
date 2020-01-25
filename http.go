@@ -15,22 +15,52 @@ import (
 	"net/http"
 	"strings"
 	"sync/atomic"
-	"time"
 )
 
 var (
 	httpSessionId int32
 )
 
-// Type httpProxy represents HTTP protocol proxy backed by
+// Type HttpProxy represents HTTP protocol proxy backed by
 // a specified http.RoundTripper. It implements http.Handler
 // interface
-type httpProxy struct {
+type HttpProxy struct {
+	log       *Logger           // Logger instance
+	server    *http.Server      // HTTP server
 	transport http.RoundTripper // Transport for outgoing requests
+	closeWait chan struct{}     // Closed at server close
+}
+
+// Create new HTTP proxy
+func NewHttpProxy(log *Logger,
+	listener net.Listener, transport http.RoundTripper) *HttpProxy {
+
+	proxy := &HttpProxy{
+		log:       log,
+		transport: transport,
+		closeWait: make(chan struct{}),
+	}
+
+	proxy.server = &http.Server{
+		Handler: proxy,
+	}
+
+	go func() {
+		proxy.server.Serve(listener)
+		close(proxy.closeWait)
+	}()
+
+	return proxy
+}
+
+// Close the proxy
+func (proxy *HttpProxy) Close() {
+	proxy.server.Close()
+	<-proxy.closeWait
 }
 
 // Handle HTTP request
-func (proxy *httpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	session := atomic.AddInt32(&httpSessionId, 1) - 1
 	defer atomic.AddInt32(&httpSessionId, -1)
 
@@ -136,32 +166,4 @@ func httpCopyHeaders(dst, src http.Header) {
 	for k, v := range src {
 		dst[k] = v
 	}
-}
-
-// Close connection when timer expires
-func httpTimeGoroutine(tmr *time.Timer, c <-chan struct{}, src io.ReadCloser) {
-	for {
-		select {
-		case <-c:
-			return
-		case <-tmr.C:
-			src.Close()
-			log_debug("! killing idle connection")
-			return
-		}
-	}
-}
-
-// Create new HTTP server, using given net.Listener
-func NewHttpServer(listener net.Listener, transport http.RoundTripper) *http.Server {
-	proxy := &httpProxy{
-		transport: transport,
-	}
-	server := &http.Server{
-		Handler: proxy,
-	}
-
-	go server.Serve(listener)
-
-	return server
 }

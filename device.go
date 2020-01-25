@@ -23,7 +23,7 @@ type Device struct {
 	UsbAddr        UsbAddr         // Device's USB address
 	State          *DevState       // Persistent state
 	HttpClient     *http.Client    // HTTP client for internal queries
-	HttpServer     *http.Server    // HTTP proxy server
+	HttpProxy      *HttpProxy      // HTTP proxy
 	UsbTransport   *UsbTransport   // Backing USB transport
 	DnsSdPublisher *DnsSdPublisher // DNS-SD publisher
 	Log            *Logger         // Device's logger
@@ -86,7 +86,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	}
 
 	// Create HTTP server
-	dev.HttpServer = NewHttpServer(listener, dev.UsbTransport)
+	dev.HttpProxy = NewHttpProxy(dev.Log, listener, dev.UsbTransport)
 
 	// Obtain DNS-SD info for IPP, this is required, we are
 	// IPP-USB gate, after all :-)
@@ -130,8 +130,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	return dev, nil
 
 ERROR:
-	if dev.HttpServer != nil {
-		dev.HttpServer.Close()
+	if dev.HttpProxy != nil {
+		dev.HttpProxy.Close()
 	}
 
 	if dev.UsbTransport != nil {
@@ -148,7 +148,7 @@ ERROR:
 // Close the Device
 func (dev *Device) Close() {
 	dev.DnsSdPublisher.Unpublish()
-	dev.HttpServer.Close()
+	dev.HttpProxy.Close()
 	dev.UsbTransport.Close()
 	dev.Log.Debug(' ', "device closed")
 	dev.Log.Close()

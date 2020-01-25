@@ -99,6 +99,16 @@ func (l *Logger) Error(format string, args ...interface{}) {
 	l.Begin().Error(format, args...).Commit()
 }
 
+// LineWriter creates a LineWriter that writes to the Logger,
+// using specified LogLevel and prefix
+func (l *Logger) LineWriter(level LogLevel, prefix byte) *LineWriter {
+	return &LineWriter{
+		Func: func(line []byte) {
+			l.Begin().addBytes(level, prefix, line).Commit()
+		},
+	}
+}
+
 // Format a time prefix
 func (l *Logger) fmtTime() *logLineBuf {
 	buf := logLineBufAlloc(0)
@@ -214,13 +224,15 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 }
 
 // addBytes adds a next line of log message, taking slice of bytes as input
-func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) {
+func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) *LogMessage {
 	buf := logLineBufAlloc(level)
 	if len(line) > 0 {
 		buf.Write([]byte{prefix, ' '})
 		buf.Write(line)
 	}
 	msg.lines = append(msg.lines, buf)
+
+	return msg
 }
 
 // Debug appends a LogDebug line to the message
@@ -341,7 +353,9 @@ func (msg *LogMessage) Commit() {
 	for _, l := range msg.lines {
 		buf.Truncate(buflen)
 		if l.Len() > 0 {
-			buf.WriteByte(' ')
+			if buflen > 0 {
+				buf.WriteByte(' ')
+			}
 			buf.Write(l.Bytes())
 		}
 		buf.WriteByte('\n')

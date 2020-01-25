@@ -38,8 +38,8 @@ func IppService(log *LogMessage, services *DnsSdServices,
 	msg.Operation.Add(goipp.MakeAttribute("requested-attributes",
 		goipp.TagKeyword, goipp.String("all")))
 
-	log.Debug(' ', "IPP request:")
-	msg.Print(log, true)
+	log.Add(LogTraceIpp, ' ', "IPP request:")
+	log.IppRequest(LogTraceIpp, msg)
 
 	req, _ := msg.EncodeBytes()
 	resp, err := c.Post(uri, goipp.ContentType, bytes.NewBuffer(req))
@@ -56,13 +56,13 @@ func IppService(log *LogMessage, services *DnsSdServices,
 
 	err = msg.DecodeBytes(respData)
 	if err != nil {
-		log_debug("! IPP: %s", err)
-		log_dump(respData)
+		log.Error("%s", err)
+		log.HexDump(LogTraceIpp, respData)
 		return
 	}
 
-	log.Debug(' ', "IPP response:")
-	msg.Print(log, false)
+	log.Add(LogTraceIpp, ' ', "IPP response:")
+	log.IppResponse(LogTraceIpp, msg)
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)

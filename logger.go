@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/alexpevzner/goipp"
 )
 
 const (
@@ -33,10 +35,15 @@ var (
 type LogLevel int
 
 const (
-	LogError LogLevel = iota
+	LogError LogLevel = 1 << iota
 	LogInfo
 	LogDebug
-	LogTrace
+	LogTraceIpp
+	LogTraceEscl
+	LogTraceHttp
+
+	LogAll      = LogError | LogInfo | LogDebug | LogTraceAll
+	LogTraceAll = LogTraceIpp | LogTraceEscl | LogTraceHttp
 )
 
 // Logger implements logging facilities
@@ -44,7 +51,7 @@ type Logger struct {
 	lock    sync.Mutex   // Write lock
 	path    string       // Path to log file
 	time    bytes.Buffer // Time prefix buffer
-	file    *os.File     // Output file
+	out     io.Writer    // Output stream, may be *os.File
 	console bool         // true for console logger
 }
 
@@ -58,7 +65,7 @@ func NewDeviceLogger(info UsbDeviceInfo) *Logger {
 // Create new console logger
 func NewConsoleLogger() *Logger {
 	return &Logger{
-		file:    os.Stdout,
+		out:     os.Stdout,
 		console: true,
 	}
 }
@@ -66,7 +73,9 @@ func NewConsoleLogger() *Logger {
 // Close the logger
 func (l *Logger) Close() {
 	if !l.console {
-		l.file.Close()
+		if file, ok := l.out.(*os.File); ok {
+			file.Close()
+		}
 	}
 }
 
@@ -92,12 +101,6 @@ func (l *Logger) Error(format string, args ...interface{}) {
 	l.Begin().Error(format, args...).Commit()
 }
 
-// Write HEX dump with optional title. If title is not "", it is formatted,
-// as fmt.Printf does, and prepended to the dump
-func (l *Logger) Dump(data []byte, title string, args ...interface{}) {
-	l.Begin().Dump(data, title, args...).Commit()
-}
-
 // Format a time prefix
 func (l *Logger) fmtTime() {
 	if !l.console {
@@ -118,7 +121,12 @@ func (l *Logger) fmtTime() {
 // Handle log rotation
 func (l *Logger) rotate() {
 	// Do we need to rotate?
-	stat, err := l.file.Stat()
+	file, ok := l.out.(*os.File)
+	if !ok {
+		return
+	}
+
+	stat, err := file.Stat()
 	if err != nil || stat.Size() <= LogMaxFileSize {
 		return
 	}
@@ -137,7 +145,7 @@ func (l *Logger) rotate() {
 		case 0:
 			err := l.gzip(nextpath, prevpath)
 			if err == nil {
-				l.file.Truncate(0)
+				file.Truncate(0)
 			}
 		default:
 			os.Rename(nextpath, prevpath)
@@ -193,8 +201,8 @@ type LogMessage struct {
 	lines  []*bytes.Buffer // One buffer per line
 }
 
-// add formats a next line of log message, with level and prefix char
-func (msg *LogMessage) add(level LogLevel, prefix byte,
+// Add formats a next line of log message, with level and prefix char
+func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	format string, args ...interface{}) *LogMessage {
 
 	buf := logBufAlloc()
@@ -205,19 +213,78 @@ func (msg *LogMessage) add(level LogLevel, prefix byte,
 	return msg
 }
 
-// Debug writes a LogDebug message
+// Debug appends a LogDebug line to the message
 func (msg *LogMessage) Debug(prefix byte, format string, args ...interface{}) *LogMessage {
-	return msg.add(LogDebug, prefix, format, args...)
+	return msg.Add(LogDebug, prefix, format, args...)
 }
 
-// Info writes a LogInfo message
+// Info appends a LogInfo line to the message
 func (msg *LogMessage) Info(format string, args ...interface{}) *LogMessage {
-	return msg.add(LogInfo, ' ', format, args...)
+	return msg.Add(LogInfo, ' ', format, args...)
 }
 
-// Error writes a LogError message
+// Error appends a LogError line to the message
 func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
-	return msg.add(LogError, '!', format, args...)
+	return msg.Add(LogError, '!', format, args...)
+}
+
+// Dump appends a HEX dump to the log message
+func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
+	hex := logBufAlloc()
+	chr := logBufAlloc()
+
+	defer logBufFree(hex)
+	defer logBufFree(chr)
+
+	off := 0
+
+	for len(data) > 0 {
+		hex.Reset()
+		chr.Reset()
+
+		sz := len(data)
+		if sz > 16 {
+			sz = 16
+		}
+
+		i := 0
+		for ; i < sz; i++ {
+			c := data[i]
+			fmt.Fprintf(hex, "%2.2x", data[i])
+			if i%4 == 3 {
+				hex.Write([]byte(":"))
+			} else {
+				hex.Write([]byte(" "))
+			}
+
+			if 0x20 <= c && c < 0x80 {
+				chr.WriteByte(c)
+			} else {
+				chr.WriteByte('.')
+			}
+		}
+
+		for ; i < 16; i++ {
+			hex.WriteString("   ")
+		}
+
+		msg.Add(level, ' ', "%4.4x: %s %s", off, hex, chr)
+
+		off += sz
+		data = data[sz:]
+	}
+
+	return msg
+}
+
+// IppRequest dumps IPP request into the log message
+func (msg *LogMessage) IppRequest(level LogLevel, m *goipp.Message) {
+	m.Print(msg, true)
+}
+
+// IppResponse dumps IPP response into the log message
+func (msg *LogMessage) IppResponse(level LogLevel, m *goipp.Message) {
+	m.Print(msg, false)
 }
 
 // Write implements io.Writer interface. Text is automatically
@@ -258,60 +325,6 @@ func (msg *LogMessage) Write(text []byte) (n int, err error) {
 	return
 }
 
-// Write HEX dump with optional title. If title is not "", it is formatted,
-// as fmt.Printf does, and prepended to the dump
-func (msg *LogMessage) Dump(data []byte, title string, args ...interface{}) *LogMessage {
-	if title != "" {
-		msg.Debug(' ', title, args...)
-	}
-
-	hex := logBufAlloc()
-	chr := logBufAlloc()
-
-	defer logBufFree(hex)
-	defer logBufFree(chr)
-
-	off := 0
-
-	for len(data) > 0 {
-		hex.Reset()
-		chr.Reset()
-
-		sz := len(data)
-		if sz > 16 {
-			sz = 16
-		}
-
-		i := 0
-		for ; i < sz; i++ {
-			c := data[i]
-			fmt.Fprintf(hex, "%2.2x", data[i])
-			if i%4 == 3 {
-				hex.Write([]byte(":"))
-			} else {
-				hex.Write([]byte(" "))
-			}
-
-			if 0x20 <= c && c < 0x80 {
-				chr.WriteByte(c)
-			} else {
-				chr.WriteByte('.')
-			}
-		}
-
-		for ; i < 16; i++ {
-			hex.WriteString("   ")
-		}
-
-		msg.Debug(' ', "%4.4x: %s %s", off, hex, chr)
-
-		off += sz
-		data = data[sz:]
-	}
-
-	return msg
-}
-
 // Commit message to the log
 func (msg *LogMessage) Commit() {
 	// Don't forget to free the message
@@ -327,13 +340,13 @@ func (msg *LogMessage) Commit() {
 	defer msg.logger.lock.Unlock()
 
 	// Open log file on demand
-	if msg.logger.file == nil && !msg.logger.console {
+	if msg.logger.out == nil && !msg.logger.console {
 		os.MkdirAll(PathLogDir, 0755)
-		msg.logger.file, _ = os.OpenFile(msg.logger.path,
+		msg.logger.out, _ = os.OpenFile(msg.logger.path,
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	}
 
-	if msg.logger.file == nil {
+	if msg.logger.out == nil {
 		return
 	}
 
@@ -346,8 +359,8 @@ func (msg *LogMessage) Commit() {
 		if !logBufTerminated(l) {
 			l.WriteByte('\n')
 		}
-		msg.logger.file.Write(msg.logger.time.Bytes())
-		msg.logger.file.Write(l.Bytes())
+		msg.logger.out.Write(msg.logger.time.Bytes())
+		msg.logger.out.Write(l.Bytes())
 	}
 }
 

@@ -219,6 +219,7 @@ func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) {
 	buf := logLineBufAlloc(level)
 	buf.Write([]byte{prefix, ' '})
 	buf.Write(line)
+	buf.WriteByte('\n')
 	msg.lines = append(msg.lines, buf)
 }
 
@@ -339,9 +340,6 @@ func (msg *LogMessage) Commit() {
 	// Send message content to the logger
 	msg.logger.fmtTime()
 	for _, l := range msg.lines {
-		if !l.terminated() {
-			l.WriteByte('\n')
-		}
 		msg.logger.out.Write(msg.logger.time.Bytes())
 		msg.logger.out.Write(l.Bytes())
 	}
@@ -397,12 +395,4 @@ func (buf *logLineBuf) free() {
 		buf.Reset()
 		logLineBufPool.Put(buf)
 	}
-}
-
-// terminated check that log line is '\n'-terminated
-func (buf *logLineBuf) terminated() bool {
-	if l := buf.Len(); l > 0 {
-		return buf.Bytes()[l-1] == '\n'
-	}
-	return false
 }

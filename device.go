@@ -13,23 +13,23 @@ import (
 	"net/http"
 )
 
-// IppUsb object brings all parts together, namely:
+// Device object brings all parts together, namely:
 //   * HTTP proxy server
 //   * USB-backed http.Transport
 //   * DNS-SD advertiser
 //
-// There is one instance of IppUsb object per USB device
+// There is one instance of Device object per USB device
 type Device struct {
-	UsbAddr        UsbAddr
-	State          *DevState
-	HttpClient     *http.Client
-	HttpServer     *http.Server
-	UsbTransport   *UsbTransport
-	DnsSdPublisher *DnsSdPublisher
-	Log            *Logger
+	UsbAddr        UsbAddr         // Device's USB address
+	State          *DevState       // Persistent state
+	HttpClient     *http.Client    // HTTP client for internal queries
+	HttpServer     *http.Server    // HTTP proxy server
+	UsbTransport   *UsbTransport   // Backing USB transport
+	DnsSdPublisher *DnsSdPublisher // DNS-SD publisher
+	Log            *Logger         // Device's logger
 }
 
-// NewIppUsb creates new IppUsb object
+// NewDevice creates new Device object
 func NewDevice(addr UsbAddr) (*Device, error) {
 	dev := &Device{
 		UsbAddr: addr,

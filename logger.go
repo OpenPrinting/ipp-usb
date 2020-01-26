@@ -208,7 +208,17 @@ func (l *Logger) gzip(ipath, opath string) error {
 // and will be not interrupted in the middle by other log activity
 type LogMessage struct {
 	logger *Logger       // Underlying logger
+	parent *LogMessage   // Parent message
 	lines  []*logLineBuf // One buffer per line
+}
+
+// Begin returns a child (nested) LogMessage. Writes to this
+// child message appended to the parent message
+func (msg *LogMessage) Begin() *LogMessage {
+	msg2 := logMessagePool.Get().(*LogMessage)
+	msg2.logger = msg.logger
+	msg2.parent = msg
+	return msg2
 }
 
 // Add formats a next line of log message, with level and prefix char
@@ -343,6 +353,13 @@ func (msg *LogMessage) Flush() {
 	// Lock the logger
 	msg.logger.lock.Lock()
 	defer msg.logger.lock.Unlock()
+
+	// If we have a parent, simply flush our content there
+	if msg.parent != nil {
+		msg.parent.lines = append(msg.parent.lines, msg.lines...)
+		msg.lines = msg.lines[:0]
+		return
+	}
 
 	// Open log file on demand
 	if msg.logger.out == nil && !msg.logger.console {

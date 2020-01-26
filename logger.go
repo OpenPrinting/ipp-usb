@@ -112,12 +112,11 @@ func (l *Logger) fmtTime() *logLineBuf {
 		now := time.Now()
 
 		year, month, day := now.Date()
-		fmt.Fprintf(buf, "%2.2d-%2.2d-%4.4d ", day, month, year)
-
 		hour, min, sec := now.Clock()
-		fmt.Fprintf(buf, "%2.2d:%2.2d:%2.2d", hour, min, sec)
 
-		buf.WriteByte(':')
+		fmt.Fprintf(buf, "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d:",
+			day, month, year,
+			hour, min, sec)
 	}
 
 	return buf
@@ -397,6 +396,7 @@ func (msg *LogMessage) Flush() {
 		buf.Truncate(buflen)
 		if !l.empty() {
 			if l.prefix != 0 {
+				buf.WriteByte(' ')
 				buf.WriteByte(l.prefix)
 				if l.Len() > 0 {
 					buf.WriteByte(' ')

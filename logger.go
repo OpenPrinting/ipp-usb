@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	LogMaxFileSize    = 100 * 1025
+	LogMaxFileSize    = 256 * 1024
 	LogMaxBackupFiles = 5
 )
 

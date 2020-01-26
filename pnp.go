@@ -19,17 +19,17 @@ func PnPStart() {
 		devices = newdevices
 
 		for _, addr := range added {
-			log_debug("+ PNP %s: added", addr)
+			Log.Debug('+', "PNP %s: added", addr)
 			dev, err := NewDevice(addr)
 			if err == nil {
 				devByAddr[addr.MapKey()] = dev
 			} else {
-				log_debug("! %s: %s", addr, err)
+				Log.Error('!', "PNP %s: %s", addr, err)
 			}
 		}
 
 		for _, addr := range removed {
-			log_debug("- PNP %s: removed", addr)
+			Log.Debug('-', "PNP %s: removed", addr)
 			dev, ok := devByAddr[addr.MapKey()]
 			if ok {
 				dev.Close()

@@ -301,13 +301,17 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 }
 
 // IppRequest dumps IPP request into the log message
-func (msg *LogMessage) IppRequest(level LogLevel, prefix byte, m *goipp.Message) {
+func (msg *LogMessage) IppRequest(level LogLevel, prefix byte,
+	m *goipp.Message) *LogMessage {
 	m.Print(msg.LineWriter(level, prefix), true)
+	return msg
 }
 
 // IppResponse dumps IPP response into the log message
-func (msg *LogMessage) IppResponse(level LogLevel, prefix byte, m *goipp.Message) {
+func (msg *LogMessage) IppResponse(level LogLevel, prefix byte,
+	m *goipp.Message) *LogMessage {
 	m.Print(msg.LineWriter(level, prefix), false)
+	return msg
 }
 
 // LineWriter creates a LineWriter that writes to the LogMessage,

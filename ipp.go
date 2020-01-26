@@ -58,7 +58,7 @@ func IppService(log *LogMessage, services *DnsSdServices,
 
 	err = msg.DecodeBytes(respData)
 	if err != nil {
-		log.Error("%s", err)
+		log.Error('!', "%s", err)
 		log.HexDump(LogTraceIpp, respData)
 		return
 	}

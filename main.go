@@ -10,8 +10,19 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 )
+
+// usage_error prints usage error and exits
+func usage_error(format string, args ...interface{}) {
+	if format != "" {
+		fmt.Printf(format+"\n", args...)
+	}
+
+	fmt.Printf("Try %s -h for more information\n", os.Args[0])
+	os.Exit(1)
+}
 
 // The main function
 func main() {
@@ -26,25 +37,25 @@ func main() {
 	err := flagset.Parse(os.Args[1:])
 	if err != nil {
 		if err == flag.ErrHelp {
-			flag.CommandLine.Usage()
+			fmt.Printf("Usage of %s:\n", os.Args[0])
 			flagset.PrintDefaults()
 		} else {
-			log_usage("")
+			usage_error("")
 		}
 		return
 	}
 
 	// Verify arguments
 	if *lport < 1 || *lport > 65535 {
-		log_usage(`invalid value "%d" for flag -l`, *lport)
+		usage_error(`invalid value "%d" for flag -l`, *lport)
 	}
 	if flagset.NArg() > 0 {
-		log_usage("Invalid argument %s", flagset.Args()[0])
+		usage_error("Invalid argument %s", flagset.Args()[0])
 	}
 
 	// Check user privileges
 	if os.Geteuid() != 0 {
-		log_exit("This program requires root privileges")
+		Log.Exit(0, "This program requires root privileges")
 	}
 
 	// Prevent multiple copies of ipp-usb from being running
@@ -52,18 +63,18 @@ func main() {
 	os.MkdirAll(PathLockDir, 0755)
 	lock, err := os.OpenFile(PathLockFile,
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	log_check(err)
+	Log.Check(err)
 	defer lock.Close()
 
 	err = FileLock(lock, true, false)
 	if err == ErrLockIsBusy {
-		log_exit("ipp-usb already running")
+		Log.Exit(0, "ipp-usb already running")
 	}
-	log_check(err)
+	Log.Check(err)
 
 	// Load configuration file
 	err = ConfLoad()
-	log_check(err)
+	Log.Check(err)
 
 	// Run PnP manager
 	PnPStart()

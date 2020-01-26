@@ -262,8 +262,30 @@ func (msg *LogMessage) Info(prefix byte, format string, args ...interface{}) *Lo
 }
 
 // Error appends a LogError line to the message
-func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
-	return msg.Add(LogError, '!', format, args...)
+func (msg *LogMessage) Error(prefix byte, format string, args ...interface{}) *LogMessage {
+	return msg.Add(LogError, prefix, format, args...)
+}
+
+// Exit appends a LogError line to the message, flushes the message and
+// all its parents and terminates a program by calling os.Exit(1)
+func (msg *LogMessage) Exit(prefix byte, format string, args ...interface{}) {
+	if msg.logger.mode == loggerNoMode {
+		msg.logger.ToConsole()
+	}
+
+	msg.Error(prefix, format, args...)
+	for msg.parent != nil {
+		msg.Flush()
+		msg = msg.parent
+	}
+	os.Exit(1)
+}
+
+// Check calls msg.Exit(), if err is not nil
+func (msg *LogMessage) Check(err error) {
+	if err != nil {
+		msg.Exit(0, "%s", err)
+	}
 }
 
 // Dump appends a HEX dump to the log message
@@ -395,8 +417,11 @@ func (msg *LogMessage) Flush() {
 	for _, l := range msg.lines {
 		buf.Truncate(buflen)
 		if !l.empty() {
-			if l.prefix != 0 {
+			if buflen != 0 {
 				buf.WriteByte(' ')
+			}
+
+			if l.prefix != 0 {
 				buf.WriteByte(l.prefix)
 				if l.Len() > 0 {
 					buf.WriteByte(' ')

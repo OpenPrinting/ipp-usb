@@ -334,9 +334,17 @@ func (msg *LogMessage) LineWriter(level LogLevel, prefix byte) *LineWriter {
 
 // Commit message to the log
 func (msg *LogMessage) Commit() {
-	// Don't forget to free the message
-	defer msg.free()
+	msg.Flush()
+	msg.free()
+}
 
+// Flush message content to the log
+//
+// This is equal to committing the message and starting
+// the new message, with the exception that old message
+// pointer remains valid. Message logical atomicity is not
+// preserved between flushed
+func (msg *LogMessage) Flush() {
 	// Ignore empty messages
 	if len(msg.lines) == 0 {
 		return
@@ -377,6 +385,9 @@ func (msg *LogMessage) Commit() {
 
 		msg.logger.out.Write(buf.Bytes())
 	}
+
+	// Reset the message
+	msg.lines = msg.lines[:0]
 }
 
 // Reject the message

@@ -26,10 +26,6 @@ const (
 	LogMaxBackupFiles = 5
 )
 
-var (
-	logMessagePool = sync.Pool{New: func() interface{} { return &LogMessage{} }}
-)
-
 // The default logger
 var Log = NewLogger().ToConsole()
 
@@ -210,6 +206,9 @@ type LogMessage struct {
 	parent *LogMessage   // Parent message
 	lines  []*logLineBuf // One buffer per line
 }
+
+// logMessagePool manages a pool of reusable LogMessages
+var logMessagePool = sync.Pool{New: func() interface{} { return &LogMessage{} }}
 
 // Begin returns a child (nested) LogMessage. Writes to this
 // child message appended to the parent message

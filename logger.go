@@ -111,7 +111,7 @@ func (l *Logger) LineWriter(level LogLevel, prefix byte) *LineWriter {
 
 // Format a time prefix
 func (l *Logger) fmtTime() *logLineBuf {
-	buf := logLineBufAlloc(0)
+	buf := logLineBufAlloc(0, 0)
 
 	if !l.console {
 		now := time.Now()
@@ -215,15 +215,8 @@ type LogMessage struct {
 func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	format string, args ...interface{}) *LogMessage {
 
-	buf := logLineBufAlloc(level)
-
-	if format != "" {
-		buf.Write([]byte{prefix, ' '})
-		fmt.Fprintf(buf, format, args...)
-	} else if prefix != ' ' {
-		buf.WriteByte(prefix)
-	}
-
+	buf := logLineBufAlloc(level, prefix)
+	fmt.Fprintf(buf, format, args...)
 	msg.lines = append(msg.lines, buf)
 
 	return msg
@@ -236,15 +229,8 @@ func (msg *LogMessage) Nl(level LogLevel) *LogMessage {
 
 // addBytes adds a next line of log message, taking slice of bytes as input
 func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) *LogMessage {
-	buf := logLineBufAlloc(level)
-
-	if len(line) > 0 {
-		buf.Write([]byte{prefix, ' '})
-		buf.Write(line)
-	} else if prefix != ' ' {
-		buf.WriteByte(prefix)
-	}
-
+	buf := logLineBufAlloc(level, prefix)
+	buf.Write(line)
 	msg.lines = append(msg.lines, buf)
 
 	return msg
@@ -267,8 +253,8 @@ func (msg *LogMessage) Error(format string, args ...interface{}) *LogMessage {
 
 // Dump appends a HEX dump to the log message
 func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
-	hex := logLineBufAlloc(level)
-	chr := logLineBufAlloc(level)
+	hex := logLineBufAlloc(0, 0)
+	chr := logLineBufAlloc(0, 0)
 
 	defer hex.free()
 	defer chr.free()
@@ -375,11 +361,13 @@ func (msg *LogMessage) Flush() {
 	buflen := buf.Len()
 	for _, l := range msg.lines {
 		buf.Truncate(buflen)
-		if l.Len() > 0 {
-			if buflen > 0 {
+		if !l.empty() {
+			buf.WriteByte(l.prefix)
+			if l.Len() > 0 {
 				buf.WriteByte(' ')
+				buf.Write(l.Bytes())
 			}
-			buf.Write(l.Bytes())
+
 		}
 		buf.WriteByte('\n')
 
@@ -418,6 +406,7 @@ func (msg *LogMessage) free() {
 // logLineBuf represents a single log line buffer
 type logLineBuf struct {
 	bytes.Buffer          // Underlying buffer
+	prefix       byte     // A prefix character
 	level        LogLevel // Log level the line was written on
 }
 
@@ -429,9 +418,10 @@ var logLineBufPool = sync.Pool{New: func() interface{} {
 }}
 
 // logLineAlloc() allocates a logLineBuf
-func logLineBufAlloc(level LogLevel) *logLineBuf {
+func logLineBufAlloc(level LogLevel, prefix byte) *logLineBuf {
 	buf := logLineBufPool.Get().(*logLineBuf)
 	buf.level = level
+	buf.prefix = prefix
 	return buf
 }
 
@@ -441,4 +431,9 @@ func (buf *logLineBuf) free() {
 		buf.Reset()
 		logLineBufPool.Put(buf)
 	}
+}
+
+// empty returns true if logLineBuf is empty (no text, no prefix)
+func (buf *logLineBuf) empty() bool {
+	return buf.prefix == ' ' && buf.Len() == 0
 }

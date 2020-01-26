@@ -50,7 +50,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 
 	// Obtain device info and create logger
 	info = dev.UsbTransport.UsbDeviceInfo()
-	dev.Log = NewDeviceLogger(info)
+	dev.Log = NewLogger().ToDevFile(info)
 
 	dev.Log.Begin().
 		Debug(' ', "===============================").

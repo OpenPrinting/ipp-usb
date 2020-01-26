@@ -30,6 +30,9 @@ var (
 	logMessagePool = sync.Pool{New: func() interface{} { return &LogMessage{} }}
 )
 
+// The default logger
+var Log = NewLogger().ToConsole()
+
 // LogLevel enumerates possible log levels
 type LogLevel int
 
@@ -45,75 +48,71 @@ const (
 	LogTraceAll = LogTraceIpp | LogTraceEscl | LogTraceHttp
 )
 
+// loggerMode enumerates possible Logger modes
+type loggerMode int
+
+const (
+	loggerNoMode  loggerMode = iota // Mode not yet set; log is buffered
+	loggerConsole                   // Log goes to console
+	loggerFile                      // Log goes to disk file
+)
+
 // Logger implements logging facilities
 type Logger struct {
-	lock    sync.Mutex // Write lock
-	path    string     // Path to log file
-	out     io.Writer  // Output stream, may be *os.File
-	console bool       // true for console logger
+	LogMessage            // "Root" log message
+	lock       sync.Mutex // Write lock
+	path       string     // Path to log file
+	out        io.Writer  // Output stream, may be *os.File
+	mode       loggerMode // Logger mode
 }
 
-// Create new device logger
-func NewDeviceLogger(info UsbDeviceInfo) *Logger {
-	return &Logger{
-		path: filepath.Join(PathLogDir, info.Ident()+".log"),
+// NewLogger creates new logger. Logger mode is not set,
+// so logs written to this logger a buffered until mode
+// (and direction) is set
+func NewLogger() *Logger {
+	l := &Logger{
+		mode: loggerNoMode,
 	}
+
+	l.LogMessage.logger = l
+
+	return l
 }
 
-// Create new console logger
-func NewConsoleLogger() *Logger {
-	return &Logger{
-		out:     os.Stdout,
-		console: true,
-	}
+// ToConsole redirects log to console
+func (l *Logger) ToConsole() *Logger {
+	l.mode = loggerConsole
+	l.out = os.Stdout
+	return l
+}
+
+// ToDevFile redirects log to per-device log file
+func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
+	l.path = filepath.Join(PathLogDir, info.Ident()+".log")
+	l.mode = loggerFile
+	l.out = nil // Will be opened on demand
+	return l
 }
 
 // Close the logger
 func (l *Logger) Close() {
-	if !l.console {
+	if l.mode == loggerFile && l.out != nil {
 		if file, ok := l.out.(*os.File); ok {
 			file.Close()
 		}
 	}
 }
 
-// Begin new log message
-func (l *Logger) Begin() *LogMessage {
-	msg := logMessagePool.Get().(*LogMessage)
-	msg.logger = l
-	return msg
-}
-
-// Debug writes a LogDebug message
-func (l *Logger) Debug(prefix byte, format string, args ...interface{}) {
-	l.Begin().Debug(prefix, format, args...).Commit()
-}
-
-// Info writes a LogInfo message
-func (l *Logger) Info(format string, args ...interface{}) {
-	l.Begin().Info(format, args...).Commit()
-}
-
-// Error writes a LogError message
-func (l *Logger) Error(format string, args ...interface{}) {
-	l.Begin().Error(format, args...).Commit()
-}
-
-// LineWriter creates a LineWriter that writes to the Logger,
-// using specified LogLevel and prefix
-func (l *Logger) LineWriter(level LogLevel, prefix byte) *LineWriter {
-	return &LineWriter{
-		Func: func(line []byte) {
-			l.Begin().addBytes(level, prefix, line).Commit()
-		},
-	}
-}
+// These methods are not reexported from the underlying root LogMessage
+func (l *Logger) Commit() {}
+func (l *Logger) Flush()  {}
+func (l *Logger) Reject() {}
 
 // Format a time prefix
 func (l *Logger) fmtTime() *logLineBuf {
 	buf := logLineBufAlloc(0, 0)
 
-	if !l.console {
+	if l.mode == loggerFile {
 		now := time.Now()
 
 		year, month, day := now.Date()
@@ -229,6 +228,10 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	fmt.Fprintf(buf, format, args...)
 	msg.lines = append(msg.lines, buf)
 
+	if msg.parent == nil {
+		msg.Flush()
+	}
+
 	return msg
 }
 
@@ -242,6 +245,10 @@ func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) *LogMe
 	buf := logLineBufAlloc(level, prefix)
 	buf.Write(line)
 	msg.lines = append(msg.lines, buf)
+
+	if msg.parent == nil {
+		msg.Flush()
+	}
 
 	return msg
 }
@@ -358,11 +365,16 @@ func (msg *LogMessage) Flush() {
 	if msg.parent != nil {
 		msg.parent.lines = append(msg.parent.lines, msg.lines...)
 		msg.lines = msg.lines[:0]
-		return
+
+		if msg.parent.parent == nil {
+			msg = msg.parent
+		} else {
+			return
+		}
 	}
 
 	// Open log file on demand
-	if msg.logger.out == nil && !msg.logger.console {
+	if msg.logger.out == nil && msg.logger.mode == loggerFile {
 		os.MkdirAll(PathLogDir, 0755)
 		msg.logger.out, _ = os.OpenFile(msg.logger.path,
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
@@ -373,7 +385,9 @@ func (msg *LogMessage) Flush() {
 	}
 
 	// Rotate now
-	msg.logger.rotate()
+	if msg.logger.mode == loggerFile {
+		msg.logger.rotate()
+	}
 
 	// Send message content to the logger
 	buf := msg.logger.fmtTime()

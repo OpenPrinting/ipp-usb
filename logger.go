@@ -258,8 +258,8 @@ func (msg *LogMessage) Debug(prefix byte, format string, args ...interface{}) *L
 }
 
 // Info appends a LogInfo line to the message
-func (msg *LogMessage) Info(format string, args ...interface{}) *LogMessage {
-	return msg.Add(LogInfo, ' ', format, args...)
+func (msg *LogMessage) Info(prefix byte, format string, args ...interface{}) *LogMessage {
+	return msg.Add(LogInfo, prefix, format, args...)
 }
 
 // Error appends a LogError line to the message
@@ -396,12 +396,16 @@ func (msg *LogMessage) Flush() {
 	for _, l := range msg.lines {
 		buf.Truncate(buflen)
 		if !l.empty() {
-			buf.WriteByte(l.prefix)
-			if l.Len() > 0 {
-				buf.WriteByte(' ')
-				buf.Write(l.Bytes())
+			if l.prefix != 0 {
+				buf.WriteByte(l.prefix)
+				if l.Len() > 0 {
+					buf.WriteByte(' ')
+				}
 			}
 
+			if l.Len() > 0 {
+				buf.Write(l.Bytes())
+			}
 		}
 		buf.WriteByte('\n')
 
@@ -469,5 +473,5 @@ func (buf *logLineBuf) free() {
 
 // empty returns true if logLineBuf is empty (no text, no prefix)
 func (buf *logLineBuf) empty() bool {
-	return buf.prefix == ' ' && buf.Len() == 0
+	return (buf.prefix == ' ' || buf.prefix == 0) && buf.Len() == 0
 }

@@ -63,8 +63,7 @@ func (proxy *HttpProxy) Close() {
 
 // Handle HTTP request
 func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	session := int(atomic.AddInt32(&httpSessionId, 1) - 1)
-	defer atomic.AddInt32(&httpSessionId, -1)
+	session := int(atomic.AddInt32(&httpSessionId, 1)-1) % 1000
 
 	proxy.log.HttpRqParams(LogDebug, '>', session, r)
 	proxy.log.HttpHdr(LogTraceHttp, '>', session, r.Header)
@@ -139,6 +138,33 @@ func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Re
 	w.Write([]byte("\n"))
 
 	proxy.log.HttpError('!', session, status, msg)
+}
+
+// HttpLoggingRoundTripper wraps http.RoundTripper, adding logging
+// for each request
+type HttpLoggingRoundTripper struct {
+	Log               *Logger // Logger to write logs to
+	http.RoundTripper         // Underlying http.RoundTripper
+}
+
+// RoundTrip executes a single HTTP transaction, returning
+// a Response for the provided Request.
+func (rtp *HttpLoggingRoundTripper) RoundTrip(r *http.Request) (
+	*http.Response, error) {
+	session := int(atomic.AddInt32(&httpSessionId, 1)-1) % 1000
+
+	rtp.Log.HttpRqParams(LogDebug, '>', session, r)
+	rtp.Log.HttpHdr(LogTraceHttp, '>', session, r.Header)
+
+	resp, err := rtp.RoundTripper.RoundTrip(r)
+	if err == nil {
+		rtp.Log.HttpRspStatus(LogDebug, '<', session, resp)
+		rtp.Log.HttpHdr(LogTraceHttp, '<', session, resp.Header)
+	} else {
+		rtp.Log.HttpError('!', session, -1, err.Error())
+	}
+
+	return resp, err
 }
 
 // Set response headers to disable cacheing

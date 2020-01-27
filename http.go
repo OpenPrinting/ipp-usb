@@ -63,26 +63,27 @@ func (proxy *HttpProxy) Close() {
 
 // Handle HTTP request
 func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	session := atomic.AddInt32(&httpSessionId, 1) - 1
+	session := int(atomic.AddInt32(&httpSessionId, 1) - 1)
 	defer atomic.AddInt32(&httpSessionId, -1)
 
-	log_http_rq(session, r)
+	proxy.log.HttpRqParams(LogDebug, '>', session, r)
+	proxy.log.HttpHdr(LogTraceHttp, '>', session, r.Header)
 
 	// Perform sanity checking
 	if r.Method == "CONNECT" {
-		httpError(session, w, r, http.StatusMethodNotAllowed,
+		proxy.httpError(session, w, r, http.StatusMethodNotAllowed,
 			"CONNECT not allowed")
 		return
 	}
 
 	if r.Header.Get("Upgrade") != "" {
-		httpError(session, w, r, http.StatusServiceUnavailable,
+		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
 			"Protocol upgrade is not implemented")
 		return
 	}
 
 	if r.URL.IsAbs() {
-		httpError(session, w, r, http.StatusServiceUnavailable,
+		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
 			"Absolute URL not allowed")
 		return
 	}
@@ -108,7 +109,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Serve the request
 	resp, err := proxy.transport.RoundTrip(r)
 	if err != nil {
-		httpError(session, w, r, http.StatusServiceUnavailable,
+		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
 			err.Error())
 		return
 	}
@@ -119,11 +120,12 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = io.Copy(w, resp.Body)
 	resp.Body.Close()
 
-	log_http_rsp(session, resp)
+	proxy.log.HttpRspStatus(LogDebug, '<', session, resp)
+	proxy.log.HttpHdr(LogTraceHttp, '<', session, resp.Header)
 }
 
 // Reject request with a error
-func httpError(session int32, w http.ResponseWriter, r *http.Request,
+func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Request,
 	status int, format string, args ...interface{}) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -136,7 +138,7 @@ func httpError(session int32, w http.ResponseWriter, r *http.Request,
 	w.Write([]byte(msg))
 	w.Write([]byte("\n"))
 
-	log_http_err(session, status, msg)
+	proxy.log.HttpError('!', session, status, msg)
 }
 
 // Set response headers to disable cacheing

@@ -13,8 +13,10 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -389,6 +391,45 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 	}
 
 	return msg
+}
+
+// HttpHdr dumps HTTP header into the log messahe
+func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
+	session int, hdr http.Header) {
+
+	keys := make([]string, 0, len(hdr))
+
+	for k := range hdr {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+	for _, k := range keys {
+		msg.Add(level, prefix, "HTTP[%3.3d] %s:%s", session, k, hdr.Get(k))
+	}
+
+	msg.Nl(level)
+}
+
+// HttpRqParams dumps HTTP request parameters into the log message
+func (msg *LogMessage) HttpRqParams(level LogLevel, prefix byte,
+	session int, rq *http.Request) {
+	msg.Add(level, prefix, "HTTP[%3.3d] %s %s %s", session,
+		rq.Method, rq.URL, rq.Proto)
+}
+
+// HttpRspStatus dumps HTTP response status into the log message
+func (msg *LogMessage) HttpRspStatus(level LogLevel, prefix byte,
+	session int, rsp *http.Response) {
+	msg.Add(level, prefix, "HTTP[%3.3d] %s %s", session,
+		rsp.Proto, rsp.Status)
+}
+
+// HttpError writes HTTP error into the log message
+func (msg *LogMessage) HttpError(prefix byte,
+	session int, status int, text string) {
+	msg.Error(prefix, "HTTP[%3.3d] HTTP/1.1 %d %s", status, http.StatusText(status))
+	msg.Error(prefix, "HTTP[%3.3d] %s", text)
 }
 
 // IppRequest dumps IPP request into the log message

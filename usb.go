@@ -31,6 +31,7 @@ var (
 // Type UsbTransport implements http.RoundTripper over USB
 type UsbTransport struct {
 	http.Transport               // Underlying http.Transport
+	addr           UsbAddr       // Device address
 	info           UsbDeviceInfo // USB device info
 	log            *Logger       // Device's own logger
 	dev            *gousb.Device // Underlying USB device
@@ -129,6 +130,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
 		},
+		addr:    addr,
 		log:     NewLogger(),
 		dev:     dev,
 		ifaddrs: ifaddrs,
@@ -151,11 +153,12 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	// Write device info to the log
 	transport.log.Begin().
 		Debug(' ', "===============================").
-		Debug('+', "%s: device info", addr).
-		Debug(' ', "Ident:        %s", transport.info.Ident()).
-		Debug(' ', "Manufacturer: %s", transport.info.Manufacturer).
-		Debug(' ', "Product:      %s", transport.info.Product).
-		Debug(' ', "DeviceId:     %s", transport.info.DeviceId).
+		Info('+', "%s: added %s", addr, transport.info.Product).
+		Debug(' ', "Device info:").
+		Debug(' ', "  Ident:        %s", transport.info.Ident()).
+		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
+		Debug(' ', "  Product:      %s", transport.info.Product).
+		Debug(' ', "  DeviceId:     %s", transport.info.DeviceId).
 		Commit()
 
 	transport.log.Debug(' ', "IPP-USB Interfaces:")
@@ -168,6 +171,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 
 // Close the transport
 func (transport *UsbTransport) Close() {
+	transport.log.Info('-', "%s: removed %s", transport.addr, transport.info.Product)
 	// FIXME
 }
 

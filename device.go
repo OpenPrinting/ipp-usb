@@ -134,6 +134,4 @@ func (dev *Device) Close() {
 	dev.DnsSdPublisher.Unpublish()
 	dev.HttpProxy.Close()
 	dev.UsbTransport.Close()
-	dev.Log.Debug(' ', "device closed")
-	dev.Log.Close()
 }

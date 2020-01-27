@@ -133,7 +133,7 @@ func (publisher *DnsSdPublisher) Publish() error {
 		return err
 	}
 
-	publisher.Log.Info('+', "DNS-SD: %s: published", instance)
+	publisher.Log.Info('+', "DNS-SD: %s: publishing requested", instance)
 
 	publisher.finDone.Add(1)
 	go publisher.goroutine()
@@ -184,22 +184,30 @@ func (publisher *DnsSdPublisher) goroutine() {
 			return
 
 		case status := <-publisher.sysdep.Chan():
-			publisher.Log.Debug(' ', "DNS-SD: %s: %s", instance, status)
-
 			switch status {
 			case DnsSdSuccess:
+				publisher.Log.Info(' ', "DNS-SD: %s: published", instance)
 				if instance != publisher.DevState.DnsSdOverride {
 					publisher.DevState.DnsSdOverride = instance
 					publisher.DevState.Save()
 				}
 
 			case DnsSdCollision:
+				publisher.Log.Error(' ', "DNS-SD: %s: name collision",
+					instance)
 				suffix++
 				fallthrough
 
-			default:
+			case DnsSdFailure:
+				publisher.Log.Error(' ', "DNS-SD: %s: publishing failed",
+					instance)
+
 				fail = true
 				publisher.sysdep.Close()
+
+			default:
+				publisher.Log.Error(' ', "DNS-SD: %s: unknown event %s",
+					instance, status)
 			}
 
 		case <-timer.C:

@@ -50,10 +50,6 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 		}
 
 		if !unfinished {
-			if l := len(line); l > 0 && line[l-1] == '\r' {
-				line = line[:l-1]
-			}
-
 			lw.Func(line)
 			lw.buf.Reset()
 		}

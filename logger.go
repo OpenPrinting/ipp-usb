@@ -59,6 +59,7 @@ type Logger struct {
 	lock       sync.Mutex // Write lock
 	path       string     // Path to log file
 	out        io.Writer  // Output stream, may be *os.File
+	cc         []*Logger  // Loggers to send carbon copy to
 	mode       loggerMode // Logger mode
 }
 
@@ -88,6 +89,11 @@ func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 	l.mode = loggerFile
 	l.out = nil // Will be opened on demand
 	return l
+}
+
+// Add io.Writer to send "carbon copy" to
+func (l *Logger) Cc(to *Logger) {
+	l.cc = append(l.cc, to)
 }
 
 // Close the logger
@@ -409,32 +415,42 @@ func (msg *LogMessage) Flush() {
 		msg.logger.rotate()
 	}
 
+	// Prepare to carbon-copy
+	var cclist []*LogMessage
+	for _, cc := range msg.logger.cc {
+		cclist = append(cclist, cc.Begin())
+	}
+
 	// Send message content to the logger
 	buf := msg.logger.fmtTime()
 	defer buf.free()
 
-	buflen := buf.Len()
+	timeLen := buf.Len()
 	for _, l := range msg.lines {
-		buf.Truncate(buflen)
+		buf.Truncate(timeLen)
+		l.trim()
+
 		if !l.empty() {
-			if buflen != 0 {
+			if timeLen != 0 {
 				buf.WriteByte(' ')
 			}
 
-			if l.prefix != 0 {
-				buf.WriteByte(l.prefix)
-				if l.Len() > 0 {
-					buf.WriteByte(' ')
-				}
-			}
-
-			if l.Len() > 0 {
-				buf.Write(l.Bytes())
-			}
+			buf.Write(l.Bytes())
 		}
-		buf.WriteByte('\n')
 
+		buf.WriteByte('\n')
 		msg.logger.out.Write(buf.Bytes())
+
+		for _, cc := range cclist {
+			cc.addBytes(l.level, 0, l.Bytes())
+		}
+
+		l.free()
+	}
+
+	// Commit carbon copies
+	for _, cc := range cclist {
+		cc.Commit()
 	}
 
 	// Reset the message
@@ -469,7 +485,6 @@ func (msg *LogMessage) free() {
 // logLineBuf represents a single log line buffer
 type logLineBuf struct {
 	bytes.Buffer          // Underlying buffer
-	prefix       byte     // A prefix character
 	level        LogLevel // Log level the line was written on
 }
 
@@ -484,7 +499,9 @@ var logLineBufPool = sync.Pool{New: func() interface{} {
 func logLineBufAlloc(level LogLevel, prefix byte) *logLineBuf {
 	buf := logLineBufPool.Get().(*logLineBuf)
 	buf.level = level
-	buf.prefix = prefix
+	if prefix != 0 {
+		buf.Write([]byte{prefix, ' '})
+	}
 	return buf
 }
 
@@ -496,7 +513,24 @@ func (buf *logLineBuf) free() {
 	}
 }
 
+// trim removes trailing spaces
+func (buf *logLineBuf) trim() {
+	bytes := buf.Bytes()
+	var i int
+
+loop:
+	for i = len(bytes); i > 0; i-- {
+		c := bytes[i-1]
+		switch c {
+		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0:
+		default:
+			break loop
+		}
+	}
+	buf.Truncate(i)
+}
+
 // empty returns true if logLineBuf is empty (no text, no prefix)
 func (buf *logLineBuf) empty() bool {
-	return (buf.prefix == ' ' || buf.prefix == 0) && buf.Len() == 0
+	return buf.Len() == 0
 }

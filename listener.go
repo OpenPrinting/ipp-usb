@@ -62,7 +62,6 @@ func (l Listener) Accept() (net.Conn, error) {
 		tcpconn, ok := conn.(*net.TCPConn)
 		if !ok {
 			// Should never happen, actually
-			log_debug("! non-TCP connection from TCP listener")
 			conn.Close()
 			continue
 		}

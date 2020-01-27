@@ -41,7 +41,7 @@ func LoadDevState(ident string) *DevState {
 	inifile, err := ini.Load(state.path)
 	if err != nil {
 		err = state.error("%s", err)
-		log_debug("! STATE LOAD: %s", err)
+		Log.Error('!', "STATE LOAD: %s", err)
 		state.Save()
 		return state
 	}
@@ -54,7 +54,7 @@ func LoadDevState(ident string) *DevState {
 		err = state.loadTCPPort(section, &state.HttpPort, "http-port")
 		if err != nil {
 			err = state.error("%s", err)
-			log_debug("! STATE LOAD: %s", err)
+			Log.Error('!', "STATE LOAD: %s", err)
 			update = true
 		}
 
@@ -126,7 +126,7 @@ func (state *DevState) Save() {
 	err := inifile.SaveTo(state.path)
 	if err != nil {
 		err = state.error("%s", err)
-		log_debug("! STATE SAVE: %s", err)
+		Log.Error('!', "STATE SAVE: %s", err)
 	}
 }
 
@@ -158,7 +158,7 @@ func (state *DevState) HttpListen() (net.Listener, error) {
 	}
 
 	err := state.error("failed to allocate HTTP port", state.Ident)
-	log_debug("! STATE PORT: %s", err)
+	Log.Error('!', "STATE PORT: %s", err)
 
 	return nil, err
 }

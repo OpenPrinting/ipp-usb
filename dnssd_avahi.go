@@ -251,21 +251,29 @@ func avahiClientCallback(client *C.AvahiClient,
 		return
 	}
 
-	sysdep.log.Debug(' ', "DNS-SD: %s: client event:", sysdep.instance)
+	status := DnsSdNoStatus
+	event := ""
 
 	switch state {
 	case C.AVAHI_CLIENT_S_REGISTERING:
-		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_REGISTERING")
+		event = "AVAHI_CLIENT_S_REGISTERING"
 	case C.AVAHI_CLIENT_S_RUNNING:
-		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_RUNNING")
+		event = "AVAHI_CLIENT_S_RUNNING"
 	case C.AVAHI_CLIENT_S_COLLISION:
-		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_COLLISION")
-		sysdep.notify(DnsSdFailure)
+		event = "AVAHI_CLIENT_S_COLLISION"
+		status = DnsSdFailure
 	case C.AVAHI_CLIENT_FAILURE:
-		sysdep.log.Debug(' ', "  AVAHI_CLIENT_FAILURE")
-		sysdep.notify(DnsSdFailure)
+		event = "AVAHI_CLIENT_FAILURE"
+		status = DnsSdFailure
 	case C.AVAHI_CLIENT_CONNECTING:
-		sysdep.log.Debug(' ', "  AVAHI_CLIENT_CONNECTING")
+		event = "AVAHI_CLIENT_CONNECTING"
+	default:
+		event = fmt.Sprintf("Unknown event %d", state)
+	}
+
+	sysdep.log.Debug(' ', "DNS-SD: %s: %s", sysdep.instance, event)
+	if status != DnsSdNoStatus {
+		sysdep.notify(status)
 	}
 }
 
@@ -281,22 +289,28 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		return
 	}
 
-	sysdep.log.Debug(' ', "DNS-SD: %s: entry group event:", sysdep.instance)
+	status := DnsSdNoStatus
+	event := ""
 
 	switch state {
 	case C.AVAHI_ENTRY_GROUP_UNCOMMITED:
-		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_UNCOMMITED")
+		event = "AVAHI_ENTRY_GROUP_UNCOMMITED"
 	case C.AVAHI_ENTRY_GROUP_REGISTERING:
-		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_REGISTERING")
+		event = "AVAHI_ENTRY_GROUP_REGISTERING"
 	case C.AVAHI_ENTRY_GROUP_ESTABLISHED:
-		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_ESTABLISHED")
-		sysdep.notify(DnsSdSuccess)
+		event = "AVAHI_ENTRY_GROUP_ESTABLISHED"
+		status = DnsSdSuccess
 	case C.AVAHI_ENTRY_GROUP_COLLISION:
-		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_COLLISION")
-		sysdep.notify(DnsSdCollision)
+		event = "AVAHI_ENTRY_GROUP_COLLISION"
+		status = DnsSdCollision
 	case C.AVAHI_ENTRY_GROUP_FAILURE:
-		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_FAILURE")
-		sysdep.notify(DnsSdFailure)
+		event = "AVAHI_ENTRY_GROUP_FAILURE"
+		status = DnsSdFailure
+	}
+
+	sysdep.log.Debug(' ', "DNS-SD: %s: %s", sysdep.instance, event)
+	if status != DnsSdNoStatus {
+		sysdep.notify(status)
 	}
 }
 

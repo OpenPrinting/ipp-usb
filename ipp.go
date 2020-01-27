@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -25,7 +26,7 @@ import (
 func IppService(log *LogMessage, services *DnsSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (dnssd_name string, err error) {
 
-	uri := "http://localhost/ipp/print"
+	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
 
 	// Query printer attributes
 	msg := goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)

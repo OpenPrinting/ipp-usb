@@ -28,7 +28,8 @@ import (
 func EsclService(log *LogMessage, services *DnsSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (err error) {
 
-	uri := "http://localhost/eSCL/ScannerCapabilities"
+	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
+
 	decoder := newEsclCapsDecoder()
 	svc := DnsSdSvcInfo{
 		Type: "_uscan._tcp",

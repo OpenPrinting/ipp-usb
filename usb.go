@@ -136,7 +136,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	}
 
 	transport.fillInfo()
-	transport.log.Cc(LogDebug, Console) // FIXME -- make configurable
+	transport.log.Cc(LogDebug, ColorConsole) // FIXME -- make configurable
 	transport.log.ToDevFile(transport.info)
 
 	transport.DialContext = transport.dialContect

@@ -33,6 +33,9 @@ var (
 
 	// Console logger always writes to console
 	Console = NewLogger().ToConsole()
+
+	// ColorConsole logger uses ANSI colors
+	ColorConsole = NewLogger().ToColorConsole()
 )
 
 // LogLevel enumerates possible log levels
@@ -54,19 +57,22 @@ const (
 type loggerMode int
 
 const (
-	loggerNoMode  loggerMode = iota // Mode not yet set; log is buffered
-	loggerConsole                   // Log goes to console
-	loggerFile                      // Log goes to disk file
+	loggerNoMode       loggerMode = iota // Mode not yet set; log is buffered
+	loggerConsole                        // Log goes to console
+	loggerColorConsole                   // Log goes to console and uses ANSI colors
+	loggerFile                           // Log goes to disk file
 )
 
 // Logger implements logging facilities
 type Logger struct {
-	LogMessage            // "Root" log message
-	mode       loggerMode // Logger mode
-	lock       sync.Mutex // Write lock
-	path       string     // Path to log file
-	out        io.Writer  // Output stream, may be *os.File
-	cc         []struct { // Loggers to send carbon copy to
+	LogMessage                 // "Root" log message
+	mode       loggerMode      // Logger mode
+	lock       sync.Mutex      // Write lock
+	path       string          // Path to log file
+	out        io.Writer       // Output stream, may be *os.File
+	outhook    func(io.Writer, // Output hook
+		LogLevel, []byte)
+	cc []struct { // Loggers to send carbon copy to
 		mask LogLevel
 		to   *Logger
 	}
@@ -78,6 +84,9 @@ type Logger struct {
 func NewLogger() *Logger {
 	l := &Logger{
 		mode: loggerNoMode,
+		outhook: func(w io.Writer, _ LogLevel, line []byte) {
+			w.Write(line)
+		},
 	}
 
 	l.LogMessage.logger = l
@@ -90,6 +99,15 @@ func (l *Logger) ToConsole() *Logger {
 	l.mode = loggerConsole
 	l.out = os.Stdout
 	return l
+}
+
+// ToColorConsole redirects log to console with ANSI colors
+func (l *Logger) ToColorConsole() *Logger {
+	if logIsAtty(os.Stdout) {
+		l.outhook = logColorConsoleWrite
+	}
+
+	return l.ToConsole()
 }
 
 // ToDevFile redirects log to per-device log file
@@ -476,7 +494,7 @@ func (msg *LogMessage) Flush() {
 		}
 
 		buf.WriteByte('\n')
-		msg.logger.out.Write(buf.Bytes())
+		msg.logger.outhook(msg.logger.out, l.level, buf.Bytes())
 
 		for _, cc := range cclist {
 			if (cc.mask & l.level) != 0 {

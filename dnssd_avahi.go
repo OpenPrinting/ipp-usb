@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"unsafe"
 )
@@ -41,6 +42,7 @@ var (
 type dnssdSysdep struct {
 	log        *Logger            // Device's logger
 	instance   string             // Service Instance Name
+	fqdn       string             // Host's fully-qualified domain name
 	client     *C.AvahiClient     // Avahi client
 	egroup     *C.AvahiEntryGroup // Avahi entry group
 	statusChan chan DnsSdStatus   // Status notifications channel
@@ -91,6 +93,9 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 
 	avahiClientMap[sysdep.client] = sysdep
 
+	sysdep.fqdn = C.GoString(C.avahi_client_get_host_name_fqdn(sysdep.client))
+	sysdep.log.Debug(' ', "DNS-SD: FQDN: %q", sysdep.fqdn)
+
 	// Create entry group
 	sysdep.egroup = C.avahi_entry_group_new(
 		sysdep.client,
@@ -105,13 +110,15 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 
 	avahiEgroupMap[sysdep.egroup] = sysdep
 
-	// Compute iface and proto
+	// Compute iface and proto, adjust fqdn
 	iface = C.AVAHI_IF_UNSPEC
 	if Conf.LoopbackOnly {
 		iface, err = Loopback()
 		if err != nil {
 			goto ERROR
 		}
+
+		sysdep.fqdn = "localhost"
 	}
 
 	proto = C.AVAHI_PROTO_UNSPEC
@@ -124,7 +131,7 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 		c_svc_type := C.CString(svc.Type)
 
 		var c_txt *C.AvahiStringList
-		c_txt, err = avahiTxtRecord(svc.Txt)
+		c_txt, err = sysdep.avahiTxtRecord(svc.Port, svc.Txt)
 		if err != nil {
 			goto ERROR
 		}
@@ -207,12 +214,13 @@ func (sysdep *dnssdSysdep) destroy() {
 }
 
 // Push status change notification
-func (sd *dnssdSysdep) notify(status DnsSdStatus) {
-	sd.statusChan <- status
+func (sysdep *dnssdSysdep) notify(status DnsSdStatus) {
+	sysdep.statusChan <- status
 }
 
 // avahiTxtRecord converts DnsDsTxtRecord to AvahiStringList
-func avahiTxtRecord(txt DnsDsTxtRecord) (*C.AvahiStringList, error) {
+func (sysdep *dnssdSysdep) avahiTxtRecord(port int, txt DnsDsTxtRecord) (
+	*C.AvahiStringList, error) {
 	var buf bytes.Buffer
 	var list, prev *C.AvahiStringList
 
@@ -220,7 +228,21 @@ func avahiTxtRecord(txt DnsDsTxtRecord) (*C.AvahiStringList, error) {
 		buf.Reset()
 		buf.WriteString(t.Key)
 		buf.WriteByte('=')
-		buf.WriteString(t.Value)
+
+		if !t.Url || sysdep.fqdn == "" {
+			buf.WriteString(t.Value)
+		} else {
+			value := t.Value
+			if parsed, err := url.Parse(value); err == nil && parsed.IsAbs() {
+				parsed.Host = sysdep.fqdn
+				if port != 0 {
+					parsed.Host += fmt.Sprintf(":%d", port)
+				}
+
+				value = parsed.String()
+			}
+			buf.WriteString(value)
+		}
 
 		b := buf.Bytes()
 

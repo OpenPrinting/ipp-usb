@@ -16,15 +16,21 @@ import (
 
 // DnsSdTxtItem represents a single TXT record item
 type DnsSdTxtItem struct {
-	Key, Value string
+	Key, Value string // TXT entry: Key=Value
+	Url        bool   // It's an URL, hostname must be adjusted
 }
 
 // DnsDsTxtRecord represents a TXT record
 type DnsDsTxtRecord []DnsSdTxtItem
 
-// Add adds item to DnsDsTxtRecord
+// Add adds regular (non-URL) item to DnsDsTxtRecord
 func (txt *DnsDsTxtRecord) Add(key, value string) {
-	*txt = append(*txt, DnsSdTxtItem{key, value})
+	*txt = append(*txt, DnsSdTxtItem{key, value, false})
+}
+
+// Add adds URL item to DnsDsTxtRecord
+func (txt *DnsDsTxtRecord) AddUrl(key, value string) {
+	*txt = append(*txt, DnsSdTxtItem{key, value, true})
 }
 
 // IfNotEmpty adds item to DnsDsTxtRecord if its value is not empty
@@ -33,6 +39,15 @@ func (txt *DnsDsTxtRecord) Add(key, value string) {
 func (txt *DnsDsTxtRecord) IfNotEmpty(key, value string) bool {
 	if value != "" {
 		txt.Add(key, value)
+		return true
+	}
+	return false
+}
+
+// UrlIfNotEmpty works as IfNotEmpty, but for URLs
+func (txt *DnsDsTxtRecord) UrlIfNotEmpty(key, value string) bool {
+	if value != "" {
+		txt.AddUrl(key, value)
 		return true
 	}
 	return false

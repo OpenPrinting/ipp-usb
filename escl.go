@@ -100,6 +100,8 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	svc.Txt.IfNotEmpty("cs", strings.Join(list, ","))
 
 	svc.Txt.IfNotEmpty("UUID", decoder.uuid)
+	svc.Txt.UrlIfNotEmpty("adminurl", decoder.adminurl)
+	svc.Txt.UrlIfNotEmpty("representation", decoder.representation)
 
 	list = []string{}
 	for p := range decoder.pdl {
@@ -126,11 +128,13 @@ ERROR:
 
 // esclCapsDecoder represents eSCL ScannerCapabilities decoder
 type esclCapsDecoder struct {
-	uuid        string
-	version     string
-	platen, adf bool
-	duplex      bool
-	pdl, cs     map[string]struct{}
+	uuid           string              // Device UUID
+	adminurl       string              // Admin URL
+	representation string              // Icon URL
+	version        string              // eSCL Version
+	platen, adf    bool                // Has platen/ADF
+	duplex         bool                // Has duplex
+	pdl, cs        map[string]struct{} // Formats/colors
 }
 
 // newesclCapsDecoder creates new esclCapsDecoder
@@ -208,6 +212,10 @@ func (decoder *esclCapsDecoder) data(path, data string) {
 	switch path {
 	case "/scan:ScannerCapabilities/scan:UUID":
 		decoder.uuid = data
+	case "/scan:ScannerCapabilities/scan:AdminURI":
+		decoder.adminurl = data
+	case "/scan:ScannerCapabilities/scan:IconURI":
+		decoder.representation = data
 	case "/scan:ScannerCapabilities/pwg:Version":
 		decoder.version = data
 

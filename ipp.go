@@ -136,6 +136,7 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     product:          "printer-make-and-model", in round brackets
 //     pdl:              "document-format-supported"
 //     txtvers:          hardcoded as "1"
+//     adminurl:         "printer-more-info"
 //
 func (attrs ippAttrs) Decode() (dnssd_name string, svc DnsSdSvcInfo) {
 	svc = DnsSdSvcInfo{Type: "_ipp._tcp"}
@@ -174,6 +175,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, svc DnsSdSvcInfo) {
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
 	svc.Txt.Add("txtvers", "1")
+	svc.Txt.UrlIfNotEmpty("adminurl", attrs.strSingle("printer-more-info"))
 
 	return
 }

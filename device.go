@@ -48,25 +48,9 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		goto ERROR
 	}
 
-	// Obtain device info and create logger
+	// Obtain device's logger
 	info = dev.UsbTransport.UsbDeviceInfo()
-	dev.Log = NewLogger().ToDevFile(info)
-
-	dev.Log.Begin().
-		Debug(' ', "===============================").
-		Debug('+', "%s: device info", addr).
-		Debug(' ', "Ident:        %s", info.Ident()).
-		Debug(' ', "Manufacturer: %s", info.Manufacturer).
-		Debug(' ', "Product:      %s", info.Product).
-		Debug(' ', "DeviceId:     %s", info.DeviceId).
-		Commit()
-
-	// Write log messages
-	log_debug("+ %s: device info", addr)
-	log_debug("  Ident:        %s", info.Ident())
-	log_debug("  Manufacturer: %s", info.Manufacturer)
-	log_debug("  Product:      %s", info.Product)
-	log_debug("  DeviceId:     %s", info.DeviceId)
+	dev.Log = dev.UsbTransport.Log()
 
 	// Load persistent state
 	dev.State = LoadDevState(info.Ident())
@@ -110,14 +94,14 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Obtain DNS-SD info for eSCL, this is optional
 	err = EsclService(log, &dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
 	if err != nil {
-		log_debug("! %s", err)
+		dev.Log.Error('!', "%s", err)
 	}
 
 	// Start DNS-SD publisher
 	for _, svc := range dnssd_services {
-		log_debug("> %s: %s TXT record:", dnssd_name, svc.Type)
+		dev.Log.Debug('>', "%s: %s TXT record:", dnssd_name, svc.Type)
 		for _, txt := range svc.Txt {
-			log_debug("    %s=%s", txt.Key, txt.Value)
+			dev.Log.Debug(' ', "  %s=%s", txt.Key, txt.Value)
 		}
 	}
 

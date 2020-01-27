@@ -26,8 +26,14 @@ const (
 	LogMaxBackupFiles = 5
 )
 
-// The default logger
-var Log = NewLogger().ToConsole()
+// Standard loggers
+var (
+	// This is the default logger
+	Log = NewLogger().ToConsole()
+
+	// Console logger always writes to console
+	Console = NewLogger().ToConsole()
+)
 
 // LogLevel enumerates possible log levels
 type LogLevel int

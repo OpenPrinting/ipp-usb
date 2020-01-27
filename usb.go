@@ -31,6 +31,8 @@ var (
 // Type UsbTransport implements http.RoundTripper over USB
 type UsbTransport struct {
 	http.Transport               // Underlying http.Transport
+	info           UsbDeviceInfo // USB device info
+	log            *Logger       // Device's own logger
 	dev            *gousb.Device // Underlying USB device
 	ifaddrs        []*usbIfAddr  // IPP interfaces
 	dialSem        chan struct{} // Counts available connections
@@ -127,10 +129,15 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
 		},
+		log:     NewLogger(),
 		dev:     dev,
 		ifaddrs: ifaddrs,
 		dialSem: make(chan struct{}, len(ifaddrs)),
 	}
+
+	transport.fillInfo()
+	transport.log.Cc(LogDebug, Console) // FIXME -- make configurable
+	transport.log.ToDevFile(transport.info)
 
 	transport.DialContext = transport.dialContect
 	transport.DialTLS = func(network, addr string) (net.Conn, error) {
@@ -141,8 +148,19 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 		transport.dialSem <- struct{}{}
 	}
 
+	// Write device info to the log
+	transport.log.Begin().
+		Debug(' ', "===============================").
+		Debug('+', "%s: device info", addr).
+		Debug(' ', "Ident:        %s", transport.info.Ident()).
+		Debug(' ', "Manufacturer: %s", transport.info.Manufacturer).
+		Debug(' ', "Product:      %s", transport.info.Product).
+		Debug(' ', "DeviceId:     %s", transport.info.DeviceId).
+		Commit()
+
+	transport.log.Debug(' ', "IPP-USB Interfaces:")
 	for _, ifaddr := range transport.ifaddrs {
-		log_debug("+ %s", ifaddr)
+		transport.log.Debug(' ', "  %s", ifaddr)
 	}
 
 	return transport, nil
@@ -153,9 +171,19 @@ func (transport *UsbTransport) Close() {
 	// FIXME
 }
 
+// Log returns device's own logger
+func (transport *UsbTransport) Log() *Logger {
+	return transport.log
+}
+
 // UsbDeviceInfo returns USB device information for the device
 // behind the transport
 func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
+	return transport.info
+}
+
+// fillUsbDeviceInfo fills transport.info
+func (transport *UsbTransport) fillInfo() {
 	dev := transport.dev
 
 	ok := func(s string, err error) string {
@@ -166,14 +194,13 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 		}
 	}
 
-	return UsbDeviceInfo{
+	transport.info = UsbDeviceInfo{
 		Vendor:       dev.Desc.Vendor,
 		SerialNumber: ok(dev.SerialNumber()),
 		Manufacturer: ok(dev.Manufacturer()),
 		Product:      ok(dev.Product()),
 		DeviceId:     usbGetDeviceId(dev),
 	}
-
 }
 
 // usbResponseBodyWrapper wraps http.Response.Body and guarantees
@@ -254,12 +281,12 @@ var _ = net.Conn(&usbConn{})
 func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 	dev := transport.dev
 
-	log_debug("+ USB OPEN: %s", ifaddr)
+	transport.log.Debug('+', "USB OPEN: %s", ifaddr)
 
 	// Obtain interface
 	iface, err := ifaddr.Interface(dev)
 	if err != nil {
-		log_debug("! USB ERROR: %s", err)
+		transport.log.Error('!', "USB ERROR: %s", err)
 		return nil, err
 	}
 
@@ -280,7 +307,7 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 		}
 
 		if err != nil {
-			log_debug("! USB ERROR: %s", err)
+			transport.log.Error('!', "USB ERROR: %s", err)
 			break
 		}
 	}
@@ -291,6 +318,7 @@ func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
 
 	if err != nil {
 		conn.Close()
+		transport.log.Error('!', "USB ERROR: %s", err)
 		return nil, err
 	}
 
@@ -320,7 +348,7 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 
 // Close USB connection
 func (conn *usbConn) Close() error {
-	log_debug("+ USB CLOSE: %s", conn.ifaddr)
+	conn.transport.log.Debug('-', "USB CLOSE: %s", conn.ifaddr)
 
 	conn.iface.Close()
 	conn.ifaddr.Busy = false

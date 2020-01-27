@@ -405,7 +405,7 @@ func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
 
 	sort.Strings(keys)
 	for _, k := range keys {
-		msg.Add(level, prefix, "HTTP[%3.3d]: %s:%s", session, k, hdr.Get(k))
+		msg.Add(level, prefix, "HTTP[%3.3d]: %s: %s", session, k, hdr.Get(k))
 	}
 
 	msg.Nl(level)

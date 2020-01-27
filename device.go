@@ -108,7 +108,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		}
 	}
 
-	dev.DnsSdPublisher = NewDnsSdPublisher(dev.State, dnssd_services)
+	dev.DnsSdPublisher = NewDnsSdPublisher(dev.Log, dev.State, dnssd_services)
 	err = dev.DnsSdPublisher.Publish()
 	if err != nil {
 		goto ERROR

@@ -39,16 +39,18 @@ var (
 
 // dnssdSysdep represents a system-dependent
 type dnssdSysdep struct {
+	log        *Logger            // Device's logger
+	instance   string             // Service Instance Name
 	client     *C.AvahiClient     // Avahi client
 	egroup     *C.AvahiEntryGroup // Avahi entry group
 	statusChan chan DnsSdStatus   // Status notifications channel
 }
 
 // newDnssdSysdep creates new dnssdSysdep instance
-func newDnssdSysdep(instance string, services DnsSdServices) (
+func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 	*dnssdSysdep, error) {
 
-	log_debug("+ DNS-SD: trying %s", instance)
+	log.Debug(' ', "DNS-SD: %s: trying", instance)
 
 	var err error
 	var poll *C.AvahiPoll
@@ -56,6 +58,8 @@ func newDnssdSysdep(instance string, services DnsSdServices) (
 	var proto, iface int
 
 	sysdep := &dnssdSysdep{
+		log:        log,
+		instance:   instance,
 		statusChan: make(chan DnsSdStatus, 10),
 	}
 
@@ -247,19 +251,21 @@ func avahiClientCallback(client *C.AvahiClient,
 		return
 	}
 
+	sysdep.log.Debug(' ', "DNS-SD: %s: client event:", sysdep.instance)
+
 	switch state {
 	case C.AVAHI_CLIENT_S_REGISTERING:
-		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_S_REGISTERING")
+		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_REGISTERING")
 	case C.AVAHI_CLIENT_S_RUNNING:
-		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_S_RUNNING")
+		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_RUNNING")
 	case C.AVAHI_CLIENT_S_COLLISION:
-		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_S_COLLISION")
+		sysdep.log.Debug(' ', "  AVAHI_CLIENT_S_COLLISION")
 		sysdep.notify(DnsSdFailure)
 	case C.AVAHI_CLIENT_FAILURE:
-		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_FAILURE")
+		sysdep.log.Debug(' ', "  AVAHI_CLIENT_FAILURE")
 		sysdep.notify(DnsSdFailure)
 	case C.AVAHI_CLIENT_CONNECTING:
-		log_debug("  AVAHI CLIENT: AVAHI_CLIENT_CONNECTING")
+		sysdep.log.Debug(' ', "  AVAHI_CLIENT_CONNECTING")
 	}
 }
 
@@ -275,19 +281,21 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		return
 	}
 
+	sysdep.log.Debug(' ', "DNS-SD: %s: entry group event:", sysdep.instance)
+
 	switch state {
 	case C.AVAHI_ENTRY_GROUP_UNCOMMITED:
-		log_debug("  AVAHI_ENTRY_GROUP_UNCOMMITED")
+		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_UNCOMMITED")
 	case C.AVAHI_ENTRY_GROUP_REGISTERING:
-		log_debug("  AVAHI_ENTRY_GROUP_REGISTERING")
+		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_REGISTERING")
 	case C.AVAHI_ENTRY_GROUP_ESTABLISHED:
-		log_debug("  AVAHI_ENTRY_GROUP_ESTABLISHED")
+		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_ESTABLISHED")
 		sysdep.notify(DnsSdSuccess)
 	case C.AVAHI_ENTRY_GROUP_COLLISION:
-		log_debug("  AVAHI_ENTRY_GROUP_COLLISION")
+		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_COLLISION")
 		sysdep.notify(DnsSdCollision)
 	case C.AVAHI_ENTRY_GROUP_FAILURE:
-		log_debug("  AVAHI_ENTRY_GROUP_FAILURE")
+		sysdep.log.Debug(' ', "  AVAHI_ENTRY_GROUP_FAILURE")
 		sysdep.notify(DnsSdFailure)
 	}
 }

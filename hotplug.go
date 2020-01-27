@@ -51,11 +51,13 @@ var UsbHotPlugChan = make(chan struct{})
 //
 //export usbHotplugCallback
 func usbHotplugCallback(bus, addr C.int, event C.libusb_hotplug_event) {
+	usbaddr := UsbAddr{Bus: int(bus), Address: int(addr)}
+
 	switch event {
 	case C.LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
-		log_debug("+ HOTPLUG %d %d", bus, addr)
+		Log.Debug('+', "HOTPLUG: added %s", usbaddr)
 	case C.LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
-		log_debug("- HOTPLUG %d %d", bus, addr)
+		Log.Debug('-', "HOTPLUG: removed %s", usbaddr)
 	}
 
 	select {

@@ -56,11 +56,14 @@ const (
 // Logger implements logging facilities
 type Logger struct {
 	LogMessage            // "Root" log message
+	mode       loggerMode // Logger mode
 	lock       sync.Mutex // Write lock
 	path       string     // Path to log file
 	out        io.Writer  // Output stream, may be *os.File
-	cc         []*Logger  // Loggers to send carbon copy to
-	mode       loggerMode // Logger mode
+	cc         []struct { // Loggers to send carbon copy to
+		mask LogLevel
+		to   *Logger
+	}
 }
 
 // NewLogger creates new logger. Logger mode is not set,
@@ -92,8 +95,29 @@ func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 }
 
 // Add io.Writer to send "carbon copy" to
-func (l *Logger) Cc(to *Logger) {
-	l.cc = append(l.cc, to)
+// The mask parameter filters what lines will included into the carbon copy
+//
+// Note:
+//   LogTraceXxx implies LogDebug
+//   LogDebug implies LogInfo
+//   LogInfo implies LogError
+func (l *Logger) Cc(mask LogLevel, to *Logger) {
+	if (mask & LogTraceAll) != 0 {
+		mask |= LogDebug
+	}
+
+	if (mask & LogDebug) != 0 {
+		mask |= LogInfo
+	}
+
+	if (mask & LogInfo) != 0 {
+		mask |= LogError
+	}
+
+	l.cc = append(l.cc, struct {
+		mask LogLevel
+		to   *Logger
+	}{mask, to})
 }
 
 // Close the logger
@@ -416,9 +440,16 @@ func (msg *LogMessage) Flush() {
 	}
 
 	// Prepare to carbon-copy
-	var cclist []*LogMessage
+	var cclist []struct {
+		mask LogLevel
+		msg  *LogMessage
+	}
+
 	for _, cc := range msg.logger.cc {
-		cclist = append(cclist, cc.Begin())
+		cclist = append(cclist, struct {
+			mask LogLevel
+			msg  *LogMessage
+		}{cc.mask, cc.to.Begin()})
 	}
 
 	// Send message content to the logger
@@ -442,7 +473,9 @@ func (msg *LogMessage) Flush() {
 		msg.logger.out.Write(buf.Bytes())
 
 		for _, cc := range cclist {
-			cc.addBytes(l.level, 0, l.Bytes())
+			if (cc.mask & l.level) != 0 {
+				cc.msg.addBytes(l.level, 0, l.Bytes())
+			}
 		}
 
 		l.free()
@@ -450,7 +483,7 @@ func (msg *LogMessage) Flush() {
 
 	// Commit carbon copies
 	for _, cc := range cclist {
-		cc.Commit()
+		cc.msg.Commit()
 	}
 
 	// Reset the message

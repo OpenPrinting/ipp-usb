@@ -129,6 +129,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 		Transport: http.Transport{
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
+			IdleConnTimeout:     time.Second,
 		},
 		addr:    addr,
 		log:     NewLogger(),

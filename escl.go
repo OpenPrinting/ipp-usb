@@ -74,6 +74,7 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 		len(decoder.cs) == 0 || len(decoder.pdl) == 0 ||
 		!(decoder.platen && decoder.adf) {
 		err = errors.New("invalid response")
+		goto ERROR
 	}
 
 	// Build eSCL DnsSdInfo

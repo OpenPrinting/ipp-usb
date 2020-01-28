@@ -148,3 +148,91 @@ func (list1 UsbAddrList) Diff(list2 UsbAddrList) (added, removed UsbAddrList) {
 
 	return
 }
+
+// UsbIfAddr represents a full "address" of the USB interface
+type UsbIfAddr struct {
+	UsbAddr                     // Device address
+	CfgNum  int                 // Config number within device
+	Num     int                 // Interface number within Config
+	Alt     int                 // Number of alternate setting
+	In, Out *gousb.EndpointDesc // Input/output endpoints
+}
+
+// String returns a human readable short representation of UsbIfAddr
+func (ifaddr *UsbIfAddr) String() string {
+	return fmt.Sprintf("Bus %.3d Device %.3d Config %d Interface %d Alt %d",
+		ifaddr.Bus,
+		ifaddr.Address,
+		ifaddr.CfgNum,
+		ifaddr.Num,
+		ifaddr.Alt,
+	)
+}
+
+// Open the particular interface on device
+func (ifaddr *UsbIfAddr) Open(dev *gousb.Device) (*gousb.Interface, error) {
+	conf, err := dev.Config(ifaddr.CfgNum)
+	if err != nil {
+		return nil, err
+	}
+
+	iface, err := conf.Interface(ifaddr.Num, ifaddr.Alt)
+	if err != nil {
+		return nil, err
+	}
+
+	return iface, nil
+}
+
+// UsbIfAddrList represents a list of USB interface addresses
+type UsbIfAddrList []UsbIfAddr
+
+// Add UsbIfAddr to UsbIfAddrList
+func (list *UsbIfAddrList) Add(addr UsbIfAddr) {
+	*list = append(*list, addr)
+}
+
+// GetUsbIfAddrs returns list of IPP over USB interfaces on device
+func GetUsbIfAddrs(desc *gousb.DeviceDesc) UsbIfAddrList {
+	var list UsbIfAddrList
+
+	for cfgNum, conf := range desc.Configs {
+		for ifNum, iface := range conf.Interfaces {
+			for altNum, alt := range iface.AltSettings {
+				if alt.Class == gousb.ClassPrinter &&
+					alt.SubClass == 1 &&
+					alt.Protocol == 4 {
+
+					// Build address
+					addr := UsbIfAddr{
+						UsbAddr: UsbAddr{desc.Bus, desc.Address},
+						CfgNum:  cfgNum,
+						Num:     ifNum,
+						Alt:     altNum,
+					}
+
+					// Find in/out endpoins
+					for _, ep := range alt.Endpoints {
+						switch ep.Direction {
+						case gousb.EndpointDirectionIn:
+							if addr.In == nil {
+								addr.In = &ep
+							}
+						case gousb.EndpointDirectionOut:
+							if addr.Out == nil {
+								addr.Out = &ep
+							}
+						}
+					}
+
+					// Add address to the list
+					if addr.In != nil && addr.Out != nil {
+						list.Add(addr)
+					}
+				}
+			}
+		}
+	}
+
+	return list
+}

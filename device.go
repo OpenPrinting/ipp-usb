@@ -38,7 +38,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var err error
 	var info UsbDeviceInfo
 	var listener net.Listener
-	var dnssd_name string
+	var ippinfo IppPrinterInfo
 	var dnssd_services DnsSdServices
 	var log *LogMessage
 
@@ -80,7 +80,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	log = dev.Log.Begin()
 	defer log.Commit()
 
-	dnssd_name, err = IppService(log, &dnssd_services,
+	ippinfo, err = IppService(log, &dnssd_services,
 		dev.State.HttpPort, info, dev.HttpClient)
 
 	if err != nil {
@@ -88,14 +88,16 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	}
 
 	// Update device state, if name changed
-	if dnssd_name != dev.State.DnsSdName {
-		dev.State.DnsSdName = dnssd_name
-		dev.State.DnsSdOverride = dnssd_name
+	if ippinfo.DnsSdName != dev.State.DnsSdName {
+		dev.State.DnsSdName = ippinfo.DnsSdName
+		dev.State.DnsSdOverride = ippinfo.DnsSdName
 		dev.State.Save()
 	}
 
 	// Obtain DNS-SD info for eSCL, this is optional
-	err = EsclService(log, &dnssd_services, dev.State.HttpPort, info, dev.HttpClient)
+	err = EsclService(log, &dnssd_services, dev.State.HttpPort, info, ippinfo,
+		dev.HttpClient)
+
 	if err != nil {
 		dev.Log.Error('!', "%s", err)
 	}
@@ -105,7 +107,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 
 	// Start DNS-SD publisher
 	for _, svc := range dnssd_services {
-		dev.Log.Debug('>', "%s: %s TXT record:", dnssd_name, svc.Type)
+		dev.Log.Debug('>', "%s: %s TXT record:", ippinfo.DnsSdName, svc.Type)
 		for _, txt := range svc.Txt {
 			dev.Log.Debug(' ', "  %s=%s", txt.Key, txt.Value)
 		}

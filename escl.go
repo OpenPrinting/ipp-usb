@@ -26,11 +26,12 @@ import (
 //
 // Discovered services will be added to the services collection
 func EsclService(log *LogMessage, services *DnsSdServices,
-	port int, usbinfo UsbDeviceInfo, c *http.Client) (err error) {
+	port int, usbinfo UsbDeviceInfo, ippinfo IppPrinterInfo,
+	c *http.Client) (err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
 
-	decoder := newEsclCapsDecoder()
+	decoder := newEsclCapsDecoder(ippinfo)
 	svc := DnsSdSvcInfo{
 		Type: "_uscan._tcp",
 		Port: port,
@@ -76,7 +77,6 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	}
 
 	// Build eSCL DnsSdInfo
-
 	if decoder.duplex {
 		svc.Txt.Add("duplex", "T")
 	} else {
@@ -138,8 +138,11 @@ type esclCapsDecoder struct {
 }
 
 // newesclCapsDecoder creates new esclCapsDecoder
-func newEsclCapsDecoder() *esclCapsDecoder {
+func newEsclCapsDecoder(ippinfo IppPrinterInfo) *esclCapsDecoder {
 	return &esclCapsDecoder{
+		adminurl:       ippinfo.AdminUrl,
+		representation: ippinfo.IconUrl,
+
 		pdl: make(map[string]struct{}),
 		cs:  make(map[string]struct{}),
 	}

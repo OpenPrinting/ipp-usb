@@ -18,13 +18,22 @@ import (
 	"github.com/alexpevzner/goipp"
 )
 
+// IppPrinterInfo represents additional printer information, which
+// is not included into DNS-SD TXT record, but still needed for
+// other purposes
+type IppPrinterInfo struct {
+	DnsSdName string // DNS-SD device name
+	AdminUrl  string // Admin URL
+	IconUrl   string // Device icon URL
+}
+
 // IppService performs IPP Get-Printer-Attributes query using provided
 // http.Client and decodes received information into the form suitable
 // for DNS-SD registration
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DnsSdServices,
-	port int, usbinfo UsbDeviceInfo, c *http.Client) (dnssd_name string, err error) {
+	port int, usbinfo UsbDeviceInfo, c *http.Client) (ippinfo IppPrinterInfo, err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
 
@@ -71,7 +80,7 @@ func IppService(log *LogMessage, services *DnsSdServices,
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)
-	dnssd_name, ippScv := attrs.Decode()
+	ippinfo, ippScv := attrs.Decode()
 
 	// Construct LPD info. Per Apple spec, we MUST advertise
 	// LPD with zero port, even if we don't support it
@@ -138,12 +147,14 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     txtvers:          hardcoded as "1"
 //     adminurl:         "printer-more-info"
 //
-func (attrs ippAttrs) Decode() (dnssd_name string, svc DnsSdSvcInfo) {
+func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DnsSdSvcInfo) {
 	svc = DnsSdSvcInfo{Type: "_ipp._tcp"}
 
-	// Obtain dnssd_name
-	dnssd_name = attrs.strSingle("printer-dns-sd-name",
+	// Obtain IppPrinterInfo
+	ippinfo.DnsSdName = attrs.strSingle("printer-dns-sd-name",
 		"printer-info", "printer-make-and-model")
+	ippinfo.AdminUrl = attrs.strSingle("printer-more-info")
+	ippinfo.IconUrl = attrs.strSingle("printer-icons")
 
 	// Obtain and parse IEEE 1284 device ID
 	devid := make(map[string]string)
@@ -175,7 +186,7 @@ func (attrs ippAttrs) Decode() (dnssd_name string, svc DnsSdSvcInfo) {
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
 	svc.Txt.Add("txtvers", "1")
-	svc.Txt.UrlIfNotEmpty("adminurl", attrs.strSingle("printer-more-info"))
+	svc.Txt.UrlIfNotEmpty("adminurl", ippinfo.AdminUrl)
 
 	return
 }

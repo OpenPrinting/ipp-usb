@@ -100,6 +100,9 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 		dev.Log.Error('!', "%s", err)
 	}
 
+	// Advertise Web service. Assume it always exist
+	dnssd_services.Add(DnsSdSvcInfo{Type: "_http._tcp", Port: dev.State.HttpPort})
+
 	// Start DNS-SD publisher
 	for _, svc := range dnssd_services {
 		dev.Log.Debug('>', "%s: %s TXT record:", dnssd_name, svc.Type)

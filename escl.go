@@ -72,8 +72,6 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	// If we have no data, assume eSCL response was invalud
 	// If we miss some essential data, assume eSCL response was invalid
 	switch {
-	case decoder.uuid == "":
-		err = errors.New("missed scan:UUID")
 	case decoder.version == "":
 		err = errors.New("missed pwg:Version")
 	case len(decoder.cs) == 0:
@@ -152,6 +150,7 @@ type esclCapsDecoder struct {
 // newesclCapsDecoder creates new esclCapsDecoder
 func newEsclCapsDecoder(ippinfo IppPrinterInfo) *esclCapsDecoder {
 	return &esclCapsDecoder{
+		uuid:           ippinfo.UUID,
 		adminurl:       ippinfo.AdminUrl,
 		representation: ippinfo.IconUrl,
 

@@ -23,6 +23,7 @@ import (
 // other purposes
 type IppPrinterInfo struct {
 	DnsSdName string // DNS-SD device name
+	UUID      string // Device UUID
 	AdminUrl  string // Admin URL
 	IconUrl   string // Device icon URL
 }
@@ -153,6 +154,7 @@ func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DnsSdSvcInfo) {
 	// Obtain IppPrinterInfo
 	ippinfo.DnsSdName = attrs.strSingle("printer-dns-sd-name",
 		"printer-info", "printer-make-and-model")
+	ippinfo.UUID = attrs.getUUID()
 	ippinfo.AdminUrl = attrs.strSingle("printer-more-info")
 	ippinfo.IconUrl = attrs.strSingle("printer-icons")
 
@@ -174,7 +176,7 @@ func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DnsSdSvcInfo) {
 	if !svc.Txt.IfNotEmpty("URF", attrs.strJoined("urf-supported")) {
 		svc.Txt.IfNotEmpty("URF", devid["URF"])
 	}
-	svc.Txt.IfNotEmpty("UUID", attrs.getUUID())
+	svc.Txt.IfNotEmpty("UUID", ippinfo.UUID)
 	svc.Txt.IfNotEmpty("Color", attrs.getBool("color-supported"))
 	svc.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
 	svc.Txt.Add("note", attrs.strSingle("printer-location"))

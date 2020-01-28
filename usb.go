@@ -11,13 +11,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/gousb"
@@ -35,9 +33,7 @@ type UsbTransport struct {
 	info           UsbDeviceInfo // USB device info
 	log            *Logger       // Device's own logger
 	dev            *gousb.Device // Underlying USB device
-	ifaddrs        []*usbIfAddr  // IPP interfaces
-	dialSem        chan struct{} // Counts available connections
-	dialLock       sync.Mutex    // Protects access to ifaddrs
+	connections    chan *usbConn // Pool of connections
 }
 
 // Type UsbDeviceInfo represents USB device information
@@ -123,18 +119,17 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	}
 
 	// Create UsbTransport
-	ifaddrs := usbGetIppIfAddrs(dev.Desc)
+	ifaddrs := GetUsbIfAddrs(dev.Desc)
 
 	transport := &UsbTransport{
 		Transport: http.Transport{
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
 		},
-		addr:    addr,
-		log:     NewLogger(),
-		dev:     dev,
-		ifaddrs: ifaddrs,
-		dialSem: make(chan struct{}, len(ifaddrs)),
+		addr:        addr,
+		log:         NewLogger(),
+		dev:         dev,
+		connections: make(chan *usbConn, len(ifaddrs)),
 	}
 
 	transport.fillInfo()
@@ -144,10 +139,6 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	transport.DialContext = transport.dialContect
 	transport.DialTLS = func(network, addr string) (net.Conn, error) {
 		return nil, errors.New("No TLS over USB")
-	}
-
-	for i := 0; i < len(ifaddrs); i++ {
-		transport.dialSem <- struct{}{}
 	}
 
 	// Write device info to the log
@@ -161,12 +152,26 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 		Debug(' ', "  DeviceId:     %s", transport.info.DeviceId).
 		Commit()
 
-	transport.log.Debug(' ', "IPP-USB Interfaces:")
-	for _, ifaddr := range transport.ifaddrs {
-		transport.log.Debug(' ', "  %s", ifaddr)
+	// Open connections
+	for i, ifaddr := range ifaddrs {
+		var conn *usbConn
+		conn, err = transport.openUsbConn(i, ifaddr)
+		if err != nil {
+			goto ERROR
+		}
+		transport.connections <- conn
 	}
 
 	return transport, nil
+
+	// Error: cleanup and exit
+ERROR:
+	for conn := range transport.connections {
+		conn.destroy()
+	}
+
+	dev.Close()
+	return nil, err
 }
 
 // Close the transport
@@ -249,31 +254,17 @@ func (transport *UsbTransport) dialContect(ctx context.Context,
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-transport.dialSem:
+	case conn := <-transport.connections:
+		transport.log.Debug(' ', "USB[%d]: GET", conn.index)
+		return conn, nil
 	}
-
-	// Acquire a connection
-	transport.dialLock.Lock()
-	defer transport.dialLock.Unlock()
-
-	for _, ifaddr := range transport.ifaddrs {
-		if !ifaddr.Busy {
-			conn, err := openUsbConn(transport, ifaddr)
-			if err != nil {
-				transport.dialSem <- struct{}{}
-			}
-			return conn, err
-		}
-	}
-
-	panic("internal error")
 }
 
 // ----- usbConn -----
 // Type usbConn implements net.Conn over USB
 type usbConn struct {
 	transport *UsbTransport      // Transport that owns the connection
-	ifaddr    *usbIfAddr         // Interface address
+	index     int                // Connection index (for logging)
 	iface     *gousb.Interface   // Underlying interface
 	in        *gousb.InEndpoint  // Input endpoint
 	out       *gousb.OutEndpoint // Output endpoint
@@ -282,51 +273,47 @@ type usbConn struct {
 var _ = net.Conn(&usbConn{})
 
 // Open usbConn
-func openUsbConn(transport *UsbTransport, ifaddr *usbIfAddr) (*usbConn, error) {
+func (transport *UsbTransport) openUsbConn(
+	index int, ifaddr UsbIfAddr) (*usbConn, error) {
+
 	dev := transport.dev
 
-	transport.log.Debug('+', "USB OPEN: %s", ifaddr)
-
-	// Obtain interface
-	iface, err := ifaddr.Interface(dev)
-	if err != nil {
-		transport.log.Error('!', "USB ERROR: %s", err)
-		return nil, err
-	}
+	transport.log.Debug(' ', "USB[%d]: CREATE: %s", index, ifaddr)
 
 	// Initialize connection structure
 	conn := &usbConn{
 		transport: transport,
-		ifaddr:    ifaddr,
-		iface:     iface,
+		index:     index,
+	}
+
+	// Obtain interface
+	var err error
+	conn.iface, err = ifaddr.Open(dev)
+	if err != nil {
+		goto ERROR
 	}
 
 	// Obtain endpoints
-	for _, ep := range iface.Setting.Endpoints {
-		switch {
-		case ep.Direction == gousb.EndpointDirectionIn && conn.in == nil:
-			conn.in, err = iface.InEndpoint(ep.Number)
-		case ep.Direction == gousb.EndpointDirectionOut && conn.out == nil:
-			conn.out, err = iface.OutEndpoint(ep.Number)
-		}
-
-		if err != nil {
-			transport.log.Error('!', "USB ERROR: %s", err)
-			break
-		}
-	}
-
-	if err == nil && (conn.in == nil || conn.out == nil) {
-		err = errors.New("Missed input or output endpoint")
-	}
-
+	conn.in, err = conn.iface.InEndpoint(ifaddr.In.Number)
 	if err != nil {
-		conn.Close()
-		transport.log.Error('!', "USB ERROR: %s", err)
-		return nil, err
+		goto ERROR
+	}
+
+	conn.out, err = conn.iface.OutEndpoint(ifaddr.Out.Number)
+	if err != nil {
+		goto ERROR
 	}
 
 	return conn, nil
+
+	// Error: cleanup and exit
+ERROR:
+	transport.log.Error('!', "USB[%d]: %s", index, err)
+	if conn.iface != nil {
+		conn.iface.Close()
+	}
+
+	return nil, err
 }
 
 // Read from USB
@@ -351,13 +338,19 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 }
 
 // Close USB connection
+//
+// It actually doesn't close a connection, but returns it
+// to the pool of available connections
 func (conn *usbConn) Close() error {
-	conn.transport.log.Debug('-', "USB CLOSE: %s", conn.ifaddr)
-
-	conn.iface.Close()
-	conn.ifaddr.Busy = false
-	conn.transport.dialSem <- struct{}{}
+	conn.transport.log.Debug(' ', "USB[%d]: PUT", conn.index)
+	conn.transport.connections <- conn
 	return nil
+}
+
+// Destroy USB connection
+func (conn *usbConn) destroy() {
+	conn.transport.log.Debug(' ', "USB[%d]: DESTROY", conn.index)
+	conn.iface.Close()
 }
 
 // LocalAddr returns the local network address.
@@ -385,74 +378,7 @@ func (conn *usbConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-// ----- usbIfAddr -----
-// Type usbIfAddr represents a full interface "address" within device
-type usbIfAddr struct {
-	Busy    bool              // Address is in use
-	DevDesc *gousb.DeviceDesc // Put it here for easy access
-	CfgNum  int               // Config number within device
-	Num     int               // Interface number within Config
-	Alt     int               // Number of alternate setting
-}
-
-// String represents a human readable short representation of usbIfAddr
-func (ifaddr *usbIfAddr) String() string {
-	return fmt.Sprintf("Bus %.3d Device %.3d Config %d Interface %d Alt %d",
-		ifaddr.DevDesc.Bus,
-		ifaddr.DevDesc.Address,
-		ifaddr.CfgNum,
-		ifaddr.Num,
-		ifaddr.Alt,
-	)
-}
-
-// Open the particular interface on device. Marks address as busy
-func (ifaddr *usbIfAddr) Interface(dev *gousb.Device) (*gousb.Interface, error) {
-	if ifaddr.Busy {
-		panic("internal error")
-	}
-
-	conf, err := dev.Config(ifaddr.CfgNum)
-	if err != nil {
-		return nil, err
-	}
-
-	iface, err := conf.Interface(ifaddr.Num, ifaddr.Alt)
-	if err != nil {
-		return nil, err
-	}
-
-	ifaddr.Busy = true
-	return iface, nil
-}
-
-// Collect IPP over USB interfaces on device
-func usbGetIppIfAddrs(desc *gousb.DeviceDesc) []*usbIfAddr {
-	var ifaddrs []*usbIfAddr
-
-	for cfgNum, conf := range desc.Configs {
-		for ifNum, iface := range conf.Interfaces {
-			for altNum, alt := range iface.AltSettings {
-				if alt.Class == gousb.ClassPrinter &&
-					alt.SubClass == 1 &&
-					alt.Protocol == 4 {
-					addr := &usbIfAddr{
-						DevDesc: desc,
-						CfgNum:  cfgNum,
-						Num:     ifNum,
-						Alt:     altNum,
-					}
-
-					ifaddrs = append(ifaddrs, addr)
-				}
-			}
-		}
-	}
-
-	return ifaddrs
-}
-
 // Check if device implements IPP over USB
 func usbIsIppUsbDevice(desc *gousb.DeviceDesc) bool {
-	return len(usbGetIppIfAddrs(desc)) >= 2
+	return len(GetUsbIfAddrs(desc)) >= 2
 }

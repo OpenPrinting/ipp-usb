@@ -159,7 +159,7 @@ type UsbIfAddr struct {
 }
 
 // String returns a human readable short representation of UsbIfAddr
-func (ifaddr *UsbIfAddr) String() string {
+func (ifaddr UsbIfAddr) String() string {
 	return fmt.Sprintf("Bus %.3d Device %.3d Config %d Interface %d Alt %d",
 		ifaddr.Bus,
 		ifaddr.Address,
@@ -216,11 +216,14 @@ func GetUsbIfAddrs(desc *gousb.DeviceDesc) UsbIfAddrList {
 						switch ep.Direction {
 						case gousb.EndpointDirectionIn:
 							if addr.In == nil {
-								addr.In = &ep
+								ep2 := ep
+								addr.In = &ep2
 							}
 						case gousb.EndpointDirectionOut:
+							Log.Debug(0, "> out %d", ep.Number)
 							if addr.Out == nil {
-								addr.Out = &ep
+								ep2 := ep
+								addr.Out = &ep2
 							}
 						}
 					}

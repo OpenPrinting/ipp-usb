@@ -83,6 +83,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	ippinfo, err = IppService(log, &dnssd_services,
 		dev.State.HttpPort, info, dev.HttpClient)
 
+	log.Flush()
+
 	if err != nil {
 		goto ERROR
 	}
@@ -97,6 +99,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Obtain DNS-SD info for eSCL, this is optional
 	err = EsclService(log, &dnssd_services, dev.State.HttpPort, info, ippinfo,
 		dev.HttpClient)
+
+	log.Flush()
 
 	if err != nil {
 		dev.Log.Error('!', "%s", err)

@@ -70,10 +70,21 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	}
 
 	// If we have no data, assume eSCL response was invalud
-	if decoder.uuid == "" || decoder.version == "" ||
-		len(decoder.cs) == 0 || len(decoder.pdl) == 0 ||
-		!(decoder.platen && decoder.adf) {
-		err = errors.New("invalid response")
+	// If we miss some essential data, assume eSCL response was invalid
+	switch {
+	case decoder.uuid == "":
+		err = errors.New("missed scan:UUID")
+	case decoder.version == "":
+		err = errors.New("missed pwg:Version")
+	case len(decoder.cs) == 0:
+		err = errors.New("missed scan:ColorMode")
+	case len(decoder.pdl) == 0:
+		err = errors.New("missed pwg:DocumentFormat")
+	case !(decoder.platen || decoder.adf):
+		err = errors.New("missed pwg:DocumentFormat")
+	}
+
+	if err != nil {
 		goto ERROR
 	}
 
@@ -196,9 +207,10 @@ const (
 	esclAdfDuplexCaps   = esclAdf + "/scan:AdfDuplexCaps"
 
 	// Relative to esclPlatenInputCaps, esclAdfSimplexCaps or esclAdfDuplexCaps
-	esclSettingProfile = "/scan:SettingProfiles/scan:SettingProfile"
-	esclColorMode      = esclSettingProfile + "/scan:ColorModes/scan:ColorMode"
-	esclDocumentFormat = esclSettingProfile + "/scan:DocumentFormats/pwg:DocumentFormat"
+	esclSettingProfile    = "/scan:SettingProfiles/scan:SettingProfile"
+	esclColorMode         = esclSettingProfile + "/scan:ColorModes/scan:ColorMode"
+	esclDocumentFormat    = esclSettingProfile + "/scan:DocumentFormats/pwg:DocumentFormat"
+	esclDocumentFormatExt = esclSettingProfile + "/scan:DocumentFormats/scan:DocumentFormatExt"
 )
 
 // handle beginning of XML element
@@ -240,6 +252,12 @@ func (decoder *esclCapsDecoder) data(path, data string) {
 	case esclPlatenInputCaps + esclDocumentFormat,
 		esclAdfSimplexCaps + esclDocumentFormat,
 		esclAdfDuplexCaps + esclDocumentFormat:
+
+		decoder.pdl[data] = struct{}{}
+
+	case esclPlatenInputCaps + esclDocumentFormatExt,
+		esclAdfSimplexCaps + esclDocumentFormatExt,
+		esclAdfDuplexCaps + esclDocumentFormatExt:
 
 		decoder.pdl[data] = struct{}{}
 	}

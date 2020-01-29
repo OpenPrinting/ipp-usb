@@ -8,11 +8,28 @@
 
 package main
 
+import (
+	"context"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+)
+
 // Start PnP manager
 func PnPStart() {
 	devices := UsbAddrList{}
 	devByAddr := make(map[string]*Device)
+	sigChan := make(chan os.Signal, 1)
 
+	signal.Notify(sigChan,
+		os.Signal(syscall.SIGINT),
+		os.Signal(syscall.SIGTERM),
+		os.Signal(syscall.SIGHUP))
+
+	// Serve PnP events until terminated
+loop:
 	for {
 		newdevices := BuildUsbAddrList()
 		added, removed := devices.Diff(newdevices)
@@ -37,6 +54,28 @@ func PnPStart() {
 			}
 		}
 
-		<-UsbHotPlugChan
+		select {
+		case <-UsbHotPlugChan:
+		case sig := <-sigChan:
+			Log.Info(' ', "%s signal received, exiting", sig)
+			break loop
+		}
 	}
+
+	// Close remaining devices
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var done sync.WaitGroup
+
+	for _, dev := range devByAddr {
+		done.Add(1)
+		go func(dev *Device) {
+			dev.Shutdown(ctx)
+			dev.Close()
+			done.Done()
+		}(dev)
+	}
+
+	done.Wait()
 }

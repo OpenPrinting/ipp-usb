@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"net"
 	"net/http"
 )
@@ -141,9 +142,41 @@ ERROR:
 	return nil, err
 }
 
+// Shutdown gracefully shuts down the device. If provided context
+// expires before the shutdown is complete, Shutdown returns the
+// context's error
+func (dev *Device) Shutdown(ctx context.Context) error {
+	if dev.DnsSdPublisher != nil {
+		dev.DnsSdPublisher.Unpublish()
+		dev.DnsSdPublisher = nil
+	}
+
+	if dev.HttpProxy != nil {
+		dev.HttpProxy.Close()
+		dev.HttpProxy = nil
+	}
+
+	if dev.UsbTransport != nil {
+		return dev.UsbTransport.Shutdown(ctx)
+	}
+
+	return nil
+}
+
 // Close the Device
 func (dev *Device) Close() {
-	dev.DnsSdPublisher.Unpublish()
-	dev.HttpProxy.Close()
-	dev.UsbTransport.Close()
+	if dev.DnsSdPublisher != nil {
+		dev.DnsSdPublisher.Unpublish()
+		dev.DnsSdPublisher = nil
+	}
+
+	if dev.HttpProxy != nil {
+		dev.HttpProxy.Close()
+		dev.HttpProxy = nil
+	}
+
+	if dev.UsbTransport != nil {
+		dev.UsbTransport.Close()
+		dev.UsbTransport = nil
+	}
 }

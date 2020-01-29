@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/gousb"
@@ -33,6 +34,9 @@ type UsbTransport struct {
 	info           UsbDeviceInfo // USB device info
 	log            *Logger       // Device's own logger
 	dev            *gousb.Device // Underlying USB device
+	rqPending      int32         // Count or pending requests
+	rqPendingDone  chan struct{} // Notified when pending request finished
+	connInUse      int32         // Count of connections in use
 	connections    chan *usbConn // Pool of connections
 }
 
@@ -126,10 +130,11 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
 		},
-		addr:        addr,
-		log:         NewLogger(),
-		dev:         dev,
-		connections: make(chan *usbConn, len(ifaddrs)),
+		addr:          addr,
+		log:           NewLogger(),
+		dev:           dev,
+		rqPendingDone: make(chan struct{}),
+		connections:   make(chan *usbConn, len(ifaddrs)),
 	}
 
 	transport.fillInfo()
@@ -174,10 +179,40 @@ ERROR:
 	return nil, err
 }
 
+// Shutdown gracefully shuts down the transport. If provided
+// context expires before shutdown completion, Shutdown
+// returns the Context's error
+func (transport *UsbTransport) Shutdown(ctx context.Context) error {
+	for {
+		cnt := atomic.LoadInt32(&transport.rqPending)
+		if cnt == 0 {
+			break
+		}
+
+		transport.log.Info('-', "%s: shutdown: %d requests still pending",
+			transport.addr, cnt)
+
+		select {
+		case <-transport.rqPendingDone:
+		case <-ctx.Done():
+			transport.log.Error('-', "%s: %s: shutdown timeout expired",
+				transport.addr, transport.info.Product)
+			return ctx.Err()
+		}
+	}
+
+	return nil
+}
+
 // Close the transport
 func (transport *UsbTransport) Close() {
+	if atomic.LoadInt32(&transport.rqPending) > 0 {
+		transport.log.Info('-', "%s: resetting %s", transport.addr, transport.info.Product)
+		transport.dev.Reset()
+	}
+
+	transport.dev.Close()
 	transport.log.Info('-', "%s: removed %s", transport.addr, transport.info.Product)
-	// FIXME
 }
 
 // Log returns device's own logger
@@ -238,7 +273,16 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	outreq := rq.Clone(context.Background())
 	outreq.Cancel = nil
 
+	atomic.AddInt32(&transport.rqPending, 1)
+
 	resp, err := transport.Transport.RoundTrip(outreq)
+
+	atomic.AddInt32(&transport.rqPending, -1)
+	select {
+	case transport.rqPendingDone <- struct{}{}:
+	default:
+	}
+
 	if err == nil {
 		resp.Body = &usbResponseBodyWrapper{resp.Body}
 	}
@@ -255,7 +299,8 @@ func (transport *UsbTransport) dialContect(ctx context.Context,
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case conn := <-transport.connections:
-		transport.log.Debug(' ', "USB[%d]: GET", conn.index)
+		transport.log.Debug(' ', "USB[%d]: connection allocated, un use: %d",
+			conn.index, atomic.AddInt32(&transport.connInUse, 1))
 		return conn, nil
 	}
 }
@@ -278,7 +323,7 @@ func (transport *UsbTransport) openUsbConn(
 
 	dev := transport.dev
 
-	transport.log.Debug(' ', "USB[%d]: CREATE: %s", index, ifaddr)
+	transport.log.Debug(' ', "USB[%d]: open: %s", index, ifaddr)
 
 	// Initialize connection structure
 	conn := &usbConn{
@@ -342,14 +387,17 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 // It actually doesn't close a connection, but returns it
 // to the pool of available connections
 func (conn *usbConn) Close() error {
-	conn.transport.log.Debug(' ', "USB[%d]: PUT", conn.index)
+	transport := conn.transport
+
+	transport.log.Debug(' ', "USB[%d]: connection released, un use: %d",
+		conn.index, atomic.AddInt32(&transport.connInUse, -1))
+
 	conn.transport.connections <- conn
 	return nil
 }
 
 // Destroy USB connection
 func (conn *usbConn) destroy() {
-	conn.transport.log.Debug(' ', "USB[%d]: DESTROY", conn.index)
 	conn.iface.Close()
 }
 

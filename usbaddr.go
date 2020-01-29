@@ -220,7 +220,6 @@ func GetUsbIfAddrs(desc *gousb.DeviceDesc) UsbIfAddrList {
 								addr.In = &ep2
 							}
 						case gousb.EndpointDirectionOut:
-							Log.Debug(0, "> out %d", ep.Number)
 							if addr.Out == nil {
 								ep2 := ep
 								addr.Out = &ep2

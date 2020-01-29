@@ -370,9 +370,11 @@ ERROR:
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (n int, err error) {
+	ctx := conn.closeCtx
+
 	backoff := time.Millisecond * 100
 	for {
-		n, err := conn.in.ReadContext(conn.closeCtx, b)
+		n, err := conn.in.ReadContext(ctx, b)
 		if n != 0 || err != nil {
 			return n, err
 		}

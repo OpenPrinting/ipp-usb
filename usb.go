@@ -129,6 +129,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 		Transport: http.Transport{
 			MaxConnsPerHost:     len(ifaddrs),
 			MaxIdleConnsPerHost: len(ifaddrs),
+			IdleConnTimeout:     time.Second,
 		},
 		addr:          addr,
 		log:           NewLogger(),
@@ -299,8 +300,12 @@ func (transport *UsbTransport) dialContect(ctx context.Context,
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case conn := <-transport.connections:
-		transport.log.Debug(' ', "USB[%d]: connection allocated, un use: %d",
+		transport.log.Debug(' ', "USB[%d]: connection allocated, in use: %d",
 			conn.index, atomic.AddInt32(&transport.connInUse, 1))
+
+		conn.closeCtx, conn.cancelFunc =
+			context.WithCancel(context.Background())
+
 		return conn, nil
 	}
 }
@@ -308,11 +313,13 @@ func (transport *UsbTransport) dialContect(ctx context.Context,
 // ----- usbConn -----
 // Type usbConn implements net.Conn over USB
 type usbConn struct {
-	transport *UsbTransport      // Transport that owns the connection
-	index     int                // Connection index (for logging)
-	iface     *gousb.Interface   // Underlying interface
-	in        *gousb.InEndpoint  // Input endpoint
-	out       *gousb.OutEndpoint // Output endpoint
+	transport  *UsbTransport      // Transport that owns the connection
+	index      int                // Connection index (for logging)
+	iface      *gousb.Interface   // Underlying interface
+	in         *gousb.InEndpoint  // Input endpoint
+	out        *gousb.OutEndpoint // Output endpoint
+	closeCtx   context.Context    // Canceled by (*usbConn) Close()
+	cancelFunc context.CancelFunc // closeCtx's cancel function
 }
 
 var _ = net.Conn(&usbConn{})
@@ -365,7 +372,7 @@ ERROR:
 func (conn *usbConn) Read(b []byte) (n int, err error) {
 	backoff := time.Millisecond * 100
 	for {
-		n, err := conn.in.Read(b)
+		n, err := conn.in.ReadContext(conn.closeCtx, b)
 		if n != 0 || err != nil {
 			return n, err
 		}
@@ -379,7 +386,7 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 
 // Write to USB
 func (conn *usbConn) Write(b []byte) (n int, err error) {
-	return conn.out.Write(b)
+	return conn.out.WriteContext(conn.closeCtx, b)
 }
 
 // Close USB connection
@@ -389,10 +396,12 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 func (conn *usbConn) Close() error {
 	transport := conn.transport
 
-	transport.log.Debug(' ', "USB[%d]: connection released, un use: %d",
+	transport.log.Debug(' ', "USB[%d]: connection released, in use: %d",
 		conn.index, atomic.AddInt32(&transport.connInUse, -1))
 
 	conn.transport.connections <- conn
+	conn.cancelFunc()
+
 	return nil
 }
 

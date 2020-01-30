@@ -74,7 +74,7 @@ func BuildUsbAddrList() UsbAddrList {
 	var list UsbAddrList
 
 	usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		if usbIsIppUsbDevice(desc) {
+		if len(GetUsbIfAddrs(desc)) >= 2 {
 			list.Add(UsbAddr{desc.Bus, desc.Address})
 		}
 		return false

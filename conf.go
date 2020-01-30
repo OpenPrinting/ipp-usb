@@ -24,11 +24,15 @@ const (
 
 // Conf represents a program configuration
 type Configuration struct {
-	HttpMinPort  int  // Starting port number for HTTP to bind to
-	HttpMaxPort  int  // Ending port number for HTTP to bind to
-	DnsSdEnable  bool // Enable DNS-SD advertising
-	LoopbackOnly bool // Use only loopback interface
-	IpV6Enable   bool // Enable IPv6 advertising
+	HttpMinPort  int      // Starting port number for HTTP to bind to
+	HttpMaxPort  int      // Ending port number for HTTP to bind to
+	DnsSdEnable  bool     // Enable DNS-SD advertising
+	LoopbackOnly bool     // Use only loopback interface
+	IpV6Enable   bool     // Enable IPv6 advertising
+	LogDevice    LogLevel // Per-device LogLevel mask
+	LogMain      LogLevel // Main log LogLevel mask
+	LogConsole   LogLevel // Console  LogLevel mask
+	ColorConsole bool     // Enable ANSI colors on console
 }
 
 var Conf = Configuration{
@@ -37,6 +41,10 @@ var Conf = Configuration{
 	DnsSdEnable:  true,
 	LoopbackOnly: true,
 	IpV6Enable:   true,
+	LogDevice:    LogDebug,
+	LogMain:      LogDebug,
+	LogConsole:   LogDebug,
+	ColorConsole: true,
 }
 
 // Load the program configuration
@@ -110,6 +118,29 @@ func confLoadInternal() error {
 		}
 	}
 
+	if section, _ := inifile.GetSection("logging"); section != nil {
+		err = confLoadLogLevelKey(&Conf.LogDevice, section, "device-log")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadLogLevelKey(&Conf.LogMain, section, "main-log")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadLogLevelKey(&Conf.LogConsole, section, "console-log")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadBinaryKey(&Conf.ColorConsole, section,
+			"console-color", "disable", "enable")
+		if err != nil {
+			return err
+		}
+	}
+
 	// Validate configuration
 	if Conf.HttpMinPort >= Conf.HttpMaxPort {
 		return errors.New("http-min-port must be less that http-max-port")
@@ -156,4 +187,35 @@ func confLoadBinaryKey(out *bool,
 	}
 
 	return nil // Missed key is not error
+}
+
+// Load LogLevel key
+func confLoadLogLevelKey(out *LogLevel, section *ini.Section, name string) error {
+	key, _ := section.GetKey(name)
+	if key != nil {
+		var mask LogLevel
+		for _, s := range key.Strings(",") {
+			switch s {
+			case "error":
+				mask |= LogError
+			case "info":
+				mask |= LogInfo | LogError
+			case "debug":
+				mask |= LogDebug | LogInfo | LogError
+			case "trace-ipp":
+				mask |= LogTraceIpp | LogDebug | LogInfo | LogError
+			case "trace-escl":
+				mask |= LogTraceEscl | LogDebug | LogInfo | LogError
+			case "trace-http":
+				mask |= LogTraceHttp | LogDebug | LogInfo | LogError
+			case "all", "trace-all":
+				mask |= LogAll
+			default:
+				return confBadValue(key, "invalid log level %q", s)
+			}
+		}
+		*out = mask
+	}
+
+	return nil
 }

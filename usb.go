@@ -370,6 +370,20 @@ ERROR:
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (n int, err error) {
+	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW erros
+	// from libusb, input buffer size must always
+	// be aligned by 512 bytes
+	//
+	// However if caller requests less that 512 bytes, we
+	// can't align here simply by shrinking the buffer,
+	// because it will result a zero-size buffer. At
+	// this case we assume caller knows what it
+	// doing (actually bufio never behaves this way)
+	if n := len(b); n >= 512 {
+		n &= ^511
+		b = b[0:n]
+	}
+
 	conn.doneIO.Add(1)
 	defer conn.doneIO.Done()
 

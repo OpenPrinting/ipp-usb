@@ -9,13 +9,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"errors"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,15 +29,14 @@ var (
 // ----- UsbTransport -----
 // Type UsbTransport implements http.RoundTripper over USB
 type UsbTransport struct {
-	http.Transport               // Underlying http.Transport
-	addr           UsbAddr       // Device address
-	info           UsbDeviceInfo // USB device info
-	log            *Logger       // Device's own logger
-	dev            *gousb.Device // Underlying USB device
-	rqPending      int32         // Count or pending requests
-	rqPendingDone  chan struct{} // Notified when pending request finished
-	connInUse      int32         // Count of connections in use
-	connections    chan *usbConn // Pool of connections
+	addr          UsbAddr       // Device address
+	info          UsbDeviceInfo // USB device info
+	log           *Logger       // Device's own logger
+	dev           *gousb.Device // Underlying USB device
+	rqPending     int32         // Count or pending requests
+	rqPendingDone chan struct{} // Notified when pending request finished
+	connInUse     int32         // Count of connections in use
+	connections   chan *usbConn // Pool of connections
 }
 
 // Type UsbDeviceInfo represents USB device information
@@ -126,11 +125,6 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	ifaddrs := GetUsbIfAddrs(dev.Desc)
 
 	transport := &UsbTransport{
-		Transport: http.Transport{
-			MaxConnsPerHost:     len(ifaddrs),
-			MaxIdleConnsPerHost: len(ifaddrs),
-			//IdleConnTimeout:     time.Second,
-		},
 		addr:          addr,
 		log:           NewLogger(),
 		dev:           dev,
@@ -141,11 +135,6 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	transport.fillInfo()
 	transport.log.Cc(LogDebug, ColorConsole) // FIXME -- make configurable
 	transport.log.ToDevFile(transport.info)
-
-	transport.DialContext = transport.dialContect
-	transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		return nil, errors.New("No TLS over USB")
-	}
 
 	// Write device info to the log
 	transport.log.Begin().
@@ -248,25 +237,17 @@ func (transport *UsbTransport) fillInfo() {
 	}
 }
 
-// usbResponseBodyWrapper wraps http.Response.Body and guarantees
-// that connection will be always drained before closed
-type usbResponseBodyWrapper struct {
-	io.ReadCloser // Underlying http.Response.Body
-}
-
-// usbResponseBodyWrapper Close method
-func (w *usbResponseBodyWrapper) Close() error {
-	go func() {
-		io.Copy(ioutil.Discard, w.ReadCloser)
-		w.ReadCloser.Close()
-	}()
-
-	return nil
-}
-
 // RoundTrip executes a single HTTP transaction, returning
 // a Response for the provided Request.
 func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
+	atomic.AddInt32(&transport.rqPending, 1)
+	defer atomic.AddInt32(&transport.rqPending, -1)
+
+	conn, err := transport.usbConnGet(rq.Context())
+	if err != nil {
+		return nil, err
+	}
+
 	// Prevent request from being canceled from outside
 	// We cannot do it on USB: closing USB connection
 	// doesn't drain buffered data that server is
@@ -274,55 +255,72 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	outreq := rq.Clone(context.Background())
 	outreq.Cancel = nil
 
-	atomic.AddInt32(&transport.rqPending, 1)
+	// Remove Expect: 100-continue, if any
+	outreq.Header.Del("Expect")
 
-	resp, err := transport.Transport.RoundTrip(outreq)
-
-	atomic.AddInt32(&transport.rqPending, -1)
-	select {
-	case transport.rqPendingDone <- struct{}{}:
-	default:
+	// Send request and receive a response
+	err = outreq.Write(conn)
+	if err != nil {
+		return nil, err
 	}
 
-	if err == nil {
-		resp.Body = &usbResponseBodyWrapper{resp.Body}
+	resp, err := http.ReadResponse(conn.reader, outreq)
+	if resp != nil {
+		resp.Body = &usbResponseBodyWrapper{resp.Body, conn, false}
 	}
 
 	return resp, err
 }
 
-// Dial new connection
-func (transport *UsbTransport) dialContect(ctx context.Context,
-	network, addr string) (net.Conn, error) {
+// usbResponseBodyWrapper wraps http.Response.Body and guarantees
+// that connection will be always drained before closed
+type usbResponseBodyWrapper struct {
+	body    io.ReadCloser // Response.body
+	conn    *usbConn      // Underlying USB connection
+	drained bool          // EOF or error has been seen
+}
 
-	// Wait for available connection
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case conn := <-transport.connections:
-		transport.log.Debug(' ', "USB[%d]: connection allocated, in use: %d",
-			conn.index, atomic.AddInt32(&transport.connInUse, 1))
-
-		conn.closeCtx, conn.cancelFunc =
-			context.WithCancel(context.Background())
-
-		return conn, nil
+// Read from usbResponseBodyWrapper
+func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
+	n, err := wrap.body.Read(buf)
+	if err != nil {
+		wrap.drained = true
 	}
+	return n, err
+}
+
+// Close usbResponseBodyWrapper
+func (wrap *usbResponseBodyWrapper) Close() error {
+	// If EOF or error seen, we can close synchronously
+	if wrap.drained {
+		wrap.body.Close()
+		wrap.conn.put()
+		return nil
+	}
+
+	// Otherwise, we need to drain USB connection
+	go func() {
+		io.Copy(ioutil.Discard, wrap.body)
+		wrap.body.Close()
+		wrap.conn.put()
+	}()
+
+	return nil
 }
 
 // ----- usbConn -----
-// Type usbConn implements net.Conn over USB
+// usbConn implements an USB connection
 type usbConn struct {
 	transport  *UsbTransport      // Transport that owns the connection
 	index      int                // Connection index (for logging)
 	iface      *gousb.Interface   // Underlying interface
 	in         *gousb.InEndpoint  // Input endpoint
 	out        *gousb.OutEndpoint // Output endpoint
-	closeCtx   context.Context    // Canceled by (*usbConn) Close()
+	closeCtx   context.Context    // Canceled by (*usbConn) put()
 	cancelFunc context.CancelFunc // closeCtx's cancel function
+	doneIO     sync.WaitGroup     // put() waits for Read/Write cancelation
+	reader     *bufio.Reader      // For http.ReadResponse
 }
-
-var _ = net.Conn(&usbConn{})
 
 // Open usbConn
 func (transport *UsbTransport) openUsbConn(
@@ -337,6 +335,8 @@ func (transport *UsbTransport) openUsbConn(
 		transport: transport,
 		index:     index,
 	}
+
+	conn.reader = bufio.NewReader(conn)
 
 	// Obtain interface
 	var err error
@@ -370,6 +370,9 @@ ERROR:
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (n int, err error) {
+	conn.doneIO.Add(1)
+	defer conn.doneIO.Done()
+
 	ctx := conn.closeCtx
 
 	backoff := time.Millisecond * 100
@@ -388,21 +391,40 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 
 // Write to USB
 func (conn *usbConn) Write(b []byte) (n int, err error) {
+	conn.doneIO.Add(1)
+	defer conn.doneIO.Done()
+
 	return conn.out.WriteContext(conn.closeCtx, b)
 }
 
-// Close USB connection
-//
-// It actually doesn't close a connection, but returns it
-// to the pool of available connections
-func (conn *usbConn) Close() error {
+// Allocate a connection
+func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case conn := <-transport.connections:
+		transport.log.Debug(' ', "USB[%d]: connection allocated, in use: %d",
+			conn.index, atomic.AddInt32(&transport.connInUse, 1))
+
+		conn.closeCtx, conn.cancelFunc =
+			context.WithCancel(context.Background())
+
+		return conn, nil
+	}
+}
+
+// Release the connection
+func (conn *usbConn) put() error {
 	transport := conn.transport
+
+	conn.cancelFunc()
+	conn.doneIO.Wait()
+	conn.reader.Reset(conn)
 
 	transport.log.Debug(' ', "USB[%d]: connection released, in use: %d",
 		conn.index, atomic.AddInt32(&transport.connInUse, -1))
 
 	conn.transport.connections <- conn
-	conn.cancelFunc()
 
 	return nil
 }
@@ -410,34 +432,4 @@ func (conn *usbConn) Close() error {
 // Destroy USB connection
 func (conn *usbConn) destroy() {
 	conn.iface.Close()
-}
-
-// LocalAddr returns the local network address.
-func (conn *usbConn) LocalAddr() net.Addr {
-	return nil
-}
-
-// RemoteAddr returns the remote network address.
-func (conn *usbConn) RemoteAddr() net.Addr {
-	return nil
-}
-
-// Set read and write deadlines
-func (conn *usbConn) SetDeadline(t time.Time) error {
-	return nil
-}
-
-// Set read deadline
-func (conn *usbConn) SetReadDeadline(t time.Time) error {
-	return nil
-}
-
-// Set write deadline
-func (conn *usbConn) SetWriteDeadline(t time.Time) error {
-	return nil
-}
-
-// Check if device implements IPP over USB
-func usbIsIppUsbDevice(desc *gousb.DeviceDesc) bool {
-	return len(GetUsbIfAddrs(desc)) >= 2
 }

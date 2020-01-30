@@ -122,7 +122,7 @@ func (status DnsSdStatus) String() string {
 
 // NewDnsSdPublisher creates new DnsSdPublisher
 //
-// Service instanse name comes from the DevState, and if
+// Service instance name comes from the DevState, and if
 // name changes as result of name collision resolution,
 // DevState will be updated
 func NewDnsSdPublisher(log *Logger,

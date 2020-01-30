@@ -9,7 +9,8 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -65,25 +66,27 @@ func (proxy *HttpProxy) Close() {
 func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	session := int(atomic.AddInt32(&httpSessionId, 1)-1) % 1000
 
-	proxy.log.HttpRqParams(LogDebug, '>', session, r)
-	proxy.log.HttpHdr(LogTraceHttp, '>', session, r.Header)
+	proxy.log.Begin().
+		HttpRqParams(LogDebug, '>', session, r).
+		HttpHdr(LogTraceHttp, '>', session, r.Header).
+		Commit()
 
 	// Perform sanity checking
 	if r.Method == "CONNECT" {
 		proxy.httpError(session, w, r, http.StatusMethodNotAllowed,
-			"CONNECT not allowed")
+			errors.New("CONNECT not allowed"))
 		return
 	}
 
 	if r.Header.Get("Upgrade") != "" {
 		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
-			"Protocol upgrade is not implemented")
+			errors.New("Protocol upgrade is not implemented"))
 		return
 	}
 
 	if r.URL.IsAbs() {
 		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
-			"Absolute URL not allowed")
+			errors.New("Absolute URL not allowed"))
 		return
 	}
 
@@ -108,8 +111,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Serve the request
 	resp, err := proxy.transport.RoundTrip(r)
 	if err != nil {
-		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
-			err.Error())
+		proxy.httpError(session, w, r, http.StatusServiceUnavailable, err)
 		return
 	}
 
@@ -119,25 +121,28 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = io.Copy(w, resp.Body)
 	resp.Body.Close()
 
-	proxy.log.HttpRspStatus(LogDebug, '<', session, resp)
-	proxy.log.HttpHdr(LogTraceHttp, '<', session, resp.Header)
+	proxy.log.Begin().
+		HttpRspStatus(LogDebug, '<', session, resp).
+		HttpHdr(LogTraceHttp, '<', session, resp.Header).
+		Commit()
 }
 
 // Reject request with a error
 func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Request,
-	status int, format string, args ...interface{}) {
+	status int, err error) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	httpNoCache(w)
 	w.WriteHeader(status)
 
-	msg := fmt.Sprintf(format, args...)
-	msg += "\n"
-
-	w.Write([]byte(msg))
+	w.Write([]byte(err.Error()))
 	w.Write([]byte("\n"))
 
-	proxy.log.HttpError('!', session, status, msg)
+	if err != context.Canceled {
+		proxy.log.HttpError('!', session, status, err.Error())
+	} else {
+		proxy.log.HttpDebug(' ', session, "request canceled by impatient client")
+	}
 }
 
 // HttpLoggingRoundTripper wraps http.RoundTripper, adding logging

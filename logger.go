@@ -395,7 +395,7 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 
 // HttpHdr dumps HTTP header into the log messahe
 func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
-	session int, hdr http.Header) {
+	session int, hdr http.Header) *LogMessage {
 
 	keys := make([]string, 0, len(hdr))
 
@@ -409,30 +409,45 @@ func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
 	}
 
 	msg.Nl(level)
+
+	return msg
 }
 
 // HttpRqParams dumps HTTP request parameters into the log message
 func (msg *LogMessage) HttpRqParams(level LogLevel, prefix byte,
-	session int, rq *http.Request) {
+	session int, rq *http.Request) *LogMessage {
 	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s %s", session,
 		rq.Method, rq.URL, rq.Proto)
+
+	return msg
 }
 
 // HttpRspStatus dumps HTTP response status into the log message
 func (msg *LogMessage) HttpRspStatus(level LogLevel, prefix byte,
-	session int, rsp *http.Response) {
+	session int, rsp *http.Response) *LogMessage {
 	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s", session,
 		rsp.Proto, rsp.Status)
+
+	return msg
 }
 
 // HttpError writes HTTP error into the log message
 func (msg *LogMessage) HttpError(prefix byte,
-	session int, status int, text string) {
+	session int, status int, text string) *LogMessage {
 	if status > 0 {
 		msg.Error(prefix, "HTTP[%3.3d]: HTTP/1.1 %d %s",
 			session, status, http.StatusText(status))
 	}
 	msg.Error(prefix, "HTTP[%3.3d]: %s", session, text)
+
+	return msg
+}
+
+// HttpError writes HTTP debug line into the log message
+func (msg *LogMessage) HttpDebug(prefix byte,
+	session int, format string, args ...interface{}) *LogMessage {
+	msg.Debug(prefix, "HTTP[%3.3d]: %s", session, fmt.Sprintf(format, args...))
+	return msg
 }
 
 // IppRequest dumps IPP request into the log message

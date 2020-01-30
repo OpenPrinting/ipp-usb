@@ -290,11 +290,8 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 	if msg.logger.genMask&level != 0 {
 		buf := logLineBufAlloc(level, prefix)
 		fmt.Fprintf(buf, format, args...)
-		msg.lines = append(msg.lines, buf)
 
-		if msg.parent == nil {
-			msg.Flush()
-		}
+		msg.appendLineBuf(buf)
 	}
 
 	return msg
@@ -310,14 +307,26 @@ func (msg *LogMessage) addBytes(level LogLevel, prefix byte, line []byte) *LogMe
 	if msg.logger.genMask&level != 0 {
 		buf := logLineBufAlloc(level, prefix)
 		buf.Write(line)
-		msg.lines = append(msg.lines, buf)
 
-		if msg.parent == nil {
-			msg.Flush()
-		}
+		msg.appendLineBuf(buf)
 	}
 
 	return msg
+}
+
+// appendLineBuf appends line buffer to msg.lines
+func (msg *LogMessage) appendLineBuf(buf *logLineBuf) {
+	if msg.parent == nil {
+		// Note, many threads may write to the root
+		// message simultaneously
+		msg.logger.lock.Lock()
+		msg.lines = append(msg.lines, buf)
+		msg.logger.lock.Unlock()
+
+		msg.Flush()
+	} else {
+		msg.lines = append(msg.lines, buf)
+	}
 }
 
 // Debug appends a LogDebug line to the message
@@ -515,14 +524,14 @@ func (msg *LogMessage) Commit() {
 // pointer remains valid. Message logical atomicity is not
 // preserved between flushed
 func (msg *LogMessage) Flush() {
+	// Lock the logger
+	msg.logger.lock.Lock()
+	defer msg.logger.lock.Unlock()
+
 	// Ignore empty messages
 	if len(msg.lines) == 0 {
 		return
 	}
-
-	// Lock the logger
-	msg.logger.lock.Lock()
-	defer msg.logger.lock.Unlock()
 
 	// If we have a parent, simply flush our content there
 	if msg.parent != nil {

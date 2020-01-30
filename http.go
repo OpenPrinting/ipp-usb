@@ -118,7 +118,13 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpRemoveHopByHopHeaders(resp.Header)
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
+
 	_, err = io.Copy(w, resp.Body)
+
+	if err != nil {
+		proxy.log.HttpError('!', session, -1, err.Error())
+	}
+
 	resp.Body.Close()
 
 	proxy.log.Begin().

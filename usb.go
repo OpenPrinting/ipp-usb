@@ -266,7 +266,11 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 
 	resp, err := http.ReadResponse(conn.reader, outreq)
 	if resp != nil {
-		resp.Body = &usbResponseBodyWrapper{resp.Body, conn, false}
+		resp.Body = &usbResponseBodyWrapper{
+			log:  transport.log,
+			body: resp.Body,
+			conn: conn,
+		}
 	}
 
 	return resp, err
@@ -275,6 +279,7 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 // usbResponseBodyWrapper wraps http.Response.Body and guarantees
 // that connection will be always drained before closed
 type usbResponseBodyWrapper struct {
+	log     *Logger       // Device's logger
 	body    io.ReadCloser // Response.body
 	conn    *usbConn      // Underlying USB connection
 	drained bool          // EOF or error has been seen
@@ -284,6 +289,7 @@ type usbResponseBodyWrapper struct {
 func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
 	if err != nil {
+		wrap.log.Debug(' ', "HTTP: body read: %s", err)
 		wrap.drained = true
 	}
 	return n, err
@@ -299,6 +305,7 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 	}
 
 	// Otherwise, we need to drain USB connection
+	wrap.log.Debug(' ', "HTTP: client closed connection before consuming all response")
 	go func() {
 		io.Copy(ioutil.Discard, wrap.body)
 		wrap.body.Close()

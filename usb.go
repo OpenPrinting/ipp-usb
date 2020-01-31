@@ -457,7 +457,8 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 		if n != 0 || err != nil {
 			return n, err
 		}
-		conn.transport.log.Error(' ', "USB[%d]: zero-size read")
+		conn.transport.log.Error('!',
+			"USB[%d]: zero-size read", conn.index)
 
 		time.Sleep(backoff)
 		backoff *= 2

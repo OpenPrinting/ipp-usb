@@ -108,7 +108,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = "http"
 	r.URL.Host = r.Host
 
-	// Serve the request
+	// Send request and obtain response status and header
 	resp, err := proxy.transport.RoundTripSession(session, r)
 	if err != nil {
 		proxy.httpError(session, w, r, http.StatusServiceUnavailable, err)
@@ -119,6 +119,12 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
 
+	proxy.log.Begin().
+		HttpRspStatus(LogDebug, '<', session, resp).
+		HttpHdr(LogTraceHttp, '<', session, resp.Header).
+		Commit()
+
+	// Obtain response body, if any
 	_, err = io.Copy(w, resp.Body)
 
 	if err != nil {
@@ -127,10 +133,6 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp.Body.Close()
 
-	proxy.log.Begin().
-		HttpRspStatus(LogDebug, '<', session, resp).
-		HttpHdr(LogTraceHttp, '<', session, resp.Header).
-		Commit()
 }
 
 // Reject request with a error

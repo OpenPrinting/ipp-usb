@@ -465,13 +465,9 @@ func (msg *LogMessage) HttpRspStatus(level LogLevel, prefix byte,
 
 // HttpError writes HTTP error into the log message
 func (msg *LogMessage) HttpError(prefix byte,
-	session int, status int, text string) *LogMessage {
+	session int, format string, args ...interface{}) *LogMessage {
 
-	if status > 0 {
-		msg.Error(prefix, "HTTP[%3.3d]: HTTP/1.1 %d %s",
-			session, status, http.StatusText(status))
-	}
-	msg.Error(prefix, "HTTP[%3.3d]: %s", session, text)
+	msg.Error(prefix, "HTTP[%3.3d]: %s", session, fmt.Sprintf(format, args...))
 
 	return msg
 }
@@ -479,7 +475,9 @@ func (msg *LogMessage) HttpError(prefix byte,
 // HttpError writes HTTP debug line into the log message
 func (msg *LogMessage) HttpDebug(prefix byte,
 	session int, format string, args ...interface{}) *LogMessage {
+
 	msg.Debug(prefix, "HTTP[%3.3d]: %s", session, fmt.Sprintf(format, args...))
+
 	return msg
 }
 

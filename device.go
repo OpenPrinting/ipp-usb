@@ -62,8 +62,8 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	// Create HTTP client for local queries
 	dev.HttpClient = &http.Client{
 		Transport: &HttpLoggingRoundTripper{
-			Log:          dev.Log,
-			RoundTripper: dev.UsbTransport,
+			Log:       dev.Log,
+			transport: dev.UsbTransport,
 		},
 	}
 

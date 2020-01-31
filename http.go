@@ -27,15 +27,15 @@ var (
 // a specified http.RoundTripper. It implements http.Handler
 // interface
 type HttpProxy struct {
-	log       *Logger           // Logger instance
-	server    *http.Server      // HTTP server
-	transport http.RoundTripper // Transport for outgoing requests
-	closeWait chan struct{}     // Closed at server close
+	log       *Logger       // Logger instance
+	server    *http.Server  // HTTP server
+	transport *UsbTransport // Transport for outgoing requests
+	closeWait chan struct{} // Closed at server close
 }
 
 // Create new HTTP proxy
 func NewHttpProxy(logger *Logger,
-	listener net.Listener, transport http.RoundTripper) *HttpProxy {
+	listener net.Listener, transport *UsbTransport) *HttpProxy {
 
 	proxy := &HttpProxy{
 		log:       logger,
@@ -109,7 +109,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Host = r.Host
 
 	// Serve the request
-	resp, err := proxy.transport.RoundTrip(r)
+	resp, err := proxy.transport.RoundTripSession(session, r)
 	if err != nil {
 		proxy.httpError(session, w, r, http.StatusServiceUnavailable, err)
 		return
@@ -122,7 +122,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = io.Copy(w, resp.Body)
 
 	if err != nil {
-		proxy.log.HttpError('!', session, -1, err.Error())
+		proxy.log.HttpError('!', session, "%s", err)
 	}
 
 	resp.Body.Close()
@@ -145,17 +145,17 @@ func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Re
 	w.Write([]byte("\n"))
 
 	if err != context.Canceled {
-		proxy.log.HttpError('!', session, status, err.Error())
+		proxy.log.HttpError('!', session, "%s", err.Error())
 	} else {
 		proxy.log.HttpDebug(' ', session, "request canceled by impatient client")
 	}
 }
 
-// HttpLoggingRoundTripper wraps http.RoundTripper, adding logging
-// for each request
+// HttpLoggingRoundTripper wraps UsbTransport, adding logging
+// for each request. It implements http.RoundTripper interface
 type HttpLoggingRoundTripper struct {
-	Log               *Logger // Logger to write logs to
-	http.RoundTripper         // Underlying http.RoundTripper
+	Log       *Logger       // Logger to write logs to
+	transport *UsbTransport // Underlying UsbTransport
 }
 
 // RoundTrip executes a single HTTP transaction, returning
@@ -167,12 +167,12 @@ func (rtp *HttpLoggingRoundTripper) RoundTrip(r *http.Request) (
 	rtp.Log.HttpRqParams(LogDebug, '>', session, r)
 	rtp.Log.HttpHdr(LogTraceHttp, '>', session, r.Header)
 
-	resp, err := rtp.RoundTripper.RoundTrip(r)
+	resp, err := rtp.transport.RoundTripSession(session, r)
 	if err == nil {
 		rtp.Log.HttpRspStatus(LogDebug, '<', session, resp)
 		rtp.Log.HttpHdr(LogTraceHttp, '<', session, resp.Header)
 	} else {
-		rtp.Log.HttpError('!', session, -1, err.Error())
+		rtp.Log.HttpError('!', session, "%s", err)
 	}
 
 	return resp, err

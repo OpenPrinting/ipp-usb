@@ -27,7 +27,7 @@ var (
 )
 
 // ----- UsbTransport -----
-// Type UsbTransport implements http.RoundTripper over USB
+// UsbTransport implements HTTP transport functionality over USB
 type UsbTransport struct {
 	addr          UsbAddr       // Device address
 	info          UsbDeviceInfo // USB device info
@@ -37,6 +37,7 @@ type UsbTransport struct {
 	rqPendingDone chan struct{} // Notified when pending request finished
 	connInUse     int32         // Count of connections in use
 	connections   chan *usbConn // Pool of connections
+	shutdown      chan struct{} // Closed by Shutdown()
 }
 
 // Type UsbDeviceInfo represents USB device information
@@ -130,6 +131,7 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 		dev:           dev,
 		rqPendingDone: make(chan struct{}),
 		connections:   make(chan *usbConn, len(ifaddrs)),
+		shutdown:      make(chan struct{}),
 	}
 
 	transport.fillInfo()
@@ -173,6 +175,8 @@ ERROR:
 // context expires before shutdown completion, Shutdown
 // returns the Context's error
 func (transport *UsbTransport) Shutdown(ctx context.Context) error {
+	close(transport.shutdown)
+
 	for {
 		cnt := atomic.LoadInt32(&transport.rqPending)
 		if cnt == 0 {
@@ -239,14 +243,16 @@ func (transport *UsbTransport) fillInfo() {
 
 // RoundTrip executes a single HTTP transaction, returning
 // a Response for the provided Request.
-func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, error) {
-	atomic.AddInt32(&transport.rqPending, 1)
-	defer atomic.AddInt32(&transport.rqPending, -1)
+func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (*http.Response, error) {
+	transport.rqPendingInc()
+	defer transport.rqPendingDec()
 
 	conn, err := transport.usbConnGet(rq.Context())
 	if err != nil {
 		return nil, err
 	}
+
+	transport.log.HttpDebug(' ', session, "connection %d allocated", conn.index)
 
 	// Prevent request from being canceled from outside
 	// We cannot do it on USB: closing USB connection
@@ -258,6 +264,15 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	// Remove Expect: 100-continue, if any
 	outreq.Header.Del("Expect")
 
+	// Wrap request body
+	if outreq.Body != nil {
+		outreq.Body = &usbRequestBodyWrapper{
+			log:     transport.log,
+			session: session,
+			body:    outreq.Body,
+		}
+	}
+
 	// Send request and receive a response
 	err = outreq.Write(conn)
 	if err != nil {
@@ -267,19 +282,59 @@ func (transport *UsbTransport) RoundTrip(rq *http.Request) (*http.Response, erro
 	resp, err := http.ReadResponse(conn.reader, outreq)
 	if resp != nil {
 		resp.Body = &usbResponseBodyWrapper{
-			log:  transport.log,
-			body: resp.Body,
-			conn: conn,
+			log:     transport.log,
+			session: session,
+			body:    resp.Body,
+			conn:    conn,
 		}
 	}
 
 	return resp, err
 }
 
+// rqPendingInc atomically increments transport.rqPending
+func (transport *UsbTransport) rqPendingInc() {
+	atomic.AddInt32(&transport.rqPending, 1)
+}
+
+// rqPendingDec atomically decrements transport.rqPending
+// and wakes sleeping Shutdown thread, if any
+func (transport *UsbTransport) rqPendingDec() {
+	atomic.AddInt32(&transport.rqPending, -1)
+	select {
+	case transport.rqPendingDone <- struct{}{}:
+	default:
+	}
+}
+
+// usbRequestBodyWrapper wraps http.Request.Body, adding
+// data path instrumentation
+type usbRequestBodyWrapper struct {
+	log     *Logger       // Device's logger
+	session int           // HTTP session, for logging
+	body    io.ReadCloser // Request.body
+}
+
+// Read from usbRequestBodyWrapper
+func (wrap *usbRequestBodyWrapper) Read(buf []byte) (int, error) {
+	n, err := wrap.body.Read(buf)
+	if err != nil {
+		wrap.log.HttpDebug('>', wrap.session, "request body read: %s", err)
+		err = io.EOF
+	}
+	return n, err
+}
+
+// Close usbRequestBodyWrapper
+func (wrap *usbRequestBodyWrapper) Close() error {
+	return wrap.body.Close()
+}
+
 // usbResponseBodyWrapper wraps http.Response.Body and guarantees
 // that connection will be always drained before closed
 type usbResponseBodyWrapper struct {
 	log     *Logger       // Device's logger
+	session int           // HTTP session, for logging
 	body    io.ReadCloser // Response.body
 	conn    *usbConn      // Underlying USB connection
 	drained bool          // EOF or error has been seen
@@ -289,7 +344,7 @@ type usbResponseBodyWrapper struct {
 func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
 	if err != nil {
-		wrap.log.Debug(' ', "HTTP: body read: %s", err)
+		wrap.log.HttpDebug('<', wrap.session, "response body read: %s", err)
 		wrap.drained = true
 	}
 	return n, err
@@ -305,7 +360,7 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 	}
 
 	// Otherwise, we need to drain USB connection
-	wrap.log.Debug(' ', "HTTP: client closed connection before consuming all response")
+	wrap.log.HttpDebug('<', wrap.session, "client has gone; draining response from USB")
 	go func() {
 		io.Copy(ioutil.Discard, wrap.body)
 		wrap.body.Close()
@@ -421,6 +476,8 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 // Allocate a connection
 func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error) {
 	select {
+	case <-transport.shutdown:
+		return nil, ErrShutdown
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case conn := <-transport.connections:

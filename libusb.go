@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/google/gousb"
@@ -413,4 +414,55 @@ func (iface *LibusbInterface) Close() {
 		(*C.libusb_device_handle)(iface.devhandle),
 		C.int(iface.addr.Num),
 	)
+}
+
+// Send data to interface. Returns count of bytes actually transmitted
+// and error, if any
+func (iface *LibusbInterface) Send(data []byte,
+	timeout time.Duration) (n int, err error) {
+
+	var transferred C.int
+
+	rc := C.libusb_bulk_transfer(
+		(*C.libusb_device_handle)(iface.devhandle),
+		0, //iface.addr.Out | C.LIBUSB_ENDPOINT_OUT
+		(*C.uchar)(unsafe.Pointer(&data[0])),
+		C.int(len(data)),
+		&transferred,
+		C.uint(timeout/time.Millisecond),
+	)
+
+	if rc < 0 {
+		err = LibusbError(rc)
+	}
+	n = int(transferred)
+
+	return
+}
+
+// Recv data from interface. Returns count of bytes actually transmitted
+// and error, if any
+//
+// Note, if data size is not 512-byte aligned, and device has more data,
+// that fits the provided buffer, LIBUSB_ERROR_OVERFLOW error may occur
+func (iface *LibusbInterface) Recv(data []byte,
+	timeout time.Duration) (n int, err error) {
+
+	var transferred C.int
+
+	rc := C.libusb_bulk_transfer(
+		(*C.libusb_device_handle)(iface.devhandle),
+		0, //iface.addr.In | C.LIBUSB_ENDPOINT_IN
+		(*C.uchar)(unsafe.Pointer(&data[0])),
+		C.int(len(data)),
+		&transferred,
+		C.uint(timeout/time.Millisecond),
+	)
+
+	if rc < 0 {
+		err = LibusbError(rc)
+	}
+	n = int(transferred)
+
+	return
 }

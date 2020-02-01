@@ -3,7 +3,7 @@
  * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
  * See LICENSE for license terms and conditions
  *
- * Manipulations with USB addresses
+ * Common types for USB
  */
 
 package main
@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/google/gousb"
 )
@@ -237,4 +238,47 @@ func GetUsbIfAddrs(desc *gousb.DeviceDesc) UsbIfAddrList {
 	}
 
 	return list
+}
+
+// Type UsbDeviceInfo represents USB device information
+type UsbDeviceInfo struct {
+	Vendor       gousb.ID
+	Product      gousb.ID
+	SerialNumber string
+	Manufacturer string
+	ProductName  string
+	DeviceId     string
+}
+
+// Ident returns device identification string, suitable as
+// persistent state identifier
+func (info UsbDeviceInfo) Ident() string {
+	id := info.Vendor.String() + "-" + info.SerialNumber + "-" + info.ProductName
+	id = strings.Map(func(c rune) rune {
+		switch {
+		case '0' <= c && c <= '9':
+		case 'a' <= c && c <= 'z':
+		case 'A' <= c && c <= 'Z':
+		case c == '-' || c == '_':
+		default:
+			c = '-'
+		}
+		return c
+	}, id)
+	return id
+}
+
+// Comment returns a short comment, describing a device
+func (info UsbDeviceInfo) Comment() string {
+	c := ""
+
+	if !strings.HasPrefix(info.ProductName, info.Manufacturer) {
+		c += info.Manufacturer + " " + info.ProductName
+	} else {
+		c = info.ProductName
+	}
+
+	c += " serial=" + info.SerialNumber
+
+	return c
 }

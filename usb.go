@@ -14,7 +14,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,48 +37,6 @@ type UsbTransport struct {
 	connInUse     int32         // Count of connections in use
 	connections   chan *usbConn // Pool of connections
 	shutdown      chan struct{} // Closed by Shutdown()
-}
-
-// Type UsbDeviceInfo represents USB device information
-type UsbDeviceInfo struct {
-	Vendor       gousb.ID
-	SerialNumber string
-	Manufacturer string
-	Product      string
-	DeviceId     string
-}
-
-// Ident returns device identification string, suitable as
-// persistent state identifier
-func (info UsbDeviceInfo) Ident() string {
-	id := info.Vendor.String() + "-" + info.SerialNumber + "-" + info.Product
-	id = strings.Map(func(c rune) rune {
-		switch {
-		case '0' <= c && c <= '9':
-		case 'a' <= c && c <= 'z':
-		case 'A' <= c && c <= 'Z':
-		case c == '-' || c == '_':
-		default:
-			c = '-'
-		}
-		return c
-	}, id)
-	return id
-}
-
-// Comment returns a short comment, describing a device
-func (info UsbDeviceInfo) Comment() string {
-	c := ""
-
-	if !strings.HasPrefix(info.Product, info.Manufacturer) {
-		c += info.Manufacturer + " " + info.Product
-	} else {
-		c = info.Product
-	}
-
-	c += " serial=" + info.SerialNumber
-
-	return c
 }
 
 // Fetch IEEE 1284.4 DEVICE_ID
@@ -141,11 +98,11 @@ func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
 	// Write device info to the log
 	transport.log.Begin().
 		Debug(' ', "===============================").
-		Info('+', "%s: added %s", addr, transport.info.Product).
+		Info('+', "%s: added %s", addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
 		Debug(' ', "  Ident:        %s", transport.info.Ident()).
 		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
-		Debug(' ', "  Product:      %s", transport.info.Product).
+		Debug(' ', "  Product:      %s", transport.info.ProductName).
 		Debug(' ', "  DeviceId:     %s", transport.info.DeviceId).
 		Commit()
 
@@ -190,7 +147,7 @@ func (transport *UsbTransport) Shutdown(ctx context.Context) error {
 		case <-transport.rqPendingDone:
 		case <-ctx.Done():
 			transport.log.Error('-', "%s: %s: shutdown timeout expired",
-				transport.addr, transport.info.Product)
+				transport.addr, transport.info.ProductName)
 			return ctx.Err()
 		}
 	}
@@ -201,12 +158,14 @@ func (transport *UsbTransport) Shutdown(ctx context.Context) error {
 // Close the transport
 func (transport *UsbTransport) Close() {
 	if atomic.LoadInt32(&transport.rqPending) > 0 {
-		transport.log.Info('-', "%s: resetting %s", transport.addr, transport.info.Product)
+		transport.log.Info('-', "%s: resetting %s",
+			transport.addr, transport.info.ProductName)
 		transport.dev.Reset()
 	}
 
 	transport.dev.Close()
-	transport.log.Info('-', "%s: removed %s", transport.addr, transport.info.Product)
+	transport.log.Info('-', "%s: removed %s",
+		transport.addr, transport.info.ProductName)
 }
 
 // Log returns device's own logger
@@ -234,9 +193,10 @@ func (transport *UsbTransport) fillInfo() {
 
 	transport.info = UsbDeviceInfo{
 		Vendor:       dev.Desc.Vendor,
+		Product:      dev.Desc.Product,
 		SerialNumber: ok(dev.SerialNumber()),
 		Manufacturer: ok(dev.Manufacturer()),
-		Product:      ok(dev.Product()),
+		ProductName:  ok(dev.Product()),
 		DeviceId:     usbGetDeviceId(dev),
 	}
 }

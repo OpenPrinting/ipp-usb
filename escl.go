@@ -120,7 +120,7 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	sort.Strings(list)
 	svc.Txt.IfNotEmpty("pdl", strings.Join(list, ","))
 
-	svc.Txt.Add("ty", usbinfo.Product)
+	svc.Txt.Add("ty", usbinfo.ProductName)
 	svc.Txt.Add("rs", "eSCL")
 	svc.Txt.IfNotEmpty("vers", decoder.version)
 	svc.Txt.IfNotEmpty("txtvers", "1")

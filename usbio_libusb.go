@@ -3,13 +3,12 @@
  * Copyright (C) 2020 and up by Alexander Pevzner (pzz@apevzner.com)
  * See LICENSE for license terms and conditions
  *
- * Cgo binding for libusb
+ * USB low-level I/O. Cgo implementation on a top of libusb
  */
 
 package main
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,38 +30,28 @@ import (
 // typedef struct libusb_endpoint_descriptor libusb_endpoint_descriptor_struct;
 import "C"
 
-// LibusbError implements error interface for
-// libusb error codes
-type LibusbError int
+// UsbError represents USB I/O error. It implements error interface
+type UsbError int
+
+const (
+	UsbIO            UsbError = C.LIBUSB_ERROR_IO
+	UsbEInval                 = C.LIBUSB_ERROR_INVALID_PARAM
+	UsbEAccess                = C.LIBUSB_ERROR_ACCESS
+	UsbENoDev                 = C.LIBUSB_ERROR_NO_DEVICE
+	UsbENotFound              = C.LIBUSB_ERROR_NOT_FOUND
+	UsbEBusy                  = C.LIBUSB_ERROR_BUSY
+	UsbETimeout               = C.LIBUSB_ERROR_TIMEOUT
+	UsbEOverflow              = C.LIBUSB_ERROR_OVERFLOW
+	UsbEPipe                  = C.LIBUSB_ERROR_PIPE
+	UsbEIntr                  = C.LIBUSB_ERROR_INTERRUPTED
+	UsbENomem                 = C.LIBUSB_ERROR_NO_MEM
+	UsbENotSupported          = C.LIBUSB_ERROR_NOT_SUPPORTED
+	UsbEOther                 = C.LIBUSB_ERROR_OTHER
+)
 
 // Error describes a libusb error
-func (err LibusbError) Error() string {
-	var s string
-
-	if err < 0 {
-		s = C.GoString(C.libusb_strerror(int32(err)))
-	}
-
-	switch err {
-	case 0:
-		s = "OK"
-	case C.LIBUSB_TRANSFER_ERROR:
-		s = "transfer failed"
-	case C.LIBUSB_TRANSFER_TIMED_OUT:
-		s = "transfer timed out"
-	case C.LIBUSB_TRANSFER_CANCELLED:
-		s = "transfer was cancelled"
-	case C.LIBUSB_TRANSFER_STALL:
-		s = "transfer stalled"
-	case C.LIBUSB_TRANSFER_NO_DEVICE:
-		s = "device was disconnected"
-	case C.LIBUSB_TRANSFER_OVERFLOW:
-		s = "transfer overflow"
-	default:
-		s = fmt.Sprintf("unknown %d", err)
-	}
-
-	return "libusb: " + s
+func (err UsbError) Error() string {
+	return "libusb: " + C.GoString(C.libusb_strerror(int32(err)))
 }
 
 // libusbContextPtr keeps a pointer to libusb_context.
@@ -87,7 +76,7 @@ func libusbContext() (*C.libusb_context, error) {
 	// Obtain libusb_context
 	rc := C.libusb_init(&libusbContextPtr)
 	if rc != 0 {
-		return nil, LibusbError(rc)
+		return nil, UsbError(rc)
 	}
 
 	// Subscribe to hotplug events
@@ -133,9 +122,9 @@ func libusbHotplugCallback(ctx *C.libusb_context, dev *C.libusb_device,
 	}
 }
 
-// LibusbBuildUsbAddrList return list of IPP-over-USB
+// UsbGetIppOverUsbDeviceDescs return list of IPP-over-USB
 // device descriptors
-func LibusbGetIppOverUsbDeviceDescs() ([]UsbDeviceDesc, error) {
+func UsbGetIppOverUsbDeviceDescs() ([]UsbDeviceDesc, error) {
 	// Obtain libusb context
 	ctx, err := libusbContext()
 	if err != nil {
@@ -146,7 +135,7 @@ func LibusbGetIppOverUsbDeviceDescs() ([]UsbDeviceDesc, error) {
 	var devlist **C.libusb_device
 	cnt := C.libusb_get_device_list(ctx, &devlist)
 	if cnt < 0 {
-		return nil, LibusbError(cnt)
+		return nil, UsbError(cnt)
 	}
 	defer C.libusb_free_device_list(devlist, 1)
 
@@ -175,7 +164,7 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 	// Obtain device descriptor
 	rc := C.libusb_get_device_descriptor(dev, &c_desc)
 	if rc < 0 {
-		return desc, LibusbError(rc)
+		return desc, UsbError(rc)
 	}
 
 	// Decode device descriptor
@@ -262,11 +251,11 @@ type UsbDeviceDesc struct {
 	IfAddrs         UsbIfAddrList // IPP-over-USB interfaces
 }
 
-// LibUsbDevHandle represents libusb_device_handle
-type LibUsbDevHandle C.libusb_device_handle
+// UsbDevHandle represents libusb_device_handle
+type UsbDevHandle C.libusb_device_handle
 
-// LibusbOpenDevice opens device by address
-func LibusbOpenDevice(addr UsbAddr, config int) (*LibUsbDevHandle, error) {
+// UsbOpenDevice opens device by address
+func UsbOpenDevice(addr UsbAddr, config int) (*UsbDevHandle, error) {
 	// Obtain libusb context
 	ctx, err := libusbContext()
 	if err != nil {
@@ -277,7 +266,7 @@ func LibusbOpenDevice(addr UsbAddr, config int) (*LibUsbDevHandle, error) {
 	var devlist **C.libusb_device
 	cnt := C.libusb_get_device_list(ctx, &devlist)
 	if cnt < 0 {
-		return nil, LibusbError(cnt)
+		return nil, UsbError(cnt)
 	}
 	defer C.libusb_free_device_list(devlist, 1)
 
@@ -294,7 +283,7 @@ func LibusbOpenDevice(addr UsbAddr, config int) (*LibUsbDevHandle, error) {
 			var devhandle *C.libusb_device_handle
 			rc := C.libusb_open(dev, &devhandle)
 			if rc < 0 {
-				return nil, LibusbError(rc)
+				return nil, UsbError(rc)
 			}
 
 			// Detach kernel driver
@@ -304,10 +293,10 @@ func LibusbOpenDevice(addr UsbAddr, config int) (*LibUsbDevHandle, error) {
 			rc = C.libusb_set_configuration(devhandle, C.int(config))
 			if rc < 0 {
 				C.libusb_close(devhandle)
-				return nil, LibusbError(rc)
+				return nil, UsbError(rc)
 			}
 
-			return (*LibUsbDevHandle)(devhandle), nil
+			return (*UsbDevHandle)(devhandle), nil
 		}
 	}
 
@@ -315,17 +304,17 @@ func LibusbOpenDevice(addr UsbAddr, config int) (*LibUsbDevHandle, error) {
 }
 
 // Close a device
-func (devhandle *LibUsbDevHandle) Close() {
+func (devhandle *UsbDevHandle) Close() {
 	C.libusb_close((*C.libusb_device_handle)(devhandle))
 }
 
 // Reset a device
-func (devhandle *LibUsbDevHandle) Reset() {
+func (devhandle *UsbDevHandle) Reset() {
 	C.libusb_reset_device((*C.libusb_device_handle)(devhandle))
 }
 
 // UsbDeviceInfo returns UsbDeviceInfo for the device
-func (devhandle *LibUsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
+func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	dev := C.libusb_get_device((*C.libusb_device_handle)(devhandle))
 
 	var c_desc C.libusb_device_descriptor_struct
@@ -334,7 +323,7 @@ func (devhandle *LibUsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	// Obtain device descriptor
 	rc := C.libusb_get_device_descriptor(dev, &c_desc)
 	if rc < 0 {
-		return info, LibusbError(rc)
+		return info, UsbError(rc)
 	}
 
 	// Decode device descriptor
@@ -368,9 +357,9 @@ func (devhandle *LibUsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	return info, nil
 }
 
-// OpenLibusbIface opens an interface
-func (devhandle *LibUsbDevHandle) OpenLibusbIface(
-	addr UsbIfAddr) (*LibusbInterface, error) {
+// UsbInterface opens an interface
+func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr) (
+	*UsbInterface, error) {
 
 	// Claim the interface
 	rc := C.libusb_claim_interface(
@@ -378,7 +367,7 @@ func (devhandle *LibUsbDevHandle) OpenLibusbIface(
 		C.int(addr.Num),
 	)
 	if rc < 0 {
-		return nil, LibusbError(rc)
+		return nil, UsbError(rc)
 	}
 
 	// Activate alternate setting
@@ -393,23 +382,23 @@ func (devhandle *LibUsbDevHandle) OpenLibusbIface(
 			(*C.libusb_device_handle)(devhandle),
 			C.int(addr.Num),
 		)
-		return nil, LibusbError(rc)
+		return nil, UsbError(rc)
 	}
 
-	return &LibusbInterface{
+	return &UsbInterface{
 		devhandle: devhandle,
 		addr:      addr,
 	}, nil
 }
 
-// LibusbIface represents IPP-over-USB interface
-type LibusbInterface struct {
-	devhandle *LibUsbDevHandle // Device handle
-	addr      UsbIfAddr        // Interface address
+// UsbInterface represents IPP-over-USB interface
+type UsbInterface struct {
+	devhandle *UsbDevHandle // Device handle
+	addr      UsbIfAddr     // Interface address
 }
 
 // Close the interface
-func (iface *LibusbInterface) Close() {
+func (iface *UsbInterface) Close() {
 	C.libusb_release_interface(
 		(*C.libusb_device_handle)(iface.devhandle),
 		C.int(iface.addr.Num),
@@ -418,7 +407,7 @@ func (iface *LibusbInterface) Close() {
 
 // Send data to interface. Returns count of bytes actually transmitted
 // and error, if any
-func (iface *LibusbInterface) Send(data []byte,
+func (iface *UsbInterface) Send(data []byte,
 	timeout time.Duration) (n int, err error) {
 
 	var transferred C.int
@@ -433,7 +422,7 @@ func (iface *LibusbInterface) Send(data []byte,
 	)
 
 	if rc < 0 {
-		err = LibusbError(rc)
+		err = UsbError(rc)
 	}
 	n = int(transferred)
 
@@ -445,7 +434,7 @@ func (iface *LibusbInterface) Send(data []byte,
 //
 // Note, if data size is not 512-byte aligned, and device has more data,
 // that fits the provided buffer, LIBUSB_ERROR_OVERFLOW error may occur
-func (iface *LibusbInterface) Recv(data []byte,
+func (iface *UsbInterface) Recv(data []byte,
 	timeout time.Duration) (n int, err error) {
 
 	var transferred C.int
@@ -460,7 +449,7 @@ func (iface *LibusbInterface) Recv(data []byte,
 	)
 
 	if rc < 0 {
-		err = LibusbError(rc)
+		err = UsbError(rc)
 	}
 	n = int(transferred)
 

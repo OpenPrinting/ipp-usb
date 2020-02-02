@@ -54,13 +54,20 @@ func (err UsbError) Error() string {
 	return "libusb: " + C.GoString(C.libusb_strerror(int32(err)))
 }
 
-// libusbContextPtr keeps a pointer to libusb_context.
-// It is initialized on demand
 var (
-	libusbContextPtr  *C.libusb_context
+	// libusbContextPtr keeps a pointer to libusb_context.
+	// It is initialized on demand
+	libusbContextPtr *C.libusb_context
+
+	// libusbContextLock protects libusbContextPtr initialization
+	// in multithreaded context
 	libusbContextLock sync.Mutex
-	libusbContextOk   int32
-	libusbHotlugChan  = make(chan struct{})
+
+	// Nonzero, if libusbContextPtr initialized
+	libusbContextOk int32
+
+	// libusbHotlugChan receives USB hotplug event notifications
+	libusbHotlugChan = make(chan struct{})
 )
 
 // libusbContext returns libusb_context. It

@@ -177,6 +177,9 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 	// Remove Expect: 100-continue, if any
 	outreq.Header.Del("Expect")
 
+	outreq.Header.Set("Connection", "close")
+	outreq.Close = true
+
 	// Wrap request body
 	if outreq.Body != nil {
 		outreq.Body = &usbRequestBodyWrapper{

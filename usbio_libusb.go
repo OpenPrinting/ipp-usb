@@ -301,7 +301,7 @@ func UsbOpenDevice(desc UsbDeviceDesc) (*UsbDevHandle, error) {
 			}
 
 			// Detach kernel driver
-			//C.libusb_set_auto_detach_kernel_driver(devhandle, 1)
+			C.libusb_set_auto_detach_kernel_driver(devhandle, 1)
 			err := (*UsbDevHandle)(devhandle).detachKernelDriver()
 			if err != nil {
 				return nil, err

@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"time"
 )
 
-// ----- UsbTransport -----
 // UsbTransport implements HTTP transport functionality over USB
 type UsbTransport struct {
 	addr          UsbAddr       // Device address
@@ -27,9 +27,9 @@ type UsbTransport struct {
 	dev           *UsbDevHandle // Underlying USB device
 	rqPending     int32         // Count or pending requests
 	rqPendingDone chan struct{} // Notified when pending request finished
-	connInUse     int32         // Count of connections in use
 	connections   chan *usbConn // Pool of connections
 	shutdown      chan struct{} // Closed by Shutdown()
+	connstate     *usbConnState // Connections state tracker
 }
 
 // Create new http.RoundTripper backed by IPP-over-USB
@@ -48,6 +48,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		rqPendingDone: make(chan struct{}),
 		connections:   make(chan *usbConn, len(desc.IfAddrs)),
 		shutdown:      make(chan struct{}),
+		connstate:     newUsbConnState(len(desc.IfAddrs)),
 	}
 
 	// Obtain device info
@@ -272,7 +273,6 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 	return nil
 }
 
-// ----- usbConn -----
 // usbConn implements an USB connection
 type usbConn struct {
 	transport *UsbTransport // Transport that owns the connection
@@ -318,6 +318,9 @@ ERROR:
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (n int, err error) {
+	conn.transport.connstate.beginRead(conn)
+	defer conn.transport.connstate.doneRead(conn)
+
 	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW erros
 	// from libusb, input buffer size must always
 	// be aligned by 512 bytes
@@ -356,6 +359,9 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 
 // Write to USB
 func (conn *usbConn) Write(b []byte) (n int, err error) {
+	conn.transport.connstate.beginWrite(conn)
+	defer conn.transport.connstate.doneWrite(conn)
+
 	n, err = conn.iface.Send(b, 0)
 	if err != nil {
 		conn.transport.log.Error('!',
@@ -372,8 +378,9 @@ func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case conn := <-transport.connections:
-		transport.log.Debug(' ', "USB[%d]: connection allocated, in use: %d",
-			conn.index, atomic.AddInt32(&transport.connInUse, 1))
+		transport.connstate.gotConn(conn)
+		transport.log.Debug(' ', "USB[%d]: connection allocated, %s",
+			conn.index, transport.connstate)
 
 		return conn, nil
 	}
@@ -385,8 +392,9 @@ func (conn *usbConn) put() error {
 
 	conn.reader.Reset(conn)
 
-	transport.log.Debug(' ', "USB[%d]: connection released, in use: %d",
-		conn.index, atomic.AddInt32(&transport.connInUse, -1))
+	transport.connstate.putConn(conn)
+	transport.log.Debug(' ', "USB[%d]: connection released, %s",
+		conn.index, transport.connstate)
 
 	conn.transport.connections <- conn
 
@@ -396,4 +404,93 @@ func (conn *usbConn) put() error {
 // Destroy USB connection
 func (conn *usbConn) destroy() {
 	conn.iface.Close()
+}
+
+// usbConnState tracks connections state, for logging
+type usbConnState struct {
+	alloc []int32
+	read  []int32
+	write []int32
+}
+
+// newUsbConnState creates a new usbConnState for given
+// number of connections
+func newUsbConnState(cnt int) *usbConnState {
+	return &usbConnState{
+		alloc: make([]int32, cnt),
+		read:  make([]int32, cnt),
+		write: make([]int32, cnt),
+	}
+}
+
+// gotConn notifies usbConnState, that connection is allocated
+func (state *usbConnState) gotConn(conn *usbConn) {
+	atomic.AddInt32(&state.alloc[conn.index], 1)
+}
+
+// putConn notifies usbConnState, that connection is released
+func (state *usbConnState) putConn(conn *usbConn) {
+	atomic.AddInt32(&state.alloc[conn.index], -1)
+}
+
+// beginRead notifies usbConnState, that read is started
+func (state *usbConnState) beginRead(conn *usbConn) {
+	atomic.AddInt32(&state.read[conn.index], 1)
+}
+
+// doneRead notifies usbConnState, that read is done
+func (state *usbConnState) doneRead(conn *usbConn) {
+	atomic.AddInt32(&state.read[conn.index], -1)
+}
+
+// beginWrite notifies usbConnState, that write is started
+func (state *usbConnState) beginWrite(conn *usbConn) {
+	atomic.AddInt32(&state.write[conn.index], 1)
+}
+
+// doneWrite notifies usbConnState, that write is done
+func (state *usbConnState) doneWrite(conn *usbConn) {
+	atomic.AddInt32(&state.write[conn.index], -1)
+}
+
+// String returns a string, representing connections state
+func (state *usbConnState) String() string {
+	buf := make([]byte, 0, 64)
+	used := 0
+
+	for i := range state.alloc {
+		a := atomic.LoadInt32(&state.alloc[i])
+		r := atomic.LoadInt32(&state.read[i])
+		w := atomic.LoadInt32(&state.write[i])
+
+		if len(buf) != 0 {
+			buf = append(buf, ' ')
+		}
+
+		if a|r|w == 0 {
+			buf = append(buf, '-', '-', '-')
+		} else {
+			used++
+
+			if a != 0 {
+				buf = append(buf, 'a')
+			} else {
+				buf = append(buf, '-')
+			}
+
+			if r != 0 {
+				buf = append(buf, 'r')
+			} else {
+				buf = append(buf, '-')
+			}
+
+			if w != 0 {
+				buf = append(buf, 'w')
+			} else {
+				buf = append(buf, '-')
+			}
+		}
+	}
+
+	return fmt.Sprintf("%d in use: %s", used, buf)
 }

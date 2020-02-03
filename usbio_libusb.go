@@ -338,7 +338,6 @@ func (devhandle *UsbDevHandle) detachKernelDriver() error {
 	}
 
 	for _, ifnum := range ifnums {
-		println(ifnum)
 		rc := C.libusb_detach_kernel_driver(
 			(*C.libusb_device_handle)(devhandle), C.int(ifnum))
 		if rc == C.LIBUSB_ERROR_NOT_FOUND {
@@ -405,8 +404,6 @@ func (devhandle *UsbDevHandle) currentInterfaces() ([]int, error) {
 
 		ifnumbers = append(ifnumbers, int(alt.bInterfaceNumber))
 	}
-
-	Log.Debug(0, "%v", ifnumbers)
 
 	return ifnumbers, nil
 }

@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/google/gousb"
 )
 
 // UsbAddr represents an USB device address
@@ -39,29 +37,6 @@ func (addr UsbAddr) Less(addr2 UsbAddr) bool {
 		(addr.Bus == addr2.Bus && addr.Address < addr2.Address)
 }
 
-// Open device by address
-func (addr UsbAddr) Open() (*gousb.Device, error) {
-	found := false
-	devs, err := usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		if found {
-			return false
-		}
-
-		return addr.Bus == desc.Bus && addr.Address == desc.Address
-	})
-
-	if len(devs) != 0 {
-		devs[0].SetAutoDetach(true)
-		return devs[0], nil
-	}
-
-	if err == nil {
-		err = gousb.ErrorNotFound
-	}
-
-	return nil, fmt.Errorf("%s: %s", addr, err)
-}
-
 // UsbAddrList represents a list of USB addresses
 //
 // For faster lookup and comparable logging, address list
@@ -69,20 +44,6 @@ func (addr UsbAddr) Open() (*gousb.Device, error) {
 // invariant, never modify list directly, and use the provided
 // (*UsbAddrList) Add() function
 type UsbAddrList []UsbAddr
-
-// Build UsbAddrList, collection all IPP-over-USB devices
-func BuildUsbAddrList() UsbAddrList {
-	var list UsbAddrList
-
-	usbCtx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		if len(GetUsbIfAddrs(desc)) >= 2 {
-			list.Add(UsbAddr{desc.Bus, desc.Address})
-		}
-		return false
-	})
-
-	return list
-}
 
 // Add UsbAddr to UsbAddrList
 func (list *UsbAddrList) Add(addr UsbAddr) {
@@ -152,37 +113,20 @@ func (list1 UsbAddrList) Diff(list2 UsbAddrList) (added, removed UsbAddrList) {
 
 // UsbIfAddr represents a full "address" of the USB interface
 type UsbIfAddr struct {
-	UsbAddr                     // Device address
-	CfgNum  int                 // Config number within device
-	Num     int                 // Interface number within Config
-	Alt     int                 // Number of alternate setting
-	In, Out *gousb.EndpointDesc // Input/output endpoints
+	UsbAddr     // Device address
+	Num     int // Interface number within Config
+	Alt     int // Number of alternate setting
+	In, Out int // Input/output endpoint numbers
 }
 
 // String returns a human readable short representation of UsbIfAddr
 func (ifaddr UsbIfAddr) String() string {
-	return fmt.Sprintf("Bus %.3d Device %.3d Config %d Interface %d Alt %d",
+	return fmt.Sprintf("Bus %.3d Device %.3d Interface %d Alt %d",
 		ifaddr.Bus,
 		ifaddr.Address,
-		ifaddr.CfgNum,
 		ifaddr.Num,
 		ifaddr.Alt,
 	)
-}
-
-// Open the particular interface on device
-func (ifaddr *UsbIfAddr) Open(dev *gousb.Device) (*gousb.Interface, error) {
-	conf, err := dev.Config(ifaddr.CfgNum)
-	if err != nil {
-		return nil, err
-	}
-
-	iface, err := conf.Interface(ifaddr.Num, ifaddr.Alt)
-	if err != nil {
-		return nil, err
-	}
-
-	return iface, nil
 }
 
 // UsbIfAddrList represents a list of USB interface addresses
@@ -193,67 +137,26 @@ func (list *UsbIfAddrList) Add(addr UsbIfAddr) {
 	*list = append(*list, addr)
 }
 
-// GetUsbIfAddrs returns list of IPP over USB interfaces on device
-func GetUsbIfAddrs(desc *gousb.DeviceDesc) UsbIfAddrList {
-	var list UsbIfAddrList
-
-	for cfgNum, conf := range desc.Configs {
-		for ifNum, iface := range conf.Interfaces {
-			for altNum, alt := range iface.AltSettings {
-				if alt.Class == gousb.ClassPrinter &&
-					alt.SubClass == 1 &&
-					alt.Protocol == 4 {
-
-					// Build address
-					addr := UsbIfAddr{
-						UsbAddr: UsbAddr{desc.Bus, desc.Address},
-						CfgNum:  cfgNum,
-						Num:     ifNum,
-						Alt:     altNum,
-					}
-
-					// Find in/out endpoins
-					for _, ep := range alt.Endpoints {
-						switch ep.Direction {
-						case gousb.EndpointDirectionIn:
-							if addr.In == nil {
-								ep2 := ep
-								addr.In = &ep2
-							}
-						case gousb.EndpointDirectionOut:
-							if addr.Out == nil {
-								ep2 := ep
-								addr.Out = &ep2
-							}
-						}
-					}
-
-					// Add address to the list
-					if addr.In != nil && addr.Out != nil {
-						list.Add(addr)
-					}
-				}
-			}
-		}
-	}
-
-	return list
+// UsbDeviceDesc represents an IPP-over-USB device descriptor
+type UsbDeviceDesc struct {
+	UsbAddr               // Device address
+	Config  int           // IPP-over-USB configuration
+	IfAddrs UsbIfAddrList // IPP-over-USB interfaces
 }
 
 // Type UsbDeviceInfo represents USB device information
 type UsbDeviceInfo struct {
-	Vendor       gousb.ID
-	Product      gousb.ID
+	Vendor       uint16
+	Product      uint16
 	SerialNumber string
 	Manufacturer string
 	ProductName  string
-	DeviceId     string
 }
 
 // Ident returns device identification string, suitable as
 // persistent state identifier
 func (info UsbDeviceInfo) Ident() string {
-	id := info.Vendor.String() + "-" + info.SerialNumber + "-" + info.ProductName
+	id := fmt.Sprintf("%4.4x-%s-%s", info.Vendor, info.SerialNumber, info.ProductName)
 	id = strings.Map(func(c rune) rune {
 		switch {
 		case '0' <= c && c <= '9':

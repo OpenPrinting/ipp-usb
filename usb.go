@@ -14,15 +14,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/google/gousb"
-)
-
-var (
-	usbCtx = gousb.NewContext()
 )
 
 // ----- UsbTransport -----
@@ -31,7 +24,7 @@ type UsbTransport struct {
 	addr          UsbAddr       // Device address
 	info          UsbDeviceInfo // USB device info
 	log           *Logger       // Device's own logger
-	dev           *gousb.Device // Underlying USB device
+	dev           *UsbDevHandle // Underlying USB device
 	rqPending     int32         // Count or pending requests
 	rqPendingDone chan struct{} // Notified when pending request finished
 	connInUse     int32         // Count of connections in use
@@ -39,75 +32,46 @@ type UsbTransport struct {
 	shutdown      chan struct{} // Closed by Shutdown()
 }
 
-// Fetch IEEE 1284.4 DEVICE_ID
-func usbGetDeviceId(dev *gousb.Device) string {
-	buf := make([]byte, 2048)
-
-	for cfgNum, conf := range dev.Desc.Configs {
-		for ifNum, iface := range conf.Interfaces {
-			for altNum, alt := range iface.AltSettings {
-				if alt.Class == gousb.ClassPrinter &&
-					alt.SubClass == 1 {
-
-					n, err := dev.Control(
-						gousb.ControlClass|gousb.ControlIn|gousb.ControlInterface,
-						0,
-						uint16(cfgNum),
-						uint16((ifNum<<8)|altNum),
-						buf,
-					)
-
-					if err == nil && n >= 2 {
-						buf2 := make([]byte, n-2)
-						copy(buf2, buf[2:n])
-						return string(buf2)
-					}
-
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
 // Create new http.RoundTripper backed by IPP-over-USB
-func NewUsbTransport(addr UsbAddr) (*UsbTransport, error) {
+func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Open the device
-	dev, err := addr.Open()
+	dev, err := UsbOpenDevice(desc)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create UsbTransport
-	ifaddrs := GetUsbIfAddrs(dev.Desc)
-
 	transport := &UsbTransport{
-		addr:          addr,
+		addr:          desc.UsbAddr,
 		log:           NewLogger(),
 		dev:           dev,
 		rqPendingDone: make(chan struct{}),
-		connections:   make(chan *usbConn, len(ifaddrs)),
+		connections:   make(chan *usbConn, len(desc.IfAddrs)),
 		shutdown:      make(chan struct{}),
 	}
 
-	transport.fillInfo()
+	// Obtain device info
+	transport.info, err = dev.UsbDeviceInfo()
+	if err != nil {
+		dev.Close()
+		return nil, err
+	}
+
 	transport.log.Cc(LogDebug, ColorConsole) // FIXME -- make configurable
 	transport.log.ToDevFile(transport.info)
 
 	// Write device info to the log
 	transport.log.Begin().
 		Debug(' ', "===============================").
-		Info('+', "%s: added %s", addr, transport.info.ProductName).
+		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
 		Debug(' ', "  Ident:        %s", transport.info.Ident()).
 		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:      %s", transport.info.ProductName).
-		Debug(' ', "  DeviceId:     %s", transport.info.DeviceId).
 		Commit()
 
 	// Open connections
-	for i, ifaddr := range ifaddrs {
+	for i, ifaddr := range desc.IfAddrs {
 		var conn *usbConn
 		conn, err = transport.openUsbConn(i, ifaddr)
 		if err != nil {
@@ -177,28 +141,6 @@ func (transport *UsbTransport) Log() *Logger {
 // behind the transport
 func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 	return transport.info
-}
-
-// fillUsbDeviceInfo fills transport.info
-func (transport *UsbTransport) fillInfo() {
-	dev := transport.dev
-
-	ok := func(s string, err error) string {
-		if err == nil {
-			return s
-		} else {
-			return ""
-		}
-	}
-
-	transport.info = UsbDeviceInfo{
-		Vendor:       dev.Desc.Vendor,
-		Product:      dev.Desc.Product,
-		SerialNumber: ok(dev.SerialNumber()),
-		Manufacturer: ok(dev.Manufacturer()),
-		ProductName:  ok(dev.Product()),
-		DeviceId:     usbGetDeviceId(dev),
-	}
 }
 
 // RoundTrip executes a single HTTP transaction, returning
@@ -333,15 +275,10 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 // ----- usbConn -----
 // usbConn implements an USB connection
 type usbConn struct {
-	transport  *UsbTransport      // Transport that owns the connection
-	index      int                // Connection index (for logging)
-	iface      *gousb.Interface   // Underlying interface
-	in         *gousb.InEndpoint  // Input endpoint
-	out        *gousb.OutEndpoint // Output endpoint
-	closeCtx   context.Context    // Canceled by (*usbConn) put()
-	cancelFunc context.CancelFunc // closeCtx's cancel function
-	doneIO     sync.WaitGroup     // put() waits for Read/Write cancelation
-	reader     *bufio.Reader      // For http.ReadResponse
+	transport *UsbTransport // Transport that owns the connection
+	index     int           // Connection index (for logging)
+	iface     *UsbInterface // Underlying interface
+	reader    *bufio.Reader // For http.ReadResponse
 }
 
 // Open usbConn
@@ -362,18 +299,7 @@ func (transport *UsbTransport) openUsbConn(
 
 	// Obtain interface
 	var err error
-	conn.iface, err = ifaddr.Open(dev)
-	if err != nil {
-		goto ERROR
-	}
-
-	// Obtain endpoints
-	conn.in, err = conn.iface.InEndpoint(ifaddr.In.Number)
-	if err != nil {
-		goto ERROR
-	}
-
-	conn.out, err = conn.iface.OutEndpoint(ifaddr.Out.Number)
+	conn.iface, err = dev.OpenUsbInterface(ifaddr)
 	if err != nil {
 		goto ERROR
 	}
@@ -406,14 +332,14 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 		b = b[0:n]
 	}
 
-	conn.doneIO.Add(1)
-	defer conn.doneIO.Done()
-
-	ctx := conn.closeCtx
-
 	backoff := time.Millisecond * 100
 	for {
-		n, err := conn.in.ReadContext(ctx, b)
+		n, err := conn.iface.Recv(b, 0)
+		if err != nil {
+			conn.transport.log.Error('!',
+				"USB[%d]: recv: %s", conn.index, err)
+		}
+
 		if n != 0 || err != nil {
 			return n, err
 		}
@@ -430,10 +356,12 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 
 // Write to USB
 func (conn *usbConn) Write(b []byte) (n int, err error) {
-	conn.doneIO.Add(1)
-	defer conn.doneIO.Done()
-
-	return conn.out.WriteContext(conn.closeCtx, b)
+	n, err = conn.iface.Send(b, 0)
+	if err != nil {
+		conn.transport.log.Error('!',
+			"USB[%d]: send: %s", conn.index, err)
+	}
+	return
 }
 
 // Allocate a connection
@@ -447,9 +375,6 @@ func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error)
 		transport.log.Debug(' ', "USB[%d]: connection allocated, in use: %d",
 			conn.index, atomic.AddInt32(&transport.connInUse, 1))
 
-		conn.closeCtx, conn.cancelFunc =
-			context.WithCancel(context.Background())
-
 		return conn, nil
 	}
 }
@@ -458,8 +383,6 @@ func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error)
 func (conn *usbConn) put() error {
 	transport := conn.transport
 
-	conn.cancelFunc()
-	conn.doneIO.Wait()
 	conn.reader.Reset(conn)
 
 	transport.log.Debug(' ', "USB[%d]: connection released, in use: %d",

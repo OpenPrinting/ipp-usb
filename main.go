@@ -76,6 +76,10 @@ func main() {
 	err = ConfLoad()
 	Log.Check(err)
 
+	// Initialize USB
+	err = UsbInit()
+	Log.Check(err)
+
 	// Run PnP manager
 	PnPStart()
 }

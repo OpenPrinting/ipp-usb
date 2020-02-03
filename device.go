@@ -31,9 +31,9 @@ type Device struct {
 }
 
 // NewDevice creates new Device object
-func NewDevice(addr UsbAddr) (*Device, error) {
+func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	dev := &Device{
-		UsbAddr: addr,
+		UsbAddr: desc.UsbAddr,
 	}
 
 	var err error
@@ -44,7 +44,7 @@ func NewDevice(addr UsbAddr) (*Device, error) {
 	var log *LogMessage
 
 	// Create USB transport
-	dev.UsbTransport, err = NewUsbTransport(addr)
+	dev.UsbTransport, err = NewUsbTransport(desc)
 	if err != nil {
 		goto ERROR
 	}

@@ -31,26 +31,34 @@ func PnPStart() {
 	// Serve PnP events until terminated
 loop:
 	for {
-		newdevices := BuildUsbAddrList()
-		added, removed := devices.Diff(newdevices)
-		devices = newdevices
+		dev_descs, err := UsbGetIppOverUsbDeviceDescs()
 
-		for _, addr := range added {
-			Log.Debug('+', "PNP %s: added", addr)
-			dev, err := NewDevice(addr)
-			if err == nil {
-				devByAddr[addr.MapKey()] = dev
-			} else {
-				Log.Error('!', "PNP %s: %s", addr, err)
+		if err == nil {
+			newdevices := UsbAddrList{}
+			for _, desc := range dev_descs {
+				newdevices.Add(desc.UsbAddr)
 			}
-		}
 
-		for _, addr := range removed {
-			Log.Debug('-', "PNP %s: removed", addr)
-			dev, ok := devByAddr[addr.MapKey()]
-			if ok {
-				dev.Close()
-				delete(devByAddr, addr.MapKey())
+			added, removed := devices.Diff(newdevices)
+			devices = newdevices
+
+			for _, addr := range added {
+				Log.Debug('+', "PNP %s: added", addr)
+				dev, err := NewDevice(dev_descs[addr])
+				if err == nil {
+					devByAddr[addr.MapKey()] = dev
+				} else {
+					Log.Error('!', "PNP %s: %s", addr, err)
+				}
+			}
+
+			for _, addr := range removed {
+				Log.Debug('-', "PNP %s: removed", addr)
+				dev, ok := devByAddr[addr.MapKey()]
+				if ok {
+					dev.Close()
+					delete(devByAddr, addr.MapKey())
+				}
 			}
 		}
 

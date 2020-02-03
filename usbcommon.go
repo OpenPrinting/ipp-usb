@@ -142,6 +142,16 @@ type UsbDeviceDesc struct {
 	UsbAddr               // Device address
 	Config  int           // IPP-over-USB configuration
 	IfAddrs UsbIfAddrList // IPP-over-USB interfaces
+	IfDescs []UsbIfDesc   // Descriptors of all interfaces
+}
+
+// UsbIfDesc represents an USB interface descriptor
+type UsbIfDesc struct {
+	Config int // Configuration
+	IfNum  int // Interface number
+	Alt    int // Alternate setting
+	Class  int // Class
+	Proto  int // Protocol
 }
 
 // Type UsbDeviceInfo represents USB device information

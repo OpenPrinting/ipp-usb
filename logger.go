@@ -299,7 +299,7 @@ func (msg *LogMessage) Add(level LogLevel, prefix byte,
 
 // Nl adds empty line to the log message
 func (msg *LogMessage) Nl(level LogLevel) *LogMessage {
-	return msg.Add(LogTraceEscl, ' ', "")
+	return msg.Add(level, ' ', "")
 }
 
 // addBytes adds a next line of log message, taking slice of bytes as input

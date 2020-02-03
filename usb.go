@@ -69,7 +69,17 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Ident:        %s", transport.info.Ident()).
 		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:      %s", transport.info.ProductName).
+		Nl(LogDebug).
 		Commit()
+
+	transport.log.Debug(' ', "USB interfaces:")
+	transport.log.Debug(' ', "  Config Interface Alt Class Proto")
+	for _, ifdesc := range desc.IfDescs {
+		transport.log.Debug(' ', "     %-3d     %-3d    %-3d %-3d   %-3d",
+			ifdesc.Config, ifdesc.IfNum,
+			ifdesc.Alt, ifdesc.Class, ifdesc.Proto)
+	}
+	transport.log.Nl(LogDebug)
 
 	// Open connections
 	for i, ifaddr := range desc.IfAddrs {

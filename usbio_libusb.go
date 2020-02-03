@@ -215,6 +215,17 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 					unsafe.Pointer(iface.altsetting))[:altcnt:altcnt]
 
 				for altnum, alt := range alts {
+					// Build and append UsbIfDesc
+					ifdesc := UsbIfDesc{
+						Config: int(conf.bConfigurationValue),
+						IfNum:  int(alt.bInterfaceNumber),
+						Alt:    int(alt.bAlternateSetting),
+						Class:  int(alt.bInterfaceClass),
+						Proto:  int(alt.bInterfaceProtocol),
+					}
+
+					desc.IfDescs = append(desc.IfDescs, ifdesc)
+
 					// We are only interested in IPP-over-USB
 					// interfaces, i.e., LIBUSB_CLASS_PRINTER,
 					// SubClass 1, Protocol 4

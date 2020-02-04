@@ -177,6 +177,11 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 	// Remove Expect: 100-continue, if any
 	outreq.Header.Del("Expect")
 
+	// Disable HTTP/1.1 connection keep-alive
+	//
+	// Note, without these lines, some printers (namely, HP OfficeJet Pro 8730)
+	// sometimes stuck in generating HTTP response, so effectively blocking
+	// an USB interface. It's a pure black magic.
 	outreq.Header.Set("Connection", "close")
 	outreq.Close = true
 

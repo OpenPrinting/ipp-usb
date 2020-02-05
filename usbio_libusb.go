@@ -152,6 +152,12 @@ func libusbHotplugCallback(ctx *C.libusb_context, dev *C.libusb_device,
 	}
 }
 
+// UsbCheckIppOverUsbDevices returns true if there are some IPP-over-USB devices
+func UsbCheckIppOverUsbDevices() bool {
+	descs, _ := UsbGetIppOverUsbDeviceDescs()
+	return len(descs) != 0
+}
+
 // UsbGetIppOverUsbDeviceDescs return list of IPP-over-USB
 // device descriptors
 func UsbGetIppOverUsbDeviceDescs() (map[UsbAddr]UsbDeviceDesc, error) {

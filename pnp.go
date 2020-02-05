@@ -17,11 +17,19 @@ import (
 	"time"
 )
 
+// PnPExitReason explains why PnP manager has exited
+type PnPExitReason int
+
+const (
+	PnPIdle PnPExitReason = iota // No more connected devices
+	PnPTerm                      // Terminating signal received
+)
+
 // Start PnP manager
 //
 // If exitWhenIdle is true, PnP manager will exit, when there is no more
 // devices to serve
-func PnPStart(exitWhenIdle bool) {
+func PnPStart(exitWhenIdle bool) PnPExitReason {
 	devices := UsbAddrList{}
 	devByAddr := make(map[string]*Device)
 	sigChan := make(chan os.Signal, 1)
@@ -67,7 +75,7 @@ loop:
 
 		if exitWhenIdle && len(devices) == 0 {
 			Log.Info(' ', "No IPP-over-USB devices present, exiting")
-			break
+			return PnPIdle
 		}
 
 		select {
@@ -94,4 +102,5 @@ loop:
 	}
 
 	done.Wait()
+	return PnPTerm
 }

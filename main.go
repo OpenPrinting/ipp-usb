@@ -177,9 +177,10 @@ func main() {
 
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
+	var lock *os.File
 	if params.Mode != RunCheck {
 		os.MkdirAll(PathLockDir, 0755)
-		lock, err := os.OpenFile(PathLockFile,
+		lock, err = os.OpenFile(PathLockFile,
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		Log.Check(err)
 		defer lock.Close()
@@ -197,6 +198,29 @@ func main() {
 
 	// Run PnP manager
 	if params.Mode != RunCheck {
-		PnPStart(params.Mode == RunUdev)
+	AGAIN:
+		exitReason := PnPStart(params.Mode == RunUdev)
+
+		// The following race is possible here:
+		// 1) last device disappears, ipp-usb is about to exit
+		// 2) new device connected, new ipp-usb started
+		// 3) new ipp-usp exits, because lock is still held
+		//    by the old ipp-usb
+		// 4) old ipp-usb finally exits
+		//
+		// So after releasing a lock, we rescan for IPP-over-USB
+		// devices, and if something was found, we try to reacquire
+		// the lock, and if it succeeds, we continue to serve
+		// these devices instead of exiting
+		if exitReason == PnPIdle && params.Mode == RunUdev {
+			err = FileUnlock(lock)
+			Log.Check(err)
+
+			if UsbCheckIppOverUsbDevices() &&
+				FileLock(lock, true, false) == nil {
+				Log.Info(' ', "New IPP-over-USB device found")
+				goto AGAIN
+			}
+		}
 	}
 }

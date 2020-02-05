@@ -41,6 +41,24 @@ const (
 	RunCheck
 )
 
+// String returns RunMode name
+func (m RunMode) String() string {
+	switch m {
+	case RunDefault:
+		return "default"
+	case RunStandalone:
+		return "standalone"
+	case RunUdev:
+		return "udev"
+	case RunDebug:
+		return "debug"
+	case RunCheck:
+		return "check"
+	}
+
+	return fmt.Sprintf("unknown (%d)", int(m))
+}
+
 // RunParameters represents the program run parameters
 type RunParameters struct {
 	Mode       RunMode // Run mode
@@ -66,6 +84,8 @@ func usageError(format string, args ...interface{}) {
 // parseArgv parses program parameters. In a case of usage error,
 // it prints a error message and exits
 func parseArgv() (params RunParameters) {
+	params.Mode = RunDebug
+
 	modes := 0
 	for _, arg := range os.Args[1:] {
 		switch arg {
@@ -107,6 +127,19 @@ func main() {
 	// Load configuration file
 	err = ConfLoad()
 	Log.Check(err)
+
+	// Setup logging
+	if params.Mode != RunDebug {
+		Console.ToNowhere()
+	} else if Conf.ColorConsole {
+		Console.ToColorConsole()
+	}
+
+	if params.Mode != RunCheck {
+		Log.Info(' ', "===============================")
+		Log.Info(' ', "ipp-usb started in %q mode", params.Mode)
+		defer Log.Info(' ', "ipp-usb finished")
+	}
 
 	// In RunCheck mode, list IPP-over-USB devices
 	if params.Mode == RunCheck {

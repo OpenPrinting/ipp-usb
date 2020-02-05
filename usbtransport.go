@@ -58,7 +58,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		return nil, err
 	}
 
-	transport.log.Cc(LogDebug, ColorConsole) // FIXME -- make configurable
+	transport.log.Cc(LogDebug, Console)
 	transport.log.ToDevFile(transport.info)
 
 	// Write device info to the log

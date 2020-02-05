@@ -26,4 +26,7 @@ const (
 
 	// Path to log directory
 	PathLogDir = "/var/log/ipp-usb"
+
+	// Path to the main log file
+	PathLogFile = PathLogDir + "/main.log"
 )

@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,13 +32,10 @@ const (
 // Standard loggers
 var (
 	// This is the default logger
-	Log = NewLogger().ToConsole()
+	Log = NewLogger().ToMainFile().Cc(LogAll, Console)
 
 	// Console logger always writes to console
 	Console = NewLogger().ToConsole()
-
-	// ColorConsole logger uses ANSI colors
-	ColorConsole = NewLogger().ToColorConsole()
 )
 
 // LogLevel enumerates possible log levels
@@ -73,6 +71,7 @@ type loggerMode int
 
 const (
 	loggerNoMode       loggerMode = iota // Mode not yet set; log is buffered
+	loggerDiscard                        // Log goes to nowhere
 	loggerConsole                        // Log goes to console
 	loggerColorConsole                   // Log goes to console and uses ANSI colors
 	loggerFile                           // Log goes to disk file
@@ -113,6 +112,13 @@ func NewLogger() *Logger {
 	return l
 }
 
+// ToConsole redirects log to nowhere
+func (l *Logger) ToNowhere() *Logger {
+	l.mode = loggerDiscard
+	l.out = ioutil.Discard
+	return l
+}
+
 // ToConsole redirects log to console
 func (l *Logger) ToConsole() *Logger {
 	l.mode = loggerConsole
@@ -129,12 +135,22 @@ func (l *Logger) ToColorConsole() *Logger {
 	return l.ToConsole()
 }
 
-// ToDevFile redirects log to per-device log file
-func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
-	l.path = filepath.Join(PathLogDir, info.Ident()+".log")
+// ToFile redirects log to arbitrary log file
+func (l *Logger) ToFile(path string) *Logger {
+	l.path = path
 	l.mode = loggerFile
 	l.out = nil // Will be opened on demand
 	return l
+}
+
+// ToMainFile redirects log to the main log file
+func (l *Logger) ToMainFile() *Logger {
+	return l.ToFile(PathLogFile)
+}
+
+// ToDevFile redirects log to per-device log file
+func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
+	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
 }
 
 // Add io.Writer to send "carbon copy" to
@@ -144,7 +160,7 @@ func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 //   LogTraceXxx implies LogDebug
 //   LogDebug implies LogInfo
 //   LogInfo implies LogError
-func (l *Logger) Cc(mask LogLevel, to *Logger) {
+func (l *Logger) Cc(mask LogLevel, to *Logger) *Logger {
 	mask.Adjust()
 
 	l.cc = append(l.cc, struct {
@@ -153,6 +169,8 @@ func (l *Logger) Cc(mask LogLevel, to *Logger) {
 	}{mask, to})
 
 	l.genMask |= mask
+
+	return l
 }
 
 // Close the logger

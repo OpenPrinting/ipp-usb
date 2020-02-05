@@ -117,6 +117,13 @@ func libusbContext() (*C.libusb_context, error) {
 		nil, // deregister handle
 	)
 
+	// Start libusb thread (required for hotplug)
+	go func() {
+		for {
+			C.libusb_handle_events(libusbContextPtr)
+		}
+	}()
+
 	atomic.StoreInt32(&libusbContextOk, 1)
 	return libusbContextPtr, nil
 }

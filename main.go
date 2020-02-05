@@ -98,8 +98,10 @@ func parseArgv() (params RunParameters) {
 
 // The main function
 func main() {
+	var err error
+
 	// Parse arguments
-	parseArgv()
+	params := parseArgv()
 
 	// Check user privileges
 	if os.Geteuid() != 0 {
@@ -108,17 +110,19 @@ func main() {
 
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
-	os.MkdirAll(PathLockDir, 0755)
-	lock, err := os.OpenFile(PathLockFile,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	Log.Check(err)
-	defer lock.Close()
+	if params.Mode != RunCheck {
+		os.MkdirAll(PathLockDir, 0755)
+		lock, err := os.OpenFile(PathLockFile,
+			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+		Log.Check(err)
+		defer lock.Close()
 
-	err = FileLock(lock, true, false)
-	if err == ErrLockIsBusy {
-		Log.Exit(0, "ipp-usb already running")
+		err = FileLock(lock, true, false)
+		if err == ErrLockIsBusy {
+			Log.Exit(0, "ipp-usb already running")
+		}
+		Log.Check(err)
 	}
-	Log.Check(err)
 
 	// Load configuration file
 	err = ConfLoad()
@@ -129,5 +133,5 @@ func main() {
 	Log.Check(err)
 
 	// Run PnP manager
-	PnPStart()
+	PnPStart(params.Mode == RunUdev)
 }

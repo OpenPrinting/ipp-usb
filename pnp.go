@@ -18,7 +18,10 @@ import (
 )
 
 // Start PnP manager
-func PnPStart() {
+//
+// If exitWhenIdle is true, PnP manager will exit, when there is no more
+// devices to serve
+func PnPStart(exitWhenIdle bool) {
 	devices := UsbAddrList{}
 	devByAddr := make(map[string]*Device)
 	sigChan := make(chan os.Signal, 1)
@@ -60,6 +63,11 @@ loop:
 					delete(devByAddr, addr.MapKey())
 				}
 			}
+		}
+
+		if exitWhenIdle && len(devices) == 0 {
+			Log.Info(' ', "No IPP-over-USB devices present, exiting")
+			break
 		}
 
 		select {

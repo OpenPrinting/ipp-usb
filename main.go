@@ -9,13 +9,51 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 )
 
+const usageText = `Usage:
+    %s mode [options]
+
+Modes are:
+    standalone  - run forever, automatically discover IPP-over-USB
+                  devices and serve them all
+    udev        - like standalone, but exit when last IPP-over-USB
+                  device is disconnected
+    debug       - logs duplicated on console, -bg option is
+                  ignored
+    check       - check configuration and exit
+
+Options are
+    -bg         - run in background (ignored in debug mode)
+`
+
+// RunMode represents the program run mode
+type RunMode int
+
+const (
+	RunDefault RunMode = iota
+	RunStandalone
+	RunUdev
+	RunDebug
+	RunCheck
+)
+
+// RunParameters represents the program run parameters
+type RunParameters struct {
+	Mode       RunMode // Run mode
+	Background bool    // Run in background
+}
+
+// usage prints detailed usage and exits
+func usage() {
+	fmt.Printf(usageText, os.Args[0])
+	os.Exit(0)
+}
+
 // usage_error prints usage error and exits
-func usage_error(format string, args ...interface{}) {
+func usageError(format string, args ...interface{}) {
 	if format != "" {
 		fmt.Printf(format+"\n", args...)
 	}
@@ -24,34 +62,44 @@ func usage_error(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
+// parseArgv parses program parameters. In a case of usage error,
+// it prints a error message and exits
+func parseArgv() (params RunParameters) {
+	modes := 0
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "-h", "-help", "--help":
+			usage()
+		case "standalone":
+			params.Mode = RunStandalone
+			modes++
+		case "udev":
+			params.Mode = RunUdev
+			modes++
+		case "debug":
+			params.Mode = RunDebug
+			modes++
+		case "check":
+			params.Mode = RunCheck
+			modes++
+		case "-bg":
+			params.Background = true
+		default:
+			usageError("Invalid argument %s", arg)
+		}
+	}
+
+	if modes > 1 {
+		usageError("Conflicting run modes")
+	}
+
+	return
+}
+
 // The main function
 func main() {
 	// Parse arguments
-	flagset := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	flagset.SetOutput(os.Stdout)
-	flagset.Usage = func() {
-	}
-
-	lport := flagset.Int("l", 60000, "HTTP port to listen to")
-
-	err := flagset.Parse(os.Args[1:])
-	if err != nil {
-		if err == flag.ErrHelp {
-			fmt.Printf("Usage of %s:\n", os.Args[0])
-			flagset.PrintDefaults()
-		} else {
-			usage_error("")
-		}
-		return
-	}
-
-	// Verify arguments
-	if *lport < 1 || *lport > 65535 {
-		usage_error(`invalid value "%d" for flag -l`, *lport)
-	}
-	if flagset.NArg() > 0 {
-		usage_error("Invalid argument %s", flagset.Args()[0])
-	}
+	parseArgv()
 
 	// Check user privileges
 	if os.Geteuid() != 0 {

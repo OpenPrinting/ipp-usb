@@ -171,7 +171,7 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 	// We cannot do it on USB: closing USB connection
 	// doesn't drain buffered data that server is
 	// about to send to client
-	outreq := rq.Clone(context.Background())
+	outreq := rq.WithContext(context.Background())
 	outreq.Cancel = nil
 
 	// Remove Expect: 100-continue, if any

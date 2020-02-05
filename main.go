@@ -130,7 +130,7 @@ func main() {
 	Log.Check(err)
 
 	// Setup logging
-	if params.Mode != RunDebug {
+	if params.Mode != RunDebug && params.Mode != RunCheck {
 		Console.ToNowhere()
 	} else if Conf.ColorConsole {
 		Console.ToColorConsole()

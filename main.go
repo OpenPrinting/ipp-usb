@@ -11,6 +11,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 )
 
 const usageText = `Usage:
@@ -103,6 +104,38 @@ func main() {
 	// Parse arguments
 	params := parseArgv()
 
+	// Load configuration file
+	err = ConfLoad()
+	Log.Check(err)
+
+	// In RunCheck mode, list IPP-over-USB devices
+	if params.Mode == RunCheck {
+		descs, _ := UsbGetIppOverUsbDeviceDescs()
+		if descs == nil || len(descs) == 0 {
+			fmt.Printf("No IPP over USB devices found\n")
+		} else {
+			// Repack into the sorted list
+			var list []UsbDeviceDesc
+			for _, desc := range descs {
+				list = append(list, desc)
+			}
+			sort.Slice(list, func(i, j int) bool {
+				return list[i].UsbAddr.Less(list[j].UsbAddr)
+			})
+
+			suffix := ""
+			if len(list) > 1 {
+				suffix = "s"
+			}
+			fmt.Printf("Found %d IPP over USB device%s:\n",
+				len(list), suffix)
+
+			for _, dev := range list {
+				fmt.Printf("  %s\n", dev.UsbAddr)
+			}
+		}
+	}
+
 	// Check user privileges
 	if os.Geteuid() != 0 {
 		Log.Exit(0, "This program requires root privileges")
@@ -124,14 +157,12 @@ func main() {
 		Log.Check(err)
 	}
 
-	// Load configuration file
-	err = ConfLoad()
-	Log.Check(err)
-
 	// Initialize USB
 	err = UsbInit()
 	Log.Check(err)
 
 	// Run PnP manager
-	PnPStart(params.Mode == RunUdev)
+	if params.Mode != RunCheck {
+		PnPStart(params.Mode == RunUdev)
+	}
 }

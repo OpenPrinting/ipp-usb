@@ -127,20 +127,7 @@ func main() {
 
 	// Load configuration file
 	err = ConfLoad()
-	Log.Check(err)
-
-	// Setup logging
-	if params.Mode != RunDebug && params.Mode != RunCheck {
-		Console.ToNowhere()
-	} else if Conf.ColorConsole {
-		Console.ToColorConsole()
-	}
-
-	if params.Mode != RunCheck {
-		Log.Info(' ', "===============================")
-		Log.Info(' ', "ipp-usb started in %q mode", params.Mode)
-		defer Log.Info(' ', "ipp-usb finished")
-	}
+	InitLog.Check(err)
 
 	// In RunCheck mode, list IPP-over-USB devices
 	if params.Mode == RunCheck {
@@ -172,33 +159,60 @@ func main() {
 
 	// Check user privileges
 	if os.Geteuid() != 0 {
-		Log.Exit(0, "This program requires root privileges")
+		InitLog.Exit(0, "This program requires root privileges")
+	}
+
+	// If mode is "check", we are done
+	if params.Mode == RunCheck {
+		os.Exit(0)
+	}
+
+	// Setup logging
+	if params.Mode != RunDebug && params.Mode != RunCheck {
+		Console.ToNowhere()
+	} else if Conf.ColorConsole {
+		Console.ToColorConsole()
+	}
+
+	if params.Mode != RunCheck {
+		Log.Info(' ', "===============================")
+		Log.Info(' ', "ipp-usb started in %q mode", params.Mode)
+		defer Log.Info(' ', "ipp-usb finished")
+	}
+
+	// If background run is requested, it's time to fork
+	if params.Background {
+		err = Daemon()
+		InitLog.Check(err)
+		os.Exit(0)
 	}
 
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
-	var lock *os.File
-	if params.Mode != RunCheck {
-		os.MkdirAll(PathLockDir, 0755)
-		lock, err = os.OpenFile(PathLockFile,
-			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-		Log.Check(err)
-		defer lock.Close()
+	os.MkdirAll(PathLockDir, 0755)
+	lock, err := os.OpenFile(PathLockFile,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	InitLog.Check(err)
+	defer lock.Close()
 
-		err = FileLock(lock, true, false)
-		if err == ErrLockIsBusy {
-			Log.Exit(0, "ipp-usb already running")
-		}
-		Log.Check(err)
+	err = FileLock(lock, true, false)
+	if err == ErrLockIsBusy {
+		InitLog.Exit(0, "ipp-usb already running")
 	}
+	InitLog.Check(err)
 
 	// Initialize USB
 	err = UsbInit()
-	Log.Check(err)
+	InitLog.Check(err)
+
+	// Close stdin/stdout/stderr, unless running in debug mode
+	if params.Mode != RunDebug {
+		err = CloseStdInOutErr()
+		InitLog.Check(err)
+	}
 
 	// Run PnP manager
-	if params.Mode != RunCheck {
-	AGAIN:
+	for {
 		exitReason := PnPStart(params.Mode == RunUdev)
 
 		// The following race is possible here:
@@ -219,8 +233,10 @@ func main() {
 			if UsbCheckIppOverUsbDevices() &&
 				FileLock(lock, true, false) == nil {
 				Log.Info(' ', "New IPP-over-USB device found")
-				goto AGAIN
+				continue
 			}
 		}
+
+		break
 	}
 }

@@ -36,6 +36,11 @@ var (
 
 	// Console logger always writes to console
 	Console = NewLogger().ToConsole()
+
+	// Initlog used only on initialization time
+	// It writes to Stdout or Stderr, depending
+	// on log level
+	InitLog = NewLogger().ToStdOutErr()
 )
 
 // LogLevel enumerates possible log levels
@@ -130,6 +135,19 @@ func (l *Logger) ToConsole() *Logger {
 func (l *Logger) ToColorConsole() *Logger {
 	if logIsAtty(os.Stdout) {
 		l.outhook = logColorConsoleWrite
+	}
+
+	return l.ToConsole()
+}
+
+// ToStdOutErr redirects log to Stdout or Stderr, depending
+// on LogLevel
+func (l *Logger) ToStdOutErr() *Logger {
+	l.outhook = func(out io.Writer, level LogLevel, line []byte) {
+		if level == LogError {
+			out = os.Stderr
+			out.Write(line)
+		}
 	}
 
 	return l.ToConsole()

@@ -167,6 +167,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	// If background run is requested, it's time to fork
+	if params.Background {
+		err = Daemon()
+		InitLog.Check(err)
+		os.Exit(0)
+	}
+
 	// Setup logging
 	if params.Mode != RunDebug && params.Mode != RunCheck {
 		Console.ToNowhere()
@@ -176,15 +183,9 @@ func main() {
 
 	if params.Mode != RunCheck {
 		Log.Info(' ', "===============================")
-		Log.Info(' ', "ipp-usb started in %q mode", params.Mode)
+		Log.Info(' ', "ipp-usb started in %q mode, pid=%d",
+			params.Mode, os.Getpid())
 		defer Log.Info(' ', "ipp-usb finished")
-	}
-
-	// If background run is requested, it's time to fork
-	if params.Background {
-		err = Daemon()
-		InitLog.Check(err)
-		os.Exit(0)
 	}
 
 	// Prevent multiple copies of ipp-usb from being running

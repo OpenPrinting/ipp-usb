@@ -1,0 +1,9 @@
+[Unit]
+Description=Daemon for IPP over USB printer support
+After=cups.service avahi-daemon.service
+Wants=avahi-daemon.service
+
+[Service]
+Type=forking
+GuessMainPID=true
+ExecStart=/sbin/ipp-usb udev -bg

@@ -1,0 +1,5 @@
+ipp-usb (0.0~git20200206.9c9d40f-1) UNRELEASED; urgency=medium
+
+  * Initial release
+
+ -- Alexander Pevzner <pzz@debian.pzz.msk.ru>  Thu, 06 Feb 2020 11:23:28 -0500

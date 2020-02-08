@@ -1,3 +1,9 @@
+# Merge DESTDIR and PREFIX
+PREFIX := $(abspath $(DESTDIR)/$(PREFIX))
+ifeq ($(PREFIX),/)
+        PREFIX :=
+endif
+
 all:
 	-gotags -R . > tags
 	go build -ldflags "-s -w"

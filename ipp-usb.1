@@ -1,0 +1,156 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "IPP\-USB" "1" "February 2020" "" "ipp-usb.1"
+.
+.SH "NAME"
+\fBipp\-usb\fR \- Daemon for IPP over USB printer support
+.
+.SH "DESCRIPTION"
+\fBipp\-usb\fR daemon enables driver\-less printing and scanning on USB\-only AirPrint\-compatible printers and MFPs\.
+.
+.P
+It works by connecting to the device by USB using IPP\-over\-USB protocol, and exposing the device to the network, including DNS\-SD (ZeroConf) advertising\.
+.
+.P
+IPP printing, eSCL scanning and web console are fully supported\.
+.
+.SH "SYNOPSIS"
+.
+.SS "Usage:"
+\fBipp\-usb mode [options]\fR
+.
+.SS "Modes are:"
+.
+.TP
+\fBstandalone\fR
+run forever, automatically discover IPP\-over\-USB devices and serve them all
+.
+.TP
+\fBudev\fR
+like standalone, but exit when last IPP\-over\-USB device is disconnected
+.
+.TP
+\fBdebug\fR
+logs duplicated on console, \-bg option is ignored
+.
+.TP
+\fBcheck\fR
+check configuration and exit
+.
+.SS "Options are"
+.
+.TP
+\fB\-bg\fR
+run in background (ignored in debug mode)
+.
+.SH "CONFIGURATION"
+\fBipp\-usb\fR searched for its configuration file in two places: 1\. \fB/etc/ipp\-usb/ipp\-usb\.conf\fR 2\. \fBipp\-usb\.conf\fR in the directory where executable file is located
+.
+.P
+Configuration file syntax is very similar to \.INI files syntax\. It consist of named sections, and each section contains a set of named variables\. Comments are started from # or ; characters and continues until end of line:
+.
+.IP "" 4
+.
+.nf
+
+# This is a comment
+[section 1]
+variable 1 = value 1  ; and another comment
+variable 2 = value 2
+.
+.fi
+.
+.IP "" 0
+.
+.SS "Network parameters"
+Network parameters are all in the \fB[network]\fR section:
+.
+.IP "" 4
+.
+.nf
+
+[network]
+  # TCP ports for HTTP will be automatically allocated in the following range
+  http\-min\-port = 60000
+  http\-max\-port = 65535
+
+  # Enable or disable DNS\-SD advertisement
+  dns\-sd = enable      # enable | disable
+
+  # Network interface to use
+  interface = loopback # all | loopback
+
+  # Enable or disable IPv6
+  ipv6 = enable        # enable | disable
+.
+.fi
+.
+.IP "" 0
+.
+.SS "Logging configuration"
+Logging parameters are all in the \fB[logging]\fR section:
+.
+.IP "" 4
+.
+.nf
+
+[logging]
+  # device\-log  \- what logs are generated per device
+  # main\-log    \- what common logs are generated
+  # console\-log \- what of generated logs goes to console
+  #
+  # parameter contains a comma\-separated list of
+  # the following keywords:
+  #   error     \- error messages
+  #   info      \- informative messages
+  #   debug     \- debug messages
+  #   trace\-ipp, trace\-escl, trace\-http \- very detailed per\-protocol traces
+  #   all       \- all logs
+  #   trace\-all \- alias to all
+  #
+  # Note, trace\-* implies debug, debug implies info, info implies error
+  device\-log    = all
+  main\-log      = debug
+  console\-log   = debug
+
+  # Enable or disable ANSI colors on console
+  console\-color = enable # enable | disable
+.
+.fi
+.
+.IP "" 0
+.
+.SH "FILES"
+.
+.TP
+\fB/etc/ipp\-usb/ipp\-usb\.conf\fR
+the daemon configuration file
+.
+.TP
+\fB/var/log/ipp\-usb/main\.log\fR
+the main log file
+.
+.TP
+\fB/var/log/ipp\-usb/<DEVICE>\.log\fR
+per\-device log files
+.
+.TP
+\fB/var/ipp\-usb/dev/<DEVICE>\.state\fR
+device state (HTTP port allocation, DNS\-SD name)
+.
+.TP
+\fB/var/ipp\-usb/lock/ipp\-usb\.lock\fR
+lock file, that helps to prevent multiple copies of daemon to run simultaneously
+.
+.SH "COPYRIGHT"
+Copyright (c) by Alexander Pevzner (pzz@apevzner\.com)
+.
+.br
+All rights reserved\.
+.
+.P
+This program is licensed under 2\-Clause BSD license\. See LICENSE file for details\.
+.
+.SH "SEE ALSO"
+cups(1)

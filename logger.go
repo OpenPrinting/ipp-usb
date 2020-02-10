@@ -25,7 +25,11 @@ import (
 )
 
 const (
-	LogMaxFileSize    = 256 * 1024
+	// LogMaxFileSize specifies a maximum log file size
+	LogMaxFileSize = 256 * 1024
+
+	// LogMaxBackupFiles specifies how many backup files
+	// are preserved during log rotation
 	LogMaxBackupFiles = 5
 )
 
@@ -50,12 +54,12 @@ const (
 	LogError LogLevel = 1 << iota
 	LogInfo
 	LogDebug
-	LogTraceIpp
-	LogTraceEscl
-	LogTraceHttp
+	LogTraceIPP
+	LogTraceESCL
+	LogTraceHTTP
 
 	LogAll      = LogError | LogInfo | LogDebug | LogTraceAll
-	LogTraceAll = LogTraceIpp | LogTraceEscl | LogTraceHttp
+	LogTraceAll = LogTraceIPP | LogTraceESCL | LogTraceHTTP
 )
 
 // Adjust LogLevel mask, so more detailed log levels
@@ -117,7 +121,7 @@ func NewLogger() *Logger {
 	return l
 }
 
-// ToConsole redirects log to nowhere
+// ToNowhere redirects log to nowhere
 func (l *Logger) ToNowhere() *Logger {
 	l.mode = loggerDiscard
 	l.out = ioutil.Discard
@@ -171,7 +175,7 @@ func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
 }
 
-// Add io.Writer to send "carbon copy" to
+// Cc adds io.Writer to send "carbon copy" to
 // The mask parameter filters what lines will included into the carbon copy
 //
 // Note:
@@ -402,7 +406,7 @@ func (msg *LogMessage) Check(err error) {
 	}
 }
 
-// Dump appends a HEX dump to the log message
+// HexDump appends a HEX dump to the log message
 func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 	if msg.logger.genMask&level == 0 {
 		return msg
@@ -455,8 +459,8 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 	return msg
 }
 
-// HttpHdr dumps HTTP header into the log messahe
-func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
+// HTTPHdr dumps HTTP header into the log messahe
+func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
 	session int, hdr http.Header) *LogMessage {
 
 	if msg.logger.genMask&level == 0 {
@@ -479,8 +483,8 @@ func (msg *LogMessage) HttpHdr(level LogLevel, prefix byte,
 	return msg
 }
 
-// HttpRqParams dumps HTTP request parameters into the log message
-func (msg *LogMessage) HttpRqParams(level LogLevel, prefix byte,
+// HTTPRqParams dumps HTTP request parameters into the log message
+func (msg *LogMessage) HTTPRqParams(level LogLevel, prefix byte,
 	session int, rq *http.Request) *LogMessage {
 
 	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s %s", session,
@@ -489,8 +493,8 @@ func (msg *LogMessage) HttpRqParams(level LogLevel, prefix byte,
 	return msg
 }
 
-// HttpRspStatus dumps HTTP response status into the log message
-func (msg *LogMessage) HttpRspStatus(level LogLevel, prefix byte,
+// HTTPRspStatus dumps HTTP response status into the log message
+func (msg *LogMessage) HTTPRspStatus(level LogLevel, prefix byte,
 	session int, rsp *http.Response) *LogMessage {
 
 	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s", session,
@@ -499,8 +503,8 @@ func (msg *LogMessage) HttpRspStatus(level LogLevel, prefix byte,
 	return msg
 }
 
-// HttpError writes HTTP error into the log message
-func (msg *LogMessage) HttpError(prefix byte,
+// HTTPError writes HTTP error into the log message
+func (msg *LogMessage) HTTPError(prefix byte,
 	session int, format string, args ...interface{}) *LogMessage {
 
 	msg.Error(prefix, "HTTP[%3.3d]: %s", session, fmt.Sprintf(format, args...))
@@ -508,8 +512,8 @@ func (msg *LogMessage) HttpError(prefix byte,
 	return msg
 }
 
-// HttpError writes HTTP debug line into the log message
-func (msg *LogMessage) HttpDebug(prefix byte,
+// HTTPDebug writes HTTP debug line into the log message
+func (msg *LogMessage) HTTPDebug(prefix byte,
 	session int, format string, args ...interface{}) *LogMessage {
 
 	msg.Debug(prefix, "HTTP[%3.3d]: %s", session, fmt.Sprintf(format, args...))

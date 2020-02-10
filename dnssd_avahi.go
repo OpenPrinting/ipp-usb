@@ -45,11 +45,11 @@ type dnssdSysdep struct {
 	fqdn       string             // Host's fully-qualified domain name
 	client     *C.AvahiClient     // Avahi client
 	egroup     *C.AvahiEntryGroup // Avahi entry group
-	statusChan chan DnsSdStatus   // Status notifications channel
+	statusChan chan DNSSdStatus   // Status notifications channel
 }
 
 // newDnssdSysdep creates new dnssdSysdep instance
-func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
+func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 	*dnssdSysdep, error) {
 
 	log.Debug(' ', "DNS-SD: %s: trying", instance)
@@ -62,7 +62,7 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 	sysdep := &dnssdSysdep{
 		log:        log,
 		instance:   instance,
-		statusChan: make(chan DnsSdStatus, 10),
+		statusChan: make(chan DNSSdStatus, 10),
 	}
 
 	c_instance := C.CString(instance)
@@ -122,7 +122,7 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 	}
 
 	proto = C.AVAHI_PROTO_UNSPEC
-	if !Conf.IpV6Enable {
+	if !Conf.IPV6Enable {
 		proto = C.AVAHI_PROTO_INET
 	}
 
@@ -169,7 +169,7 @@ func newDnssdSysdep(log *Logger, instance string, services DnsSdServices) (
 AVAHI_ERROR:
 	// Report name collision as event rather that error
 	if rc == C.AVAHI_ERR_COLLISION {
-		sysdep.notify(DnsSdCollision)
+		sysdep.notify(DNSSdCollision)
 		return sysdep, nil
 	}
 
@@ -188,7 +188,7 @@ func (sysdep *dnssdSysdep) Close() {
 }
 
 // Get status change notification channel
-func (sysdep *dnssdSysdep) Chan() <-chan DnsSdStatus {
+func (sysdep *dnssdSysdep) Chan() <-chan DNSSdStatus {
 	return sysdep.statusChan
 }
 
@@ -214,12 +214,12 @@ func (sysdep *dnssdSysdep) destroy() {
 }
 
 // Push status change notification
-func (sysdep *dnssdSysdep) notify(status DnsSdStatus) {
+func (sysdep *dnssdSysdep) notify(status DNSSdStatus) {
 	sysdep.statusChan <- status
 }
 
-// avahiTxtRecord converts DnsDsTxtRecord to AvahiStringList
-func (sysdep *dnssdSysdep) avahiTxtRecord(port int, txt DnsDsTxtRecord) (
+// avahiTxtRecord converts DNSSdTxtRecord to AvahiStringList
+func (sysdep *dnssdSysdep) avahiTxtRecord(port int, txt DNSSdTxtRecord) (
 	*C.AvahiStringList, error) {
 	var buf bytes.Buffer
 	var list, prev *C.AvahiStringList
@@ -229,7 +229,7 @@ func (sysdep *dnssdSysdep) avahiTxtRecord(port int, txt DnsDsTxtRecord) (
 		buf.WriteString(t.Key)
 		buf.WriteByte('=')
 
-		if !t.Url || sysdep.fqdn == "" {
+		if !t.URL || sysdep.fqdn == "" {
 			buf.WriteString(t.Value)
 		} else {
 			value := t.Value
@@ -273,7 +273,7 @@ func avahiClientCallback(client *C.AvahiClient,
 		return
 	}
 
-	status := DnsSdNoStatus
+	status := DNSSdNoStatus
 	event := ""
 
 	switch state {
@@ -283,10 +283,10 @@ func avahiClientCallback(client *C.AvahiClient,
 		event = "AVAHI_CLIENT_S_RUNNING"
 	case C.AVAHI_CLIENT_S_COLLISION:
 		event = "AVAHI_CLIENT_S_COLLISION"
-		status = DnsSdFailure
+		status = DNSSdFailure
 	case C.AVAHI_CLIENT_FAILURE:
 		event = "AVAHI_CLIENT_FAILURE"
-		status = DnsSdFailure
+		status = DNSSdFailure
 	case C.AVAHI_CLIENT_CONNECTING:
 		event = "AVAHI_CLIENT_CONNECTING"
 	default:
@@ -294,7 +294,7 @@ func avahiClientCallback(client *C.AvahiClient,
 	}
 
 	sysdep.log.Debug(' ', "DNS-SD: %s: %s", sysdep.instance, event)
-	if status != DnsSdNoStatus {
+	if status != DNSSdNoStatus {
 		sysdep.notify(status)
 	}
 }
@@ -311,7 +311,7 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		return
 	}
 
-	status := DnsSdNoStatus
+	status := DNSSdNoStatus
 	event := ""
 
 	switch state {
@@ -321,17 +321,17 @@ func avahiEntryGroupCallback(egroup *C.AvahiEntryGroup,
 		event = "AVAHI_ENTRY_GROUP_REGISTERING"
 	case C.AVAHI_ENTRY_GROUP_ESTABLISHED:
 		event = "AVAHI_ENTRY_GROUP_ESTABLISHED"
-		status = DnsSdSuccess
+		status = DNSSdSuccess
 	case C.AVAHI_ENTRY_GROUP_COLLISION:
 		event = "AVAHI_ENTRY_GROUP_COLLISION"
-		status = DnsSdCollision
+		status = DNSSdCollision
 	case C.AVAHI_ENTRY_GROUP_FAILURE:
 		event = "AVAHI_ENTRY_GROUP_FAILURE"
-		status = DnsSdFailure
+		status = DNSSdFailure
 	}
 
 	sysdep.log.Debug(' ', "DNS-SD: %s: %s", sysdep.instance, event)
-	if status != DnsSdNoStatus {
+	if status != DNSSdNoStatus {
 		sysdep.notify(status)
 	}
 }

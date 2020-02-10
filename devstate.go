@@ -23,9 +23,9 @@ import (
 type DevState struct {
 	Ident         string // Device identification
 	Comment       string // Device comment
-	HttpPort      int    // Allocated HTTP port
-	DnsSdName     string // DNS-SD name, as reported by device
-	DnsSdOverride string // DNS-SD name after collision resolution
+	HTTPPort      int    // Allocated HTTP port
+	DNSSdName     string // DNS-SD name, as reported by device
+	DNSSdOverride string // DNS-SD name after collision resolution
 
 	path string // Path to the disk file
 }
@@ -51,15 +51,15 @@ func LoadDevState(ident string) *DevState {
 	if section, _ := inifile.GetSection("device"); section != nil {
 		state.Comment = section.Comment
 
-		err = state.loadTCPPort(section, &state.HttpPort, "http-port")
+		err = state.loadTCPPort(section, &state.HTTPPort, "http-port")
 		if err != nil {
 			err = state.error("%s", err)
 			Log.Error('!', "STATE LOAD: %s", err)
 			update = true
 		}
 
-		state.DnsSdName = state.loadString(section, "dns-sd-name")
-		state.DnsSdOverride = state.loadString(section, "dns-sd-override")
+		state.DNSSdName = state.loadString(section, "dns-sd-name")
+		state.DNSSdOverride = state.loadString(section, "dns-sd-override")
 	}
 
 	if update {
@@ -111,16 +111,16 @@ func (state *DevState) Save() {
 	section, _ := inifile.NewSection("device")
 	section.Comment = state.Comment
 
-	if state.HttpPort > 0 {
-		section.NewKey("http-port", strconv.Itoa(state.HttpPort))
+	if state.HTTPPort > 0 {
+		section.NewKey("http-port", strconv.Itoa(state.HTTPPort))
 	}
 
-	if state.DnsSdName != "" {
-		section.NewKey("dns-sd-name", state.DnsSdName)
+	if state.DNSSdName != "" {
+		section.NewKey("dns-sd-name", state.DNSSdName)
 	}
 
-	if state.DnsSdOverride != "" {
-		section.NewKey("dns-sd-override", state.DnsSdOverride)
+	if state.DNSSdOverride != "" {
+		section.NewKey("dns-sd-override", state.DNSSdOverride)
 	}
 
 	err := inifile.SaveTo(state.path)
@@ -130,12 +130,12 @@ func (state *DevState) Save() {
 	}
 }
 
-// HttpPort allocates HTTP port and updates persistent configuration
-func (state *DevState) HttpListen() (net.Listener, error) {
-	port := state.HttpPort
+// HTTPListen allocates HTTP port and updates persistent configuration
+func (state *DevState) HTTPListen() (net.Listener, error) {
+	port := state.HTTPPort
 
 	// Check that preallocated port is within the configured range
-	if !(Conf.HttpMinPort <= port && port <= Conf.HttpMaxPort) {
+	if !(Conf.HTTPMinPort <= port && port <= Conf.HTTPMaxPort) {
 		port = 0
 	}
 
@@ -148,10 +148,10 @@ func (state *DevState) HttpListen() (net.Listener, error) {
 	}
 
 	// Allocate a port
-	for port = Conf.HttpMinPort; port <= Conf.HttpMaxPort; port++ {
+	for port = Conf.HTTPMinPort; port <= Conf.HTTPMaxPort; port++ {
 		listener, err := NewListener(port)
 		if err == nil {
-			state.HttpPort = port
+			state.HTTPPort = port
 			state.Save()
 			return listener, nil
 		}
@@ -173,7 +173,7 @@ func (state *DevState) error(format string, args ...interface{}) error {
 	return fmt.Errorf(state.Ident+": "+format, args...)
 }
 
-// Set device comment
+// SetComment sets comment on a device state file
 func (state *DevState) SetComment(comment string) {
 	if comment != state.Comment {
 		state.Comment = comment

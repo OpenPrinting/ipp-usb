@@ -29,11 +29,11 @@ type Listener struct {
 	net.Listener // Underlying net.Listener
 }
 
-// Create new listener
+// NewListener creates new listener
 func NewListener(port int) (net.Listener, error) {
 	// Setup network and address
 	network := "tcp4"
-	if Conf.IpV6Enable {
+	if Conf.IPV6Enable {
 		network = "tcp"
 	}
 

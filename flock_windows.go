@@ -21,9 +21,7 @@ import (
 	"syscall"
 )
 
-//
-// Lock the file
-//
+// FileLock acquires file lock
 func FileLock(file *os.File, exclusive, wait bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -61,9 +59,7 @@ func FileLock(file *os.File, exclusive, wait bool) error {
 	}
 }
 
-//
-// Unlock the file
-//
+// FileUnlock releases file lock
 func FileUnlock(file *os.File) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

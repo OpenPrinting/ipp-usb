@@ -20,24 +20,24 @@ import (
 )
 
 var (
-	httpSessionId int32
+	httpSessionID int32
 )
 
-// Type HttpProxy represents HTTP protocol proxy backed by
-// a specified http.RoundTripper. It implements http.Handler
+// HTTPProxy represents HTTP protocol proxy backed by the
+// specified http.RoundTripper. It implements http.Handler
 // interface
-type HttpProxy struct {
+type HTTPProxy struct {
 	log       *Logger       // Logger instance
 	server    *http.Server  // HTTP server
 	transport *UsbTransport // Transport for outgoing requests
 	closeWait chan struct{} // Closed at server close
 }
 
-// Create new HTTP proxy
-func NewHttpProxy(logger *Logger,
-	listener net.Listener, transport *UsbTransport) *HttpProxy {
+// NewHTTPProxy creates new HTTP proxy
+func NewHTTPProxy(logger *Logger,
+	listener net.Listener, transport *UsbTransport) *HTTPProxy {
 
-	proxy := &HttpProxy{
+	proxy := &HTTPProxy{
 		log:       logger,
 		transport: transport,
 		closeWait: make(chan struct{}),
@@ -57,18 +57,18 @@ func NewHttpProxy(logger *Logger,
 }
 
 // Close the proxy
-func (proxy *HttpProxy) Close() {
+func (proxy *HTTPProxy) Close() {
 	proxy.server.Close()
 	<-proxy.closeWait
 }
 
 // Handle HTTP request
-func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	session := int(atomic.AddInt32(&httpSessionId, 1)-1) % 1000
+func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
 
 	proxy.log.Begin().
-		HttpRqParams(LogDebug, '>', session, r).
-		HttpHdr(LogTraceHttp, '>', session, r.Header).
+		HTTPRqParams(LogDebug, '>', session, r).
+		HTTPHdr(LogTraceHTTP, '>', session, r.Header).
 		Commit()
 
 	// Perform sanity checking
@@ -120,15 +120,15 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 
 	proxy.log.Begin().
-		HttpRspStatus(LogDebug, '<', session, resp).
-		HttpHdr(LogTraceHttp, '<', session, resp.Header).
+		HTTPRspStatus(LogDebug, '<', session, resp).
+		HTTPHdr(LogTraceHTTP, '<', session, resp.Header).
 		Commit()
 
 	// Obtain response body, if any
 	_, err = io.Copy(w, resp.Body)
 
 	if err != nil {
-		proxy.log.HttpError('!', session, "%s", err)
+		proxy.log.HTTPError('!', session, "%s", err)
 	}
 
 	resp.Body.Close()
@@ -136,7 +136,7 @@ func (proxy *HttpProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reject request with a error
-func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Request,
+func (proxy *HTTPProxy) httpError(session int, w http.ResponseWriter, r *http.Request,
 	status int, err error) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -147,34 +147,34 @@ func (proxy *HttpProxy) httpError(session int, w http.ResponseWriter, r *http.Re
 	w.Write([]byte("\n"))
 
 	if err != context.Canceled {
-		proxy.log.HttpError('!', session, "%s", err.Error())
+		proxy.log.HTTPError('!', session, "%s", err.Error())
 	} else {
-		proxy.log.HttpDebug(' ', session, "request canceled by impatient client")
+		proxy.log.HTTPDebug(' ', session, "request canceled by impatient client")
 	}
 }
 
-// HttpLoggingRoundTripper wraps UsbTransport, adding logging
+// HTTPLoggingRoundTripper wraps UsbTransport, adding logging
 // for each request. It implements http.RoundTripper interface
-type HttpLoggingRoundTripper struct {
+type HTTPLoggingRoundTripper struct {
 	Log       *Logger       // Logger to write logs to
 	transport *UsbTransport // Underlying UsbTransport
 }
 
 // RoundTrip executes a single HTTP transaction, returning
 // a Response for the provided Request.
-func (rtp *HttpLoggingRoundTripper) RoundTrip(r *http.Request) (
+func (rtp *HTTPLoggingRoundTripper) RoundTrip(r *http.Request) (
 	*http.Response, error) {
-	session := int(atomic.AddInt32(&httpSessionId, 1)-1) % 1000
+	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
 
-	rtp.Log.HttpRqParams(LogDebug, '>', session, r)
-	rtp.Log.HttpHdr(LogTraceHttp, '>', session, r.Header)
+	rtp.Log.HTTPRqParams(LogDebug, '>', session, r)
+	rtp.Log.HTTPHdr(LogTraceHTTP, '>', session, r.Header)
 
 	resp, err := rtp.transport.RoundTripSession(session, r)
 	if err == nil {
-		rtp.Log.HttpRspStatus(LogDebug, '<', session, resp)
-		rtp.Log.HttpHdr(LogTraceHttp, '<', session, resp.Header)
+		rtp.Log.HTTPRspStatus(LogDebug, '<', session, resp)
+		rtp.Log.HTTPHdr(LogTraceHTTP, '<', session, resp.Header)
 	} else {
-		rtp.Log.HttpError('!', session, "%s", err)
+		rtp.Log.HTTPError('!', session, "%s", err)
 	}
 
 	return resp, err

@@ -18,36 +18,37 @@ import (
 )
 
 const (
-	// Configuration file name
+	// ConfFileName defines a name of ipp-usb configuration file
 	ConfFileName = "ipp-usb.conf"
 )
 
-// Conf represents a program configuration
+// Configuration represents a program configuration
 type Configuration struct {
-	HttpMinPort  int      // Starting port number for HTTP to bind to
-	HttpMaxPort  int      // Ending port number for HTTP to bind to
-	DnsSdEnable  bool     // Enable DNS-SD advertising
+	HTTPMinPort  int      // Starting port number for HTTP to bind to
+	HTTPMaxPort  int      // Ending port number for HTTP to bind to
+	DNSSdEnable  bool     // Enable DNS-SD advertising
 	LoopbackOnly bool     // Use only loopback interface
-	IpV6Enable   bool     // Enable IPv6 advertising
+	IPV6Enable   bool     // Enable IPv6 advertising
 	LogDevice    LogLevel // Per-device LogLevel mask
 	LogMain      LogLevel // Main log LogLevel mask
 	LogConsole   LogLevel // Console  LogLevel mask
 	ColorConsole bool     // Enable ANSI colors on console
 }
 
+// Conf contains a global instance of program configuration
 var Conf = Configuration{
-	HttpMinPort:  60000,
-	HttpMaxPort:  65535,
-	DnsSdEnable:  true,
+	HTTPMinPort:  60000,
+	HTTPMaxPort:  65535,
+	DNSSdEnable:  true,
 	LoopbackOnly: true,
-	IpV6Enable:   true,
+	IPV6Enable:   true,
 	LogDevice:    LogDebug,
 	LogMain:      LogDebug,
 	LogConsole:   LogDebug,
 	ColorConsole: true,
 }
 
-// Load the program configuration
+// ConfLoad loads the program configuration
 func ConfLoad() error {
 	err := confLoadInternal()
 	if err != nil {
@@ -83,17 +84,17 @@ func confLoadInternal() error {
 
 	// Extract options
 	if section, _ := inifile.GetSection("network"); section != nil {
-		err = confLoadIPPortKey(&Conf.HttpMinPort, section, "http-min-port")
+		err = confLoadIPPortKey(&Conf.HTTPMinPort, section, "http-min-port")
 		if err != nil {
 			return err
 		}
 
-		err = confLoadIPPortKey(&Conf.HttpMaxPort, section, "http-max-port")
+		err = confLoadIPPortKey(&Conf.HTTPMaxPort, section, "http-max-port")
 		if err != nil {
 			return err
 		}
 
-		err = confLoadBinaryKey(&Conf.DnsSdEnable, section,
+		err = confLoadBinaryKey(&Conf.DNSSdEnable, section,
 			"dns-sd", "disable", "enable")
 		if err != nil {
 			return err
@@ -105,13 +106,13 @@ func confLoadInternal() error {
 			return err
 		}
 
-		err = confLoadBinaryKey(&Conf.DnsSdEnable, section,
+		err = confLoadBinaryKey(&Conf.DNSSdEnable, section,
 			"ipv6-sd", "disable", "enable")
 		if err != nil {
 			return err
 		}
 
-		err = confLoadBinaryKey(&Conf.IpV6Enable, section,
+		err = confLoadBinaryKey(&Conf.IPV6Enable, section,
 			"ipv6", "disable", "enable")
 		if err != nil {
 			return err
@@ -142,7 +143,7 @@ func confLoadInternal() error {
 	}
 
 	// Validate configuration
-	if Conf.HttpMinPort >= Conf.HttpMaxPort {
+	if Conf.HTTPMinPort >= Conf.HTTPMaxPort {
 		return errors.New("http-min-port must be less that http-max-port")
 	}
 
@@ -203,11 +204,11 @@ func confLoadLogLevelKey(out *LogLevel, section *ini.Section, name string) error
 			case "debug":
 				mask |= LogDebug | LogInfo | LogError
 			case "trace-ipp":
-				mask |= LogTraceIpp | LogDebug | LogInfo | LogError
+				mask |= LogTraceIPP | LogDebug | LogInfo | LogError
 			case "trace-escl":
-				mask |= LogTraceEscl | LogDebug | LogInfo | LogError
+				mask |= LogTraceESCL | LogDebug | LogInfo | LogError
 			case "trace-http":
-				mask |= LogTraceHttp | LogDebug | LogInfo | LogError
+				mask |= LogTraceHTTP | LogDebug | LogInfo | LogError
 			case "all", "trace-all":
 				mask |= LogAll
 			default:

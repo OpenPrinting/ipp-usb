@@ -14,29 +14,29 @@ import (
 	"time"
 )
 
-// DnsSdTxtItem represents a single TXT record item
-type DnsSdTxtItem struct {
+// DNSSdTxtItem represents a single TXT record item
+type DNSSdTxtItem struct {
 	Key, Value string // TXT entry: Key=Value
-	Url        bool   // It's an URL, hostname must be adjusted
+	URL        bool   // It's an URL, hostname must be adjusted
 }
 
-// DnsDsTxtRecord represents a TXT record
-type DnsDsTxtRecord []DnsSdTxtItem
+// DNSSdTxtRecord represents a TXT record
+type DNSSdTxtRecord []DNSSdTxtItem
 
-// Add adds regular (non-URL) item to DnsDsTxtRecord
-func (txt *DnsDsTxtRecord) Add(key, value string) {
-	*txt = append(*txt, DnsSdTxtItem{key, value, false})
+// Add adds regular (non-URL) item to DNSSdTxtRecord
+func (txt *DNSSdTxtRecord) Add(key, value string) {
+	*txt = append(*txt, DNSSdTxtItem{key, value, false})
 }
 
-// Add adds URL item to DnsDsTxtRecord
-func (txt *DnsDsTxtRecord) AddUrl(key, value string) {
-	*txt = append(*txt, DnsSdTxtItem{key, value, true})
+// AddURL adds URL item to DNSSdTxtRecord
+func (txt *DNSSdTxtRecord) AddURL(key, value string) {
+	*txt = append(*txt, DNSSdTxtItem{key, value, true})
 }
 
-// IfNotEmpty adds item to DnsDsTxtRecord if its value is not empty
+// IfNotEmpty adds item to DNSSdTxtRecord if its value is not empty
 //
 // It returns true if item was actually added, false otherwise
-func (txt *DnsDsTxtRecord) IfNotEmpty(key, value string) bool {
+func (txt *DNSSdTxtRecord) IfNotEmpty(key, value string) bool {
 	if value != "" {
 		txt.Add(key, value)
 		return true
@@ -44,17 +44,17 @@ func (txt *DnsDsTxtRecord) IfNotEmpty(key, value string) bool {
 	return false
 }
 
-// UrlIfNotEmpty works as IfNotEmpty, but for URLs
-func (txt *DnsDsTxtRecord) UrlIfNotEmpty(key, value string) bool {
+// URLIfNotEmpty works as IfNotEmpty, but for URLs
+func (txt *DNSSdTxtRecord) URLIfNotEmpty(key, value string) bool {
 	if value != "" {
-		txt.AddUrl(key, value)
+		txt.AddURL(key, value)
 		return true
 	}
 	return false
 }
 
-// export DnsDsTxtRecord into Avahi format
-func (txt DnsDsTxtRecord) export() [][]byte {
+// export DNSSdTxtRecord into Avahi format
+func (txt DNSSdTxtRecord) export() [][]byte {
 	var exported [][]byte
 
 	// Note, for a some strange reason, Avahi published
@@ -67,68 +67,68 @@ func (txt DnsDsTxtRecord) export() [][]byte {
 	return exported
 }
 
-// DnsSdSvcInfo represents a DNS-SD service information
-type DnsSdSvcInfo struct {
+// DNSSdSvcInfo represents a DNS-SD service information
+type DNSSdSvcInfo struct {
 	Type string         // Service type, i.e. "_ipp._tcp"
 	Port int            // TCP port
-	Txt  DnsDsTxtRecord // TXT record
+	Txt  DNSSdTxtRecord // TXT record
 }
 
-// DnsSdServices represents a collection of DNS-SD services
-type DnsSdServices []DnsSdSvcInfo
+// DNSSdServices represents a collection of DNS-SD services
+type DNSSdServices []DNSSdSvcInfo
 
-// Add DnsSdSvcInfo to DnsSdServices
-func (services *DnsSdServices) Add(srv DnsSdSvcInfo) {
+// Add DNSSdSvcInfo to DNSSdServices
+func (services *DNSSdServices) Add(srv DNSSdSvcInfo) {
 	*services = append(*services, srv)
 }
 
-// DnsSdPublisher represents a DNS-SD service publisher
+// DNSSdPublisher represents a DNS-SD service publisher
 // One publisher may publish multiple services unser the
 // same Service Instance Name
-type DnsSdPublisher struct {
+type DNSSdPublisher struct {
 	Log      *Logger        // Device's logger
 	DevState *DevState      // Device persistent state
-	Services DnsSdServices  // Registered services
+	Services DNSSdServices  // Registered services
 	fin      chan struct{}  // Closed to terminate publisher goroutine
 	finDone  sync.WaitGroup // To wait for goroutine termination
 	sysdep   *dnssdSysdep   // System-dependent stuff
 }
 
-// DnsSdStatus represents DNS-SD publisher status
-type DnsSdStatus int
+// DNSSdStatus represents DNS-SD publisher status
+type DNSSdStatus int
 
 const (
-	DnsSdNoStatus  DnsSdStatus = iota // Invalid status
-	DnsSdCollision                    // Service instance name collision
-	DnsSdFailure                      // Publisher failed
-	DnsSdSuccess                      // Services successfully published
+	DNSSdNoStatus  DNSSdStatus = iota // Invalid status
+	DNSSdCollision                    // Service instance name collision
+	DNSSdFailure                      // Publisher failed
+	DNSSdSuccess                      // Services successfully published
 )
 
-// String returns human-readable representation of DnsSdStatus
-func (status DnsSdStatus) String() string {
+// String returns human-readable representation of DNSSdStatus
+func (status DNSSdStatus) String() string {
 	switch status {
-	case DnsSdNoStatus:
-		return "DnsSdNoStatus"
-	case DnsSdCollision:
-		return "DnsSdCollision"
-	case DnsSdFailure:
-		return "DnsSdFailure"
-	case DnsSdSuccess:
-		return "DnsSdSuccess"
+	case DNSSdNoStatus:
+		return "DNSSdNoStatus"
+	case DNSSdCollision:
+		return "DNSSdCollision"
+	case DNSSdFailure:
+		return "DNSSdFailure"
+	case DNSSdSuccess:
+		return "DNSSdSuccess"
 	}
 
-	return fmt.Sprintf("Unknown DnsSdStatus %d", status)
+	return fmt.Sprintf("Unknown DNSSdStatus %d", status)
 }
 
-// NewDnsSdPublisher creates new DnsSdPublisher
+// NewDNSSdPublisher creates new DNSSdPublisher
 //
 // Service instance name comes from the DevState, and if
 // name changes as result of name collision resolution,
 // DevState will be updated
-func NewDnsSdPublisher(log *Logger,
-	devstate *DevState, services DnsSdServices) *DnsSdPublisher {
+func NewDNSSdPublisher(log *Logger,
+	devstate *DevState, services DNSSdServices) *DNSSdPublisher {
 
-	return &DnsSdPublisher{
+	return &DNSSdPublisher{
 		Log:      log,
 		DevState: devstate,
 		Services: services,
@@ -137,7 +137,7 @@ func NewDnsSdPublisher(log *Logger,
 }
 
 // Publish all services
-func (publisher *DnsSdPublisher) Publish() error {
+func (publisher *DNSSdPublisher) Publish() error {
 	var err error
 
 	instance := publisher.instance(0)
@@ -157,7 +157,7 @@ func (publisher *DnsSdPublisher) Publish() error {
 }
 
 // Unpublish everything
-func (publisher *DnsSdPublisher) Unpublish() {
+func (publisher *DNSSdPublisher) Unpublish() {
 	close(publisher.fin)
 	publisher.finDone.Wait()
 
@@ -167,20 +167,25 @@ func (publisher *DnsSdPublisher) Unpublish() {
 }
 
 // Build service instance name with optional collision-resolution suffix
-func (publisher *DnsSdPublisher) instance(suffix int) string {
-	if suffix == 0 {
-		if publisher.DevState.DnsSdName == publisher.DevState.DnsSdOverride {
-			return publisher.DevState.DnsSdName + " (USB)"
-		} else {
-			return publisher.DevState.DnsSdOverride
-		}
-	} else {
-		return publisher.DevState.DnsSdName + fmt.Sprintf(" (USB %d)", suffix)
+func (publisher *DNSSdPublisher) instance(suffix int) string {
+	switch {
+	// This happens when we try to resolve name conflict
+	case suffix != 0:
+		return publisher.DevState.DNSSdName + fmt.Sprintf(" (USB %d)", suffix)
+
+	// This happens when we've just initialized or reset DNSSdOverride,
+	// so append "(USB)" suffix
+	case publisher.DevState.DNSSdName == publisher.DevState.DNSSdOverride:
+		return publisher.DevState.DNSSdName + " (USB)"
+
+	// Otherwise, DNSSdOverride contains saved conflict-resolved device name
+	default:
+		return publisher.DevState.DNSSdOverride
 	}
 }
 
 // Event handling goroutine
-func (publisher *DnsSdPublisher) goroutine() {
+func (publisher *DNSSdPublisher) goroutine() {
 	defer publisher.finDone.Done()
 
 	timer := time.NewTimer(time.Hour)
@@ -200,20 +205,20 @@ func (publisher *DnsSdPublisher) goroutine() {
 
 		case status := <-publisher.sysdep.Chan():
 			switch status {
-			case DnsSdSuccess:
+			case DNSSdSuccess:
 				publisher.Log.Info(' ', "DNS-SD: %s: published", instance)
-				if instance != publisher.DevState.DnsSdOverride {
-					publisher.DevState.DnsSdOverride = instance
+				if instance != publisher.DevState.DNSSdOverride {
+					publisher.DevState.DNSSdOverride = instance
 					publisher.DevState.Save()
 				}
 
-			case DnsSdCollision:
+			case DNSSdCollision:
 				publisher.Log.Error(' ', "DNS-SD: %s: name collision",
 					instance)
 				suffix++
 				fallthrough
 
-			case DnsSdFailure:
+			case DNSSdFailure:
 				publisher.Log.Error(' ', "DNS-SD: %s: publishing failed",
 					instance)
 

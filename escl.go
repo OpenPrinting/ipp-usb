@@ -25,14 +25,14 @@ import (
 // suitable for DNS-SD registration
 //
 // Discovered services will be added to the services collection
-func EsclService(log *LogMessage, services *DnsSdServices,
+func EsclService(log *LogMessage, services *DNSSdServices,
 	port int, usbinfo UsbDeviceInfo, ippinfo IppPrinterInfo,
 	c *http.Client) (err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
 
 	decoder := newEsclCapsDecoder(ippinfo)
-	svc := DnsSdSvcInfo{
+	svc := DNSSdSvcInfo{
 		Type: "_uscan._tcp",
 		Port: port,
 	}
@@ -58,9 +58,9 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 		goto ERROR
 	}
 
-	log.Add(LogTraceEscl, '<', "ESCL Scanner Capabilities:")
-	log.LineWriter(LogTraceEscl, '<').WriteClose(xmlData)
-	log.Nl(LogTraceEscl)
+	log.Add(LogTraceESCL, '<', "ESCL Scanner Capabilities:")
+	log.LineWriter(LogTraceESCL, '<').WriteClose(xmlData)
+	log.Nl(LogTraceESCL)
 	log.Flush()
 
 	// Decode the XML
@@ -86,7 +86,7 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 		goto ERROR
 	}
 
-	// Build eSCL DnsSdInfo
+	// Build eSCL DNSSdInfo
 	if decoder.duplex {
 		svc.Txt.Add("duplex", "T")
 	} else {
@@ -110,8 +110,8 @@ func EsclService(log *LogMessage, services *DnsSdServices,
 	svc.Txt.IfNotEmpty("cs", strings.Join(list, ","))
 
 	svc.Txt.IfNotEmpty("UUID", decoder.uuid)
-	svc.Txt.UrlIfNotEmpty("adminurl", decoder.adminurl)
-	svc.Txt.UrlIfNotEmpty("representation", decoder.representation)
+	svc.Txt.URLIfNotEmpty("adminurl", decoder.adminurl)
+	svc.Txt.URLIfNotEmpty("representation", decoder.representation)
 
 	list = []string{}
 	for p := range decoder.pdl {
@@ -151,8 +151,8 @@ type esclCapsDecoder struct {
 func newEsclCapsDecoder(ippinfo IppPrinterInfo) *esclCapsDecoder {
 	return &esclCapsDecoder{
 		uuid:           ippinfo.UUID,
-		adminurl:       ippinfo.AdminUrl,
-		representation: ippinfo.IconUrl,
+		adminurl:       ippinfo.AdminURL,
+		representation: ippinfo.IconURL,
 
 		pdl: make(map[string]struct{}),
 		cs:  make(map[string]struct{}),

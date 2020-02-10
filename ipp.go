@@ -22,10 +22,10 @@ import (
 // is not included into DNS-SD TXT record, but still needed for
 // other purposes
 type IppPrinterInfo struct {
-	DnsSdName string // DNS-SD device name
+	DNSSdName string // DNS-SD device name
 	UUID      string // Device UUID
-	AdminUrl  string // Admin URL
-	IconUrl   string // Device icon URL
+	AdminURL  string // Admin URL
+	IconURL   string // Device icon URL
 }
 
 // IppService performs IPP Get-Printer-Attributes query using provided
@@ -33,7 +33,7 @@ type IppPrinterInfo struct {
 // for DNS-SD registration
 //
 // Discovered services will be added to the services collection
-func IppService(log *LogMessage, services *DnsSdServices,
+func IppService(log *LogMessage, services *DNSSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (ippinfo IppPrinterInfo, err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
@@ -49,9 +49,9 @@ func IppService(log *LogMessage, services *DnsSdServices,
 	msg.Operation.Add(goipp.MakeAttribute("requested-attributes",
 		goipp.TagKeyword, goipp.String("all")))
 
-	log.Add(LogTraceIpp, '>', "IPP request:").
-		IppRequest(LogTraceIpp, '>', msg).
-		Nl(LogTraceIpp).
+	log.Add(LogTraceIPP, '>', "IPP request:").
+		IppRequest(LogTraceIPP, '>', msg).
+		Nl(LogTraceIPP).
 		Flush()
 
 	req, _ := msg.EncodeBytes()
@@ -70,13 +70,13 @@ func IppService(log *LogMessage, services *DnsSdServices,
 	err = msg.DecodeBytes(respData)
 	if err != nil {
 		log.Error('!', "%s", err)
-		log.HexDump(LogTraceIpp, respData)
+		log.HexDump(LogTraceIPP, respData)
 		return
 	}
 
-	log.Add(LogTraceIpp, '<', "IPP response:").
-		IppResponse(LogTraceIpp, '<', msg).
-		Nl(LogTraceIpp).
+	log.Add(LogTraceIPP, '<', "IPP response:").
+		IppResponse(LogTraceIPP, '<', msg).
+		Nl(LogTraceIPP).
 		Flush()
 
 	// Decode IPP service info
@@ -85,7 +85,7 @@ func IppService(log *LogMessage, services *DnsSdServices,
 
 	// Construct LPD info. Per Apple spec, we MUST advertise
 	// LPD with zero port, even if we don't support it
-	lpdScv := DnsSdSvcInfo{
+	lpdScv := DNSSdSvcInfo{
 		Type: "_printer._tcp",
 		Port: 0,
 		Txt:  nil,
@@ -148,15 +148,15 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     txtvers:          hardcoded as "1"
 //     adminurl:         "printer-more-info"
 //
-func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DnsSdSvcInfo) {
-	svc = DnsSdSvcInfo{Type: "_ipp._tcp"}
+func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DNSSdSvcInfo) {
+	svc = DNSSdSvcInfo{Type: "_ipp._tcp"}
 
 	// Obtain IppPrinterInfo
-	ippinfo.DnsSdName = attrs.strSingle("printer-dns-sd-name",
+	ippinfo.DNSSdName = attrs.strSingle("printer-dns-sd-name",
 		"printer-info", "printer-make-and-model")
 	ippinfo.UUID = attrs.getUUID()
-	ippinfo.AdminUrl = attrs.strSingle("printer-more-info")
-	ippinfo.IconUrl = attrs.strSingle("printer-icons")
+	ippinfo.AdminURL = attrs.strSingle("printer-more-info")
+	ippinfo.IconURL = attrs.strSingle("printer-icons")
 
 	// Obtain and parse IEEE 1284 device ID
 	devid := make(map[string]string)
@@ -188,7 +188,7 @@ func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DnsSdSvcInfo) {
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
 	svc.Txt.Add("txtvers", "1")
-	svc.Txt.UrlIfNotEmpty("adminurl", ippinfo.AdminUrl)
+	svc.Txt.URLIfNotEmpty("adminurl", ippinfo.AdminURL)
 
 	return
 }

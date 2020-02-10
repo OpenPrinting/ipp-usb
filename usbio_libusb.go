@@ -486,7 +486,7 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	return info, nil
 }
 
-// UsbInterface opens an interface
+// OpenUsbInterface opens an interface
 func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr) (
 	*UsbInterface, error) {
 

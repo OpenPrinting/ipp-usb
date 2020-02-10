@@ -32,7 +32,7 @@ type UsbTransport struct {
 	connstate     *usbConnState // Connections state tracker
 }
 
-// Create new http.RoundTripper backed by IPP-over-USB
+// NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
 func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Open the device
 	dev, err := UsbOpenDevice(desc)
@@ -154,7 +154,7 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 	return transport.info
 }
 
-// RoundTrip executes a single HTTP transaction, returning
+// RoundTripSession executes a single HTTP transaction, returning
 // a Response for the provided Request.
 func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (*http.Response, error) {
 	transport.rqPendingInc()
@@ -165,7 +165,7 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 		return nil, err
 	}
 
-	transport.log.HttpDebug(' ', session, "connection %d allocated", conn.index)
+	transport.log.HTTPDebug(' ', session, "connection %d allocated", conn.index)
 
 	// Prevent request from being canceled from outside
 	// We cannot do it on USB: closing USB connection
@@ -240,7 +240,7 @@ type usbRequestBodyWrapper struct {
 func (wrap *usbRequestBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
 	if err != nil {
-		wrap.log.HttpDebug('>', wrap.session, "request body read: %s", err)
+		wrap.log.HTTPDebug('>', wrap.session, "request body read: %s", err)
 		err = io.EOF
 	}
 	return n, err
@@ -265,7 +265,7 @@ type usbResponseBodyWrapper struct {
 func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
 	if err != nil {
-		wrap.log.HttpDebug('<', wrap.session, "response body read: %s", err)
+		wrap.log.HTTPDebug('<', wrap.session, "response body read: %s", err)
 		wrap.drained = true
 	}
 	return n, err
@@ -281,7 +281,7 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 	}
 
 	// Otherwise, we need to drain USB connection
-	wrap.log.HttpDebug('<', wrap.session, "client has gone; draining response from USB")
+	wrap.log.HTTPDebug('<', wrap.session, "client has gone; draining response from USB")
 	go func() {
 		io.Copy(ioutil.Discard, wrap.body)
 		wrap.body.Close()

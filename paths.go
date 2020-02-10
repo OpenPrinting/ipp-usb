@@ -9,24 +9,25 @@
 package main
 
 const (
-	// Path to configuration directory
+	// PathConfDir defines path to configuration directory
 	PathConfDir = "/etc/ipp-usb"
 
-	// Path to program state directory
+	// PathProgState defines path to program state directory
 	PathProgState = "/var/ipp-usb"
 
-	// Path to directory that contains lock files
+	// PathLockDir defines path to directory that contains lock files
 	PathLockDir = PathProgState + "/lock"
 
-	// Path to lock file
+	// PathLockFile defines path to lock file
 	PathLockFile = PathLockDir + "/ipp-usb.lock"
 
-	// Path to directory where per-device state is saved to
+	// PathProgStateDev defines path to directory where per-device state
+	// files are saved to
 	PathProgStateDev = PathProgState + "/dev"
 
-	// Path to log directory
+	// PathLogDir defines path to log directory
 	PathLogDir = "/var/log/ipp-usb"
 
-	// Path to the main log file
+	// PathLogFile defines path to the main log file
 	PathLogFile = PathLogDir + "/main.log"
 )

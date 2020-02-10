@@ -25,13 +25,13 @@ func (addr UsbAddr) String() string {
 	return fmt.Sprintf("Bus %.3d Device %.3d", addr.Bus, addr.Address)
 }
 
-// MapKey() returns a string suitable as a map key
+// MapKey returns a string suitable as a map key
 // It is not even guaranteed that this string is printable
 func (addr UsbAddr) MapKey() string {
 	return fmt.Sprintf("%d:%d", addr.Bus, addr.Address)
 }
 
-// Compare 2 addresses, for sorting
+// Less returns true, if addr is "less" that addr2, for sorting
 func (addr UsbAddr) Less(addr2 UsbAddr) bool {
 	return addr.Bus < addr2.Bus ||
 		(addr.Bus == addr2.Bus && addr.Address < addr2.Address)
@@ -91,18 +91,18 @@ func (list UsbAddrList) Find(addr UsbAddr) int {
 
 // Diff computes a difference between two address lists,
 // returning lists of elements to be added and to be removed
-// to/from the list1 to convert it to the list2
-func (list1 UsbAddrList) Diff(list2 UsbAddrList) (added, removed UsbAddrList) {
+// to/from the list to convert it to the list2
+func (list UsbAddrList) Diff(list2 UsbAddrList) (added, removed UsbAddrList) {
 	// Note, there is no needs to sort added and removed
 	// lists, they are already created sorted
 
 	for _, a := range list2 {
-		if list1.Find(a) < 0 {
+		if list.Find(a) < 0 {
 			added.Add(a)
 		}
 	}
 
-	for _, a := range list1 {
+	for _, a := range list {
 		if list2.Find(a) < 0 {
 			removed.Add(a)
 		}
@@ -154,13 +154,13 @@ type UsbIfDesc struct {
 	Proto  int // Protocol
 }
 
-// Type UsbDeviceInfo represents USB device information
+// UsbDeviceInfo represents USB device information
 type UsbDeviceInfo struct {
-	Vendor       uint16
-	Product      uint16
-	SerialNumber string
-	Manufacturer string
-	ProductName  string
+	Vendor       uint16 // Vendor ID
+	Product      uint16 // Device ID
+	SerialNumber string // Device serial number
+	Manufacturer string // Manufacturer name
+	ProductName  string // Product name
 }
 
 // Ident returns device identification string, suitable as

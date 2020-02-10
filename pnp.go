@@ -25,7 +25,7 @@ const (
 	PnPTerm                      // Terminating signal received
 )
 
-// Start PnP manager
+// PnPStart start PnP manager
 //
 // If exitWhenIdle is true, PnP manager will exit, when there is no more
 // devices to serve

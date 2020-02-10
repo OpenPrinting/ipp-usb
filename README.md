@@ -1,5 +1,8 @@
 # ipp-usb
 
+![GitHub](https://img.shields.io/github/license/alexpevzner/ipp-usb)
+[![Go Report Card](https://goreportcard.com/badge/github.com/alexpevzner/ipp-usb)](https://goreportcard.com/report/github.com/alexpevzner/ipp-usb)
+
 ## Introduction
 
 [IPP-over-USB](https://www.usb.org/document-library/ipp-protocol-10) allows

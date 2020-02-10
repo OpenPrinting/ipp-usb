@@ -118,10 +118,13 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		}
 	}
 
-	dev.DnsSdPublisher = NewDnsSdPublisher(dev.Log, dev.State, dnssd_services)
-	err = dev.DnsSdPublisher.Publish()
-	if err != nil {
-		goto ERROR
+	if Conf.DnsSdEnable {
+		dev.DnsSdPublisher = NewDnsSdPublisher(dev.Log, dev.State,
+			dnssd_services)
+		err = dev.DnsSdPublisher.Publish()
+		if err != nil {
+			goto ERROR
+		}
 	}
 
 	return dev, nil

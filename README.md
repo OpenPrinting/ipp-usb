@@ -47,3 +47,10 @@ network name persisted on a disk
 * Can be started by **udev** or run in standalone mode
 * Can share printer to other computers on a network, or use loopback interface only
 * Can generate very detailed logs for possible troubleshooting
+
+## External dependencies
+
+This program has very little external dependencies, namely:
+* `libusb` for USB access
+* `libavahi-common` and `libavahi-client` for DNS-SD
+* Running Avahi daemon

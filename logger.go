@@ -571,7 +571,7 @@ func (msg *LogMessage) Flush() {
 		return
 	}
 
-	// If we have a parent, simply flush our content there
+	// If message has a parent, simply flush our content there
 	if msg.parent != nil {
 		msg.parent.lines = append(msg.parent.lines, msg.lines...)
 		msg.lines = msg.lines[:0]

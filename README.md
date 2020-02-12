@@ -66,8 +66,8 @@ to localhost.
 Patches that fix this problem exist for several years, but still not
 included into the official Avahi source tree
 
-https://github.com/lathiat/avahi/pull/125
-https://github.com/lathiat/avahi/pull/161
+* https://github.com/lathiat/avahi/pull/125
+* https://github.com/lathiat/avahi/pull/161
 
 Some Linux distros (for example, recent Ububtu and Fedora versions)
 include these patches into Avahi that comes with distros, others

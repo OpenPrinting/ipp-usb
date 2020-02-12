@@ -73,6 +73,26 @@ Some Linux distros (for example, recent Ububtu and Fedora versions)
 include these patches into Avahi that comes with distros, others
 (for example, Debian) wait until Avahi upstream will be patched.
 
+To determine if your Avahi needs patching, run the following command
+in one terminal session:
+
+    avahi-publish -s test _test._tcp 1234
+
+And simultaneously the following command in another terminal session
+on a same machine:
+
+    avahi-browse _test._tcp -r
+
+If you see localhost in the avahi-browse output, like this:
+
+    =     lo IPv4 test                                          _test._tcp           local
+       hostname = [localhost]
+       address = [127.0.0.1]
+       port = [1234]
+       txt = []
+
+your Avahi is OK. Otherwise, patching is required.
+
 So users of distros that ship unpatched Avahi have two variants:
 1. Apply patch by themself, rebuild and reinstall Avahi daemon
 2. Configure `ipp-usb` to run on all network interfaces, not only loopback

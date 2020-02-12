@@ -23,7 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/alexpevzner/goipp"
+	"github.com/OpenPrinting/goipp"
 )
 
 const (

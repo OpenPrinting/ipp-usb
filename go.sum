@@ -1,4 +1,4 @@
-github.com/alexpevzner/goipp v0.0.0-20200130210704-62ffd1d30a12 h1:h+/eayh1aQ6IkfZAFGbu9dwkOOLvB9w+dCIkkVk5iLM=
-github.com/alexpevzner/goipp v0.0.0-20200130210704-62ffd1d30a12/go.mod h1:Z8NMw5agf1X4n88hCIQZdPrupXmCAFneg05NEyg4HZU=
+github.com/OpenPrinting/goipp v0.0.0-20200212143820-ae44258a4862 h1:MxpAGWOa0FRVY8+H5QsYrq2J3iJ4aM8mxhwFOzull5Y=
+github.com/OpenPrinting/goipp v0.0.0-20200212143820-ae44258a4862/go.mod h1:PO0+H7vU148ZttZR0Q4iCZ2PPuiGXGhqPppu0YNZ63c=
 gopkg.in/ini.v1 v1.51.1 h1:GyboHr4UqMiLUybYjd22ZjQIKEJEpgtLXtuGbR21Oho=
 gopkg.in/ini.v1 v1.51.1/go.mod h1:pNLf8WUiyNEtQjuu5G5vTm06TEv9tsIgeAvK8hOrP4k=

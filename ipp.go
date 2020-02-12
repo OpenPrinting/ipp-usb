@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alexpevzner/goipp"
+	"github.com/OpenPrinting/goipp"
 )
 
 // IppPrinterInfo represents additional printer information, which

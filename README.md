@@ -54,3 +54,31 @@ This program has very little external dependencies, namely:
 * `libusb` for USB access
 * `libavahi-common` and `libavahi-client` for DNS-SD
 * Running Avahi daemon
+
+## Avahi Notes (exposing printer to localhost)
+
+IPP-over-USB normally exposes printer to localhost only, hence it
+requires DNS-SD announces to work for localhost.
+
+Unfortunately, upstream ("official") Avahi doesn't support announcing
+to localhost.
+
+Patches that fix this problem exist for several years, but still not
+included into the official Avahi source tree
+
+https://github.com/lathiat/avahi/pull/125
+https://github.com/lathiat/avahi/pull/161
+
+Some Linux distros (for example, recent Ububtu and Fedora versions)
+include these patches into Avahi that comes with distros, others
+(for example, Debian) wait until Avahi upstream will be patched.
+
+So users of distros that ship unpatched Avahi have two variants:
+1. Apply patch by themself, rebuild and reinstall Avahi daemon
+2. Configure `ipp-usb` to run on all network interfaces, not only loopback
+
+Second variant is simple to do (just replace `interface = loopback` with
+`interface = all` in the ipp-usb.conf file, but it has a disadvantage
+of exposing your local USB-connected printer to the entire network,
+which can be unwanted side effect, especially in a big corporative
+network.

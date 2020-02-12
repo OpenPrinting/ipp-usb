@@ -97,6 +97,11 @@ So users of distros that ship unpatched Avahi have two variants:
 1. Apply patch by themself, rebuild and reinstall Avahi daemon
 2. Configure `ipp-usb` to run on all network interfaces, not only loopback
 
+If you decided to patch, this is direct link to download the patch
+file:
+
+https://raw.githubusercontent.com/OpenPrinting/ipp-usb/master/avahi/avahi-localhost.patch
+
 Second variant is simple to do (just replace `interface = loopback` with
 `interface = all` in the ipp-usb.conf file, but it has a disadvantage
 of exposing your local USB-connected printer to the entire network,

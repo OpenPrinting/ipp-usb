@@ -58,8 +58,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		return nil, err
 	}
 
-	transport.log.Cc(LogDebug, Console)
+	transport.log.Cc(Console)
 	transport.log.ToDevFile(transport.info)
+	transport.log.SetLevels(Conf.LogDevice)
 
 	// Write device info to the log
 	transport.log.Begin().

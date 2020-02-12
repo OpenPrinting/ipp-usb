@@ -115,6 +115,10 @@ func parseArgv() (params RunParameters) {
 		usageError("Conflicting run modes")
 	}
 
+	if params.Mode == RunDebug {
+		params.Background = false
+	}
+
 	return
 }
 
@@ -129,11 +133,22 @@ func main() {
 	err = ConfLoad()
 	InitLog.Check(err)
 
+	// Setup logging
+	if params.Mode != RunDebug && params.Mode != RunCheck {
+		Console.ToNowhere()
+	} else if Conf.ColorConsole {
+		Console.ToColorConsole()
+	}
+
+	Log.SetLevels(Conf.LogMain)
+	Console.SetLevels(Conf.LogConsole)
+	Log.Cc(Console)
+
 	// In RunCheck mode, list IPP-over-USB devices
 	if params.Mode == RunCheck {
 		descs, _ := UsbGetIppOverUsbDeviceDescs()
 		if descs == nil || len(descs) == 0 {
-			fmt.Printf("No IPP over USB devices found\n")
+			InitLog.Info(0, "No IPP over USB devices found")
 		} else {
 			// Repack into the sorted list
 			var list []UsbDeviceDesc
@@ -144,15 +159,9 @@ func main() {
 				return list[i].UsbAddr.Less(list[j].UsbAddr)
 			})
 
-			suffix := ""
-			if len(list) > 1 {
-				suffix = "s"
-			}
-			fmt.Printf("Found %d IPP over USB device%s:\n",
-				len(list), suffix)
-
-			for _, dev := range list {
-				fmt.Printf("  %s\n", dev.UsbAddr)
+			InitLog.Info(0, "IPP over USB devices:")
+			for i, dev := range list {
+				InitLog.Info(0, "  %d. %s", i+1, dev.UsbAddr)
 			}
 		}
 	}
@@ -174,20 +183,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Setup logging
-	if params.Mode != RunDebug && params.Mode != RunCheck {
-		Console.ToNowhere()
-	} else if Conf.ColorConsole {
-		Console.ToColorConsole()
-	}
-
-	if params.Mode != RunCheck {
-		Log.Info(' ', "===============================")
-		Log.Info(' ', "ipp-usb started in %q mode, pid=%d",
-			params.Mode, os.Getpid())
-		defer Log.Info(' ', "ipp-usb finished")
-	}
-
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
 	os.MkdirAll(PathLockDir, 0755)
@@ -198,9 +193,22 @@ func main() {
 
 	err = FileLock(lock, true, false)
 	if err == ErrLockIsBusy {
-		InitLog.Exit(0, "ipp-usb already running")
+		if params.Mode == RunUdev {
+			// It's not an error in udev mode
+			os.Exit(0)
+		} else {
+			InitLog.Exit(0, "ipp-usb already running")
+		}
 	}
 	InitLog.Check(err)
+
+	// Write to log that we are here
+	if params.Mode != RunCheck {
+		Log.Info(' ', "===============================")
+		Log.Info(' ', "ipp-usb started in %q mode, pid=%d",
+			params.Mode, os.Getpid())
+		defer Log.Info(' ', "ipp-usb finished")
+	}
 
 	// Initialize USB
 	err = UsbInit()

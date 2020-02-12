@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -221,6 +222,19 @@ func (l *Logger) Resume() *Logger {
 		l.LogMessage.Flush()
 	}
 	return l
+}
+
+// Panic writes to log a panic message, including
+// call stack, and terminates a program
+func (l *Logger) Panic(v interface{}) {
+	l.Error('!', "panic: %v", v)
+	l.Error('!', "")
+
+	w := l.LineWriter(LogError, '!')
+	w.Write(debug.Stack())
+	w.Close()
+
+	os.Exit(1)
 }
 
 // Format a time prefix

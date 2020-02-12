@@ -84,6 +84,14 @@ func usageError(format string, args ...interface{}) {
 // parseArgv parses program parameters. In a case of usage error,
 // it prints a error message and exits
 func parseArgv() (params RunParameters) {
+	// Catch panics to log
+	defer func() {
+		v := recover()
+		if v != nil {
+			Log.Panic(v)
+		}
+	}()
+
 	// For now, default mode is debug mode. It may change in a future
 	params.Mode = RunDebug
 

@@ -186,6 +186,14 @@ func (publisher *DNSSdPublisher) instance(suffix int) string {
 
 // Event handling goroutine
 func (publisher *DNSSdPublisher) goroutine() {
+	// Catch panics to log
+	defer func() {
+		v := recover()
+		if v != nil {
+			Log.Panic(v)
+		}
+	}()
+
 	defer publisher.finDone.Done()
 
 	timer := time.NewTimer(time.Hour)

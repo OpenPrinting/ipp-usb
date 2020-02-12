@@ -64,6 +64,14 @@ func (proxy *HTTPProxy) Close() {
 
 // Handle HTTP request
 func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Catch panics to log
+	defer func() {
+		v := recover()
+		if v != nil {
+			Log.Panic(v)
+		}
+	}()
+
 	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
 
 	proxy.log.Begin().

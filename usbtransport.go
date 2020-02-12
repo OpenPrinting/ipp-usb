@@ -284,6 +284,13 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 	// Otherwise, we need to drain USB connection
 	wrap.log.HTTPDebug('<', wrap.session, "client has gone; draining response from USB")
 	go func() {
+		defer func() {
+			v := recover()
+			if v != nil {
+				Log.Panic(v)
+			}
+		}()
+
 		io.Copy(ioutil.Discard, wrap.body)
 		wrap.body.Close()
 		wrap.conn.put()

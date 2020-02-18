@@ -327,7 +327,7 @@ func (attrs ippAttrs) getPaperMax() string {
 // Get a single-string attribute
 func (attrs ippAttrs) strSingle(names ...string) string {
 	strs := attrs.getStrings(names...)
-	if strs == nil {
+	if len(strs) == 0 {
 		return ""
 	}
 

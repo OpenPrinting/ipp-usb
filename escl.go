@@ -203,7 +203,7 @@ const (
 	esclAdf             = "/scan:ScannerCapabilities/scan:Adf"
 	esclPlatenInputCaps = esclPlaten + "/scan:PlatenInputCaps"
 	esclAdfSimplexCaps  = esclAdf + "/scan:AdfSimplexInputCaps"
-	esclAdfDuplexCaps   = esclAdf + "/scan:AdfDuplexCaps"
+	esclAdfDuplexCaps   = esclAdf + "/scan:AdfDuplexInputCaps"
 
 	// Relative to esclPlatenInputCaps, esclAdfSimplexCaps or esclAdfDuplexCaps
 	esclSettingProfile    = "/scan:SettingProfiles/scan:SettingProfile"
@@ -219,6 +219,8 @@ func (decoder *esclCapsDecoder) element(path string) {
 		decoder.platen = true
 	case esclAdf:
 		decoder.adf = true
+	case esclAdfDuplexCaps:
+		decoder.duplex = true
 	}
 }
 

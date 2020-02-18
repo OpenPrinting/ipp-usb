@@ -22,10 +22,11 @@ import (
 // is not included into DNS-SD TXT record, but still needed for
 // other purposes
 type IppPrinterInfo struct {
-	DNSSdName string // DNS-SD device name
-	UUID      string // Device UUID
-	AdminURL  string // Admin URL
-	IconURL   string // Device icon URL
+	DNSSdName   string // DNS-SD device name
+	UUID        string // Device UUID
+	AdminURL    string // Admin URL
+	IconURL     string // Device icon URL
+	IppSvcIndex int    // IPP DNSSdSvcInfo index within array of services
 }
 
 // IppService performs IPP Get-Printer-Attributes query using provided
@@ -94,6 +95,8 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	// Pack it all together
 	ippScv.Port = port
 	services.Add(lpdScv)
+
+	ippinfo.IppSvcIndex = len(*services)
 	services.Add(ippScv)
 
 	return

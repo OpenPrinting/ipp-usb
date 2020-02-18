@@ -107,6 +107,12 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		dev.Log.Error('!', "%s", err)
 	}
 
+	// If we have a scanner, update IPP service advertising
+	if err == nil {
+		ippSvc := &dnssdServices[ippinfo.IppSvcIndex]
+		ippSvc.Txt.Add("Scan", "T")
+	}
+
 	// Advertise Web service. Assume it always exist
 	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
 

@@ -37,10 +37,60 @@ type IppPrinterInfo struct {
 func IppService(log *LogMessage, services *DNSSdServices,
 	port int, usbinfo UsbDeviceInfo, c *http.Client) (ippinfo IppPrinterInfo, err error) {
 
+	// Query printer attributes
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
+	msg, err := ippGetPrinterAttributes(log, c, uri)
+	if err != nil {
+		return
+	}
+
+	// Decode IPP service info
+	attrs := newIppDecoder(msg)
+	ippinfo, ippScv := attrs.Decode()
+
+	// Probe for fax support
+	uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
+	if _, err2 := ippGetPrinterAttributes(log, c, uri); err2 == nil {
+		log.Debug(' ', "IPP FaxOut service detected")
+		ippScv.Txt.Add("Fax", "T")
+		ippScv.Txt.Add("rfo", "ipp/faxout")
+	} else {
+		log.Debug(' ', "IPP FaxOut service not present")
+		ippScv.Txt.Add("Fax", "F")
+	}
+
+	// Construct LPD info. Per Apple spec, we MUST advertise
+	// LPD with zero port, even if we don't support it
+	lpdScv := DNSSdSvcInfo{
+		Type: "_printer._tcp",
+		Port: 0,
+		Txt:  nil,
+	}
+
+	// Pack it all together
+	ippScv.Port = port
+	services.Add(lpdScv)
+
+	ippinfo.IppSvcIndex = len(*services)
+	services.Add(ippScv)
+
+	return
+}
+
+// ippGetPrinterAttributes performs GetPrinterAttributes query,
+// using the specified http.Client and uri
+//
+// If this function returns nil error, it means that:
+//   1) HTTP transaction performed successfully
+//   2) Received reply successfully decoded
+//   3) It is not an IPP error response
+//
+// Otherwise, the appropriate error is generated and returned
+func ippGetPrinterAttributes(log *LogMessage, c *http.Client, uri string) (
+	msg *goipp.Message, err error) {
 
 	// Query printer attributes
-	msg := goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)
+	msg = goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)
 	msg.Operation.Add(goipp.MakeAttribute("attributes-charset",
 		goipp.TagCharset, goipp.String("utf-8")))
 	msg.Operation.Add(goipp.MakeAttribute("attributes-natural-language",
@@ -58,20 +108,30 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	req, _ := msg.EncodeBytes()
 	resp, err := c.Post(uri, goipp.ContentType, bytes.NewBuffer(req))
 	if err != nil {
+		err = fmt.Errorf("HTTP: %s", err)
+		return
+	}
+
+	defer resp.Body.Close()
+
+	// Check HTTP status
+	if resp.StatusCode/100 != 2 {
+		err = fmt.Errorf("HTTP: %s", resp.Status)
 		return
 	}
 
 	// Decode IPP response message
 	respData, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
 	if err != nil {
+		err = fmt.Errorf("HTTP: %s", err)
 		return
 	}
 
 	err = msg.DecodeBytes(respData)
 	if err != nil {
-		log.Error('!', "%s", err)
+		log.Debug(' ', "Failed to decode IPP message: %s", err)
 		log.HexDump(LogTraceIPP, respData)
+		err = fmt.Errorf("IPP decode: %s", err)
 		return
 	}
 
@@ -80,24 +140,11 @@ func IppService(log *LogMessage, services *DNSSdServices,
 		Nl(LogTraceIPP).
 		Flush()
 
-	// Decode IPP service info
-	attrs := newIppDecoder(msg)
-	ippinfo, ippScv := attrs.Decode()
-
-	// Construct LPD info. Per Apple spec, we MUST advertise
-	// LPD with zero port, even if we don't support it
-	lpdScv := DNSSdSvcInfo{
-		Type: "_printer._tcp",
-		Port: 0,
-		Txt:  nil,
+	// Check response status
+	if msg.Code >= 100 {
+		err = fmt.Errorf("IPP: %s", goipp.Status(msg.Code))
+		return
 	}
-
-	// Pack it all together
-	ippScv.Port = port
-	services.Add(lpdScv)
-
-	ippinfo.IppSvcIndex = len(*services)
-	services.Add(ippScv)
 
 	return
 }

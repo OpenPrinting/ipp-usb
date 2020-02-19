@@ -436,7 +436,7 @@ func (msg *LogMessage) Check(err error) {
 
 // HexDump appends a HEX dump to the log message
 func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
-	if (msg.logger.levels|msg.logger.ccLevels)&level != 0 {
+	if (msg.logger.levels|msg.logger.ccLevels)&level == 0 {
 		return msg
 	}
 
@@ -491,7 +491,7 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
 	session int, hdr http.Header) *LogMessage {
 
-	if (msg.logger.levels|msg.logger.ccLevels)&level != 0 {
+	if (msg.logger.levels|msg.logger.ccLevels)&level == 0 {
 		return msg
 	}
 

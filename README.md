@@ -90,14 +90,15 @@ If you see localhost in the avahi-browse output, like this:
 your Avahi is OK. Otherwise, update or patching is required.
 
 So users of distros that ship a too old Avahi and without the patch
-have two possibilities:
-1. Apply the patch by themself, rebuild and reinstall avahi-daemon
-2. Configure `ipp-usb` to run on all network interfaces, not only on loopback
+have three possibilities:
+1. Update Avahi to 0.8.0 or newer
+2. Apply the patch by themself, rebuild and reinstall avahi-daemon
+3. Configure `ipp-usb` to run on all network interfaces, not only on loopback
 
 If you decide to apply the patch, get it as `avahi/avahi-localhost.patch`
 in this package or [download it here](https://raw.githubusercontent.com/OpenPrinting/ipp-usb/master/avahi/avahi-localhost.patch).
 
-The second method is simple to do, just replace `interface = loopback`
+The third method is simple to do, just replace `interface = loopback`
 with `interface = all` in the `ipp-usb.conf` file, but this has the
 disadvantage of exposing your local USB-connected printer to the
 entire local network, which can be an unwanted side effect, especially

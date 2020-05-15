@@ -50,6 +50,29 @@ network name is persisted on a disk
 * Can share printer to other computers on a network, or use the loopback interface only
 * Can generate very detailed logs for possible troubleshooting
 
+## Under the hood
+
+Though looks simple, ipp-usb does many non obvious things under the hood
+
+* Client-side HTTP connections are completely decoupled from printer-side HTTP-over-USB connections
+* HTTP requests are sanitized, missed headers are added
+* HTTP protocol upgraded from 1.0 to 1.1, if needed
+* Attempts to upgrade HTTP connection to winsock, if unwisely made by web console, are
+prohibited, because it can steal USB connection for a long time
+* Client HTTP requests are fairly balanced between all available 2-3 USB connections,
+regardless of number and persistence of client connections
+* Dropping connection by client properly handled in all cases, even in a middle of sending.
+In a worst case, printer may receive truncated document, but HTTP transaction will always be
+performed correctly
+
+## Memory footprint
+
+Being written on Go, ipp-usb has a large executable size. However, its
+memory consumption is not very high. When single device is connected,
+ipp-usb RSS is similar or even slightly less in comparison to ippusbxd.
+And because ipp-usb handles all devices in a single process, it uses noticeably
+less memory that ippusbxd, when serving 2 or more devices.
+
 ## External dependencies
 
 This program has very few external dependencies, namely:

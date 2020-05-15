@@ -4,7 +4,7 @@
  * See LICENSE for license terms and conditions
  *
  * LineWriter is a helper object, implementing io.Writer interface
- * on a top of write-line callback
+ * on a top of write-line callback. It is used by logger.
  */
 
 package main
@@ -14,7 +14,7 @@ import (
 )
 
 // LineWriter implements io.Write and io.Close interfaces
-// It splits stream into text lines and calls a proviced
+// It splits stream into text lines and calls a provided
 // callback for each complete line.
 //
 // Line passed to callback is not terminated by '\n'

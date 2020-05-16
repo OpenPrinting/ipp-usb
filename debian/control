@@ -11,7 +11,7 @@ Build-Depends: debhelper (>= 11),
 	       pkg-config,
                golang-go,
 Standards-Version: 4.2.1
-Homepage: https://github.com/alexpevzner/ipp-usb
+Homepage: https://github.com/OpenPrinting/ipp-usb
 
 Package: ipp-usb
 Architecture: any

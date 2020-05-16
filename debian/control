@@ -15,6 +15,8 @@ Homepage: https://github.com/alexpevzner/ipp-usb
 
 Package: ipp-usb
 Architecture: any
+Conflicts: ippusbxd
+Breaks: ippusbxd
 Depends: ${misc:Depends},
          ${shlibs:Depends}
 Description: Daemon for IPP over USB printer support

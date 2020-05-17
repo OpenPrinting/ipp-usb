@@ -1,4 +1,4 @@
-module github.com/alexpevzner/ipp-usb
+module github.com/OpenPrinting/ipp-usb
 
 go 1.11
 

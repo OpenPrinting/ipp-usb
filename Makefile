@@ -18,9 +18,9 @@ $(MANPAGE): $(MANPAGE).md
 
 install:
 	install -s -D -t $(PREFIX)/sbin ipp-usb
-	install -D -t $(PREFIX)/lib/udev/rules.d systemd-udev/*.rules
-	install -D -t $(PREFIX)/lib/systemd/system systemd-udev/*.service
-	install -D -t $(PREFIX)/etc/ipp-usb ipp-usb.conf
+	install -m 644 -D -t $(PREFIX)/lib/udev/rules.d systemd-udev/*.rules
+	install -m 644 -D -t $(PREFIX)/lib/systemd/system systemd-udev/*.service
+	install -m 644 -D -t $(PREFIX)/etc/ipp-usb ipp-usb.conf
 	mkdir -p $(PREFIX)/$(MANDIR)/man1
 	gzip <$(MANPAGE) > $(PREFIX)$(MANDIR)/man1/$(MANPAGE).gz
 

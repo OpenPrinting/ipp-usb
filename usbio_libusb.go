@@ -111,8 +111,7 @@ func libusbContext() (*C.libusb_context, error) {
 		C.LIBUSB_HOTPLUG_MATCH_ANY, // vendor_id
 		C.LIBUSB_HOTPLUG_MATCH_ANY, // product_id
 		C.LIBUSB_HOTPLUG_MATCH_ANY, // dev_class
-		C.libusb_hotplug_callback_fn( // callback
-			unsafe.Pointer(C.libusbHotplugCallback)),
+		C.libusb_hotplug_callback_fn(unsafe.Pointer(C.libusbHotplugCallback)),
 		nil, // callback's data
 		nil, // deregister handle
 	)

@@ -106,12 +106,13 @@ of your Linux distro):
 * git, make and so on
 
 Building is really simple:
-* Clone this repo
-* Enter its directory
-* make
 
-Then you may `make install` or just try `ipp-usb` directly from
-build directory
+    git clone https://github.com/OpenPrinting/ipp-usb.git
+    cd ipp-usb
+    make
+
+Then you may `make install` or just try to run `./ipp-usb` directly from
+the build directory
 
 ## Avahi Notes (exposing printer to localhost)
 

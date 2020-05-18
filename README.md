@@ -80,6 +80,39 @@ This program has very few external dependencies, namely:
 * `libavahi-common` and `libavahi-client` for DNS-SD
 * Running Avahi daemon
 
+## Binary packages
+
+Binary packages available for the following Linux distros:
+* **Debian** (10)
+* **Fedora** (29, 30, 31 and 32)
+* **openSUSE** (Tumbleweed)
+* **Ubuntu** (18.04, 19.04, 19.10 and 20.04)
+
+**Linux Mint** users may use Ubuntu packages:
+* Linux Mint 18.x - use packages for Ubuntu 16.04
+* Linux Mint 19.x - use packages for Ubuntu 18.04
+
+Follow this link for downloads: https://download.opensuse.org/repositories/home:/pzz/
+
+## Installation from source
+
+You will need to install the following packages (exact name depends
+of your Linux distro):
+* libusb development files
+* libavahi-client and libavahi-common development files
+* gcc
+* Go compiler
+* pkg-config
+* git, make and so on
+
+Building is really simple:
+* Clone this repo
+* Enter its directory
+* make
+
+Then you may `make install` or just try `ipp-usb` directly from
+build directory
+
 ## Avahi Notes (exposing printer to localhost)
 
 IPP-over-USB normally exposes printer to localhost only, hence it

@@ -19,7 +19,7 @@ import (
 // #cgo pkg-config: libusb-1.0
 // #include <libusb.h>
 //
-// void libusbHotplugCallback (libusb_context *ctx, libusb_device *device,
+// int libusbHotplugCallback (libusb_context *ctx, libusb_device *device,
 //     libusb_hotplug_event event, void *user_data);
 //
 // typedef struct libusb_device_descriptor libusb_device_descriptor_struct;
@@ -131,7 +131,7 @@ func libusbContext() (*C.libusb_context, error) {
 //
 //export libusbHotplugCallback
 func libusbHotplugCallback(ctx *C.libusb_context, dev *C.libusb_device,
-	event C.libusb_hotplug_event, p unsafe.Pointer) {
+	event C.libusb_hotplug_event, p unsafe.Pointer) C.int {
 
 	usbaddr := UsbAddr{
 		Bus:     int(C.libusb_get_bus_number(dev)),
@@ -149,6 +149,8 @@ func libusbHotplugCallback(ctx *C.libusb_context, dev *C.libusb_device,
 	case UsbHotPlugChan <- struct{}{}:
 	default:
 	}
+
+	return 0
 }
 
 // UsbCheckIppOverUsbDevices returns true if there are some IPP-over-USB devices

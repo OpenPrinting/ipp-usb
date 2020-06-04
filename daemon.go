@@ -19,6 +19,9 @@ import (
 	"unicode"
 )
 
+// #include <unistd.h>
+import "C"
+
 // CloseStdInOutErr closes stdin/stdout/stderr handles
 func CloseStdInOutErr() error {
 	nul, err := syscall.Open(os.DevNull, syscall.O_RDONLY, 0644)
@@ -26,11 +29,14 @@ func CloseStdInOutErr() error {
 		return fmt.Errorf("Open %q: %s", os.DevNull, err)
 	}
 
-	nullfd := int(nul)
+	defer syscall.Close(nul)
 
-	syscall.Dup2(nullfd, syscall.Stdin)
-	syscall.Dup2(nullfd, syscall.Stdout)
-	syscall.Dup2(nullfd, syscall.Stderr)
+	// Note, syscall.Dup2 is not implemented on old Go
+	// versions for ARM64 Linux. So we use C.dup2 as a
+	// portable workaround
+	C.dup2(C.int(nul), 0)
+	C.dup2(C.int(nul), 1)
+	C.dup2(C.int(nul), 2)
 
 	return nil
 }

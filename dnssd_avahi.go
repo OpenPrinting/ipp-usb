@@ -118,7 +118,9 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 			goto ERROR
 		}
 
+		old := sysdep.fqdn
 		sysdep.fqdn = "localhost"
+		sysdep.log.Debug(' ', "DNS-SD: FQDN: %q->%q", old, sysdep.fqdn)
 	}
 
 	proto = C.AVAHI_PROTO_UNSPEC
@@ -157,6 +159,8 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 				break
 			}
 
+			sysdep.log.Debug(' ', "DNS-SD: +subtype: %q", subtype)
+
 			c_subtype := C.CString(subtype)
 			rc = C.avahi_entry_group_add_service_subtype(
 				sysdep.egroup,
@@ -170,7 +174,6 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 			)
 			C.free(unsafe.Pointer(c_subtype))
 
-			log.Debug('=', "%s %v", subtype, rc)
 		}
 
 		// Release C memory

@@ -38,7 +38,7 @@ var (
 	avahiEgroupMap    = make(map[*C.AvahiEntryGroup]*dnssdSysdep)
 )
 
-// dnssdSysdep represents a system-dependent
+// dnssdSysdep represents a system-dependent DNS-SD advertiser
 type dnssdSysdep struct {
 	log        *Logger            // Device's logger
 	instance   string             // Service Instance Name
@@ -128,13 +128,15 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 
 	// Populate entry group
 	for _, svc := range services {
-		c_svc_type := C.CString(svc.Type)
-
+		// Prepare TXT record
 		var c_txt *C.AvahiStringList
 		c_txt, err = sysdep.avahiTxtRecord(svc.Port, svc.Txt)
 		if err != nil {
 			goto ERROR
 		}
+
+		// Register service type
+		c_svc_type := C.CString(svc.Type)
 
 		rc = C.avahi_entry_group_add_service_strlst(
 			sysdep.egroup,
@@ -149,9 +151,33 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 			c_txt,
 		)
 
+		// Register subtypes, if any
+		for _, subtype := range svc.SubTypes {
+			if rc != C.AVAHI_OK {
+				break
+			}
+
+			c_subtype := C.CString(subtype)
+			rc = C.avahi_entry_group_add_service_subtype(
+				sysdep.egroup,
+				C.AvahiIfIndex(iface),
+				C.AvahiProtocol(proto),
+				0,
+				c_instance,
+				c_svc_type,
+				nil,
+				c_subtype,
+			)
+			C.free(unsafe.Pointer(c_subtype))
+
+			log.Debug('=', "%s %v", subtype, rc)
+		}
+
+		// Release C memory
 		C.free(unsafe.Pointer(c_svc_type))
 		C.avahi_string_list_free(c_txt)
 
+		// Check for Avahi error
 		if rc != C.AVAHI_OK {
 			goto AVAHI_ERROR
 		}

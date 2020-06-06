@@ -199,7 +199,10 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     adminurl:         "printer-more-info"
 //
 func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DNSSdSvcInfo) {
-	svc = DNSSdSvcInfo{Type: "_ipp._tcp"}
+	svc = DNSSdSvcInfo{
+		Type:     "_ipp._tcp",
+		SubTypes: []string{"_universal._sub._ipp._tcp"},
+	}
 
 	// Obtain IppPrinterInfo
 	ippinfo.DNSSdName = attrs.strSingle("printer-dns-sd-name",

@@ -341,40 +341,8 @@ func (attrs ippAttrs) getPaperMax() string {
 		return ""
 	}
 
-	// Now classify by printer size
-	//                  US name      US inches   US mm           ISO mm
-	//   "legal-A4"     A, Legal     8.5 x 14    215.9 x 355.6   A4: 210 x 297
-	//   "tabloid-A3"   B, Tabloid   11 x 17     279.4 x 431.8   A3: 297 x 420
-	//   "isoC-A2"      C            17 × 22     431.8 × 558,8   A2: 420 x 594
-	//
-	// Please note, Apple in the "Bonjour Printing Specification"
-	// incorrectly states paper sizes as 9x14, 13x19 and 18x24 inches
-
-	const (
-		legal_a4_x   = 21590
-		legal_a4_y   = 35560
-		tabloid_a3_x = 29700
-		tabloid_a3_y = 43180
-		isoC_a2_x    = 43180
-		isoC_a2_y    = 55880
-	)
-
-	switch {
-	case x_dim_max > isoC_a2_x && y_dim_max > isoC_a2_y:
-		return ">isoC-A2"
-
-	case x_dim_max >= isoC_a2_x && y_dim_max >= isoC_a2_y:
-		return "isoC-A2"
-
-	case x_dim_max >= tabloid_a3_x && y_dim_max >= tabloid_a3_y:
-		return "tabloid-A3"
-
-	case x_dim_max >= legal_a4_x && y_dim_max >= legal_a4_y:
-		return "legal-A4"
-
-	default:
-		return "<legal-A4"
-	}
+	// Now classify by paper size
+	return PaperSize{x_dim_max, y_dim_max}.Classify()
 }
 
 // Get a single-string attribute

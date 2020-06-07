@@ -487,7 +487,7 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 	return msg
 }
 
-// HTTPHdr dumps HTTP header into the log messahe
+// HTTPHdr dumps HTTP header into the log message
 func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
 	session int, hdr http.Header) *LogMessage {
 

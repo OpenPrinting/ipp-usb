@@ -380,7 +380,7 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 	conn.transport.connstate.beginRead(conn)
 	defer conn.transport.connstate.doneRead(conn)
 
-	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW erros
+	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW errors
 	// from libusb, input buffer size must always
 	// be aligned by 512 bytes
 	//

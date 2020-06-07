@@ -74,11 +74,6 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
 
-	proxy.log.Begin().
-		HTTPRqParams(LogDebug, '>', session, r).
-		HTTPHdr(LogTraceHTTP, '>', session, r.Header).
-		Commit()
-
 	// Perform sanity checking
 	if r.Method == "CONNECT" {
 		proxy.httpError(session, w, r, http.StatusMethodNotAllowed,
@@ -117,7 +112,7 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.URL.Host = r.Host
 
 	// Send request and obtain response status and header
-	resp, err := proxy.transport.RoundTripSession(session, r)
+	resp, err := proxy.transport.RoundTripWithSession(session, r)
 	if err != nil {
 		proxy.httpError(session, w, r, http.StatusServiceUnavailable, err)
 		return
@@ -126,11 +121,6 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpRemoveHopByHopHeaders(resp.Header)
 	httpCopyHeaders(w.Header(), resp.Header)
 	w.WriteHeader(resp.StatusCode)
-
-	proxy.log.Begin().
-		HTTPRspStatus(LogDebug, '<', session, resp).
-		HTTPHdr(LogTraceHTTP, '<', session, resp.Header).
-		Commit()
 
 	// Obtain response body, if any
 	_, err = io.Copy(w, resp.Body)
@@ -147,6 +137,11 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (proxy *HTTPProxy) httpError(session int, w http.ResponseWriter, r *http.Request,
 	status int, err error) {
 
+	proxy.log.Begin().
+		HTTPRqParams(LogDebug, '>', session, r).
+		HTTPRequest(LogTraceHTTP, '>', session, r).
+		Commit()
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	httpNoCache(w)
 	w.WriteHeader(status)
@@ -159,33 +154,6 @@ func (proxy *HTTPProxy) httpError(session int, w http.ResponseWriter, r *http.Re
 	} else {
 		proxy.log.HTTPDebug(' ', session, "request canceled by impatient client")
 	}
-}
-
-// HTTPLoggingRoundTripper wraps UsbTransport, adding logging
-// for each request. It implements http.RoundTripper interface
-type HTTPLoggingRoundTripper struct {
-	Log       *Logger       // Logger to write logs to
-	transport *UsbTransport // Underlying UsbTransport
-}
-
-// RoundTrip executes a single HTTP transaction, returning
-// a Response for the provided Request.
-func (rtp *HTTPLoggingRoundTripper) RoundTrip(r *http.Request) (
-	*http.Response, error) {
-	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
-
-	rtp.Log.HTTPRqParams(LogDebug, '>', session, r)
-	rtp.Log.HTTPHdr(LogTraceHTTP, '>', session, r.Header)
-
-	resp, err := rtp.transport.RoundTripSession(session, r)
-	if err == nil {
-		rtp.Log.HTTPRspStatus(LogDebug, '<', session, resp)
-		rtp.Log.HTTPHdr(LogTraceHTTP, '<', session, resp.Header)
-	} else {
-		rtp.Log.HTTPError('!', session, "%s", err)
-	}
-
-	return resp, err
 }
 
 // Set response headers to disable cacheing

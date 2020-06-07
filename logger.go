@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -487,13 +489,45 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 	return msg
 }
 
-// HTTPHdr dumps HTTP header into the log message
-func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
-	session int, hdr http.Header) *LogMessage {
+// HTTPRequest dumps HTTP request (except body) to the log message
+func (msg *LogMessage) HTTPRequest(level LogLevel, prefix byte,
+	session int, rq *http.Request) *LogMessage {
 
 	if (msg.logger.levels|msg.logger.ccLevels)&level == 0 {
 		return msg
 	}
+
+	// Clone request, drop body
+	rq = rq.WithContext(context.Background())
+	rq.Body = nil
+
+	// Write it to the log
+	lw := msg.LineWriter(level, prefix)
+	lw.Prefix = "  "
+	rq.Write(lw)
+
+	return msg
+}
+
+// HTTPResponse dumps HTTP response (expect body) to the log message
+func (msg *LogMessage) HTTPResponse(level LogLevel, prefix byte,
+	session int, rsp *http.Response) *LogMessage {
+
+	if (msg.logger.levels|msg.logger.ccLevels)&level == 0 {
+		return msg
+	}
+
+	// Clone response header
+	hdr := rsp.Header.Clone()
+
+	// Go stdlib strips Transfer-Encoding header, so reconstruct it
+	if rsp.TransferEncoding != nil {
+		hdr.Add("Transfer-Encoding",
+			strings.Join(rsp.TransferEncoding, ", "))
+	}
+
+	// Write it to the log
+	msg.Add(level, prefix, "  %s %s", rsp.Proto, rsp.Status)
 
 	keys := make([]string, 0, len(hdr))
 
@@ -503,10 +537,10 @@ func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
 
 	sort.Strings(keys)
 	for _, k := range keys {
-		msg.Add(level, prefix, "HTTP[%3.3d]: %s: %s", session, k, hdr.Get(k))
+		msg.Add(level, prefix, "  %s: %s", k, hdr.Get(k))
 	}
 
-	msg.Nl(level)
+	msg.Add(level, prefix, "  ")
 
 	return msg
 }
@@ -515,18 +549,17 @@ func (msg *LogMessage) HTTPHdr(level LogLevel, prefix byte,
 func (msg *LogMessage) HTTPRqParams(level LogLevel, prefix byte,
 	session int, rq *http.Request) *LogMessage {
 
-	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s %s", session,
-		rq.Method, rq.URL, rq.Proto)
+	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s", session, rq.Method, rq.URL)
 
 	return msg
 }
 
 // HTTPRspStatus dumps HTTP response status into the log message
 func (msg *LogMessage) HTTPRspStatus(level LogLevel, prefix byte,
-	session int, rsp *http.Response) *LogMessage {
+	session int, rq *http.Request, rsp *http.Response) *LogMessage {
 
-	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s", session,
-		rsp.Proto, rsp.Status)
+	msg.Add(level, prefix, "HTTP[%3.3d]: %s %s - %s",
+		session, rq.Method, rq.URL, rsp.Status)
 
 	return msg
 }

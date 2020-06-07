@@ -20,8 +20,9 @@ import (
 // Line passed to callback is not terminated by '\n'
 // character. Close flushes last incomplete line, if any
 type LineWriter struct {
-	Func func([]byte) // write-line callback
-	buf  bytes.Buffer // buffer for incomplete lines
+	Func   func([]byte) // write-line callback
+	Prefix string       // Prefix prepended to each line
+	buf    bytes.Buffer // buffer for incomplete lines
 }
 
 // Write implements io.Writer interface
@@ -44,13 +45,14 @@ func (lw *LineWriter) Write(text []byte) (n int, err error) {
 		}
 
 		// Dispatch next line
-		if unfinished || lw.buf.Len() > 0 {
-			lw.buf.Write(line)
-			line = lw.buf.Bytes()
+		if lw.buf.Len() == 0 {
+			lw.buf.Write([]byte(lw.Prefix))
 		}
 
+		lw.buf.Write(line)
+
 		if !unfinished {
-			lw.Func(line)
+			lw.Func(lw.buf.Bytes())
 			lw.buf.Reset()
 		}
 	}

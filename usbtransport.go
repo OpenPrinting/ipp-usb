@@ -155,9 +155,20 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 	return transport.info
 }
 
-// RoundTripSession executes a single HTTP transaction, returning
-// a Response for the provided Request.
-func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (*http.Response, error) {
+// RoundTrip implements http.RoundTripper interface
+func (transport *UsbTransport) RoundTrip(r *http.Request) (
+	*http.Response, error) {
+	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
+
+	return transport.RoundTripWithSession(session, r)
+}
+
+// RoundTripWithSession executes a single HTTP transaction, returning
+// a Response for the provided Request. Session number, for logging,
+// provided as a separate parameter
+func (transport *UsbTransport) RoundTripWithSession(session int,
+	rq *http.Request) (*http.Response, error) {
+
 	transport.rqPendingInc()
 	defer transport.rqPendingDec()
 
@@ -186,6 +197,11 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 	outreq.Header.Set("Connection", "close")
 	outreq.Close = true
 
+	// Add User-Agent, if missed
+	if _, found := outreq.Header["User-Agent"]; !found {
+		outreq.Header["User-Agent"] = []string{"ipp-usb"}
+	}
+
 	// Wrap request body
 	if outreq.Body != nil {
 		outreq.Body = &usbRequestBodyWrapper{
@@ -195,9 +211,16 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 		}
 	}
 
+	// Log the request
+	transport.log.Begin().
+		HTTPRqParams(LogDebug, '>', session, outreq).
+		HTTPRequest(LogTraceHTTP, '>', session, outreq).
+		Commit()
+
 	// Send request and receive a response
 	err = outreq.Write(conn)
 	if err != nil {
+		transport.log.HTTPError('!', session, "%s", err)
 		return nil, err
 	}
 
@@ -209,6 +232,16 @@ func (transport *UsbTransport) RoundTripSession(session int, rq *http.Request) (
 			body:    resp.Body,
 			conn:    conn,
 		}
+	}
+
+	// Log the response
+	if resp != nil {
+		transport.log.Begin().
+			HTTPRspStatus(LogDebug, '<', session, outreq, resp).
+			HTTPResponse(LogTraceHTTP, '<', session, resp).
+			Commit()
+	} else {
+		transport.log.HTTPError('!', session, "%s", err)
 	}
 
 	return resp, err

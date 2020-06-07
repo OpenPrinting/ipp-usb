@@ -67,7 +67,10 @@ Network parameters are all in the `[network]` section:
       # Enable or disable DNS-SD advertisement
       dns-sd = enable      # enable | disable
 
-      # Network interface to use
+      # Network interface to use. Set to `all` if you want to expose you
+      # printer to the local network. This way you can share your printer
+      # with other computers in the network, as well as with iOS and Android
+      # devices.
       interface = loopback # all | loopback
 
       # Enable or disable IPv6

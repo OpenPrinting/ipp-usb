@@ -22,15 +22,15 @@ import (
 
 // UsbTransport implements HTTP transport functionality over USB
 type UsbTransport struct {
-	addr          UsbAddr       // Device address
-	info          UsbDeviceInfo // USB device info
-	log           *Logger       // Device's own logger
-	dev           *UsbDevHandle // Underlying USB device
-	rqPending     int32         // Count or pending requests
-	rqPendingDone chan struct{} // Notified when pending request finished
-	connections   chan *usbConn // Pool of connections
-	shutdown      chan struct{} // Closed by Shutdown()
-	connstate     *usbConnState // Connections state tracker
+	addr         UsbAddr       // Device address
+	info         UsbDeviceInfo // USB device info
+	log          *Logger       // Device's own logger
+	dev          *UsbDevHandle // Underlying USB device
+	connPool     chan *usbConn // Pool of idle connections
+	connList     []*usbConn    // List of all connections
+	connReleased chan struct{} // Signalled when connection released
+	shutdown     chan struct{} // Closed by Shutdown()
+	connstate    *usbConnState // Connections state tracker
 }
 
 // NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
@@ -43,13 +43,13 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 
 	// Create UsbTransport
 	transport := &UsbTransport{
-		addr:          desc.UsbAddr,
-		log:           NewLogger(),
-		dev:           dev,
-		rqPendingDone: make(chan struct{}),
-		connections:   make(chan *usbConn, len(desc.IfAddrs)),
-		shutdown:      make(chan struct{}),
-		connstate:     newUsbConnState(len(desc.IfAddrs)),
+		addr:         desc.UsbAddr,
+		log:          NewLogger(),
+		dev:          dev,
+		connPool:     make(chan *usbConn, len(desc.IfAddrs)),
+		connReleased: make(chan struct{}),
+		shutdown:     make(chan struct{}),
+		connstate:    newUsbConnState(len(desc.IfAddrs)),
 	}
 
 	// Obtain device info
@@ -91,19 +91,25 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		if err != nil {
 			goto ERROR
 		}
-		transport.connections <- conn
+		transport.connPool <- conn
+		transport.connList = append(transport.connList, conn)
 	}
 
 	return transport, nil
 
 	// Error: cleanup and exit
 ERROR:
-	for conn := range transport.connections {
+	for _, conn := range transport.connList {
 		conn.destroy()
 	}
 
 	dev.Close()
 	return nil, err
+}
+
+// Get count of connections still in use
+func (transport *UsbTransport) connInUse() int {
+	return cap(transport.connPool) - len(transport.connPool)
 }
 
 // Shutdown gracefully shuts down the transport. If provided
@@ -113,16 +119,16 @@ func (transport *UsbTransport) Shutdown(ctx context.Context) error {
 	close(transport.shutdown)
 
 	for {
-		cnt := atomic.LoadInt32(&transport.rqPending)
-		if cnt == 0 {
+		n := transport.connInUse()
+		if n == 0 {
 			break
 		}
 
-		transport.log.Info('-', "%s: shutdown: %d requests still pending",
-			transport.addr, cnt)
+		transport.log.Info('-', "%s: shutdown: %d connections still in use",
+			transport.addr, n)
 
 		select {
-		case <-transport.rqPendingDone:
+		case <-transport.connReleased:
 		case <-ctx.Done():
 			transport.log.Error('-', "%s: %s: shutdown timeout expired",
 				transport.addr, transport.info.ProductName)
@@ -135,10 +141,14 @@ func (transport *UsbTransport) Shutdown(ctx context.Context) error {
 
 // Close the transport
 func (transport *UsbTransport) Close() {
-	if atomic.LoadInt32(&transport.rqPending) > 0 {
+	if transport.connInUse() > 0 {
 		transport.log.Info('-', "%s: resetting %s",
 			transport.addr, transport.info.ProductName)
 		transport.dev.Reset()
+	}
+
+	for _, conn := range transport.connList {
+		conn.destroy()
 	}
 
 	transport.dev.Close()
@@ -243,9 +253,6 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 		Commit()
 
 	// Allocate USB connection
-	transport.rqPendingInc()
-	defer transport.rqPendingDec()
-
 	conn, err := transport.usbConnGet(rq.Context())
 	if err != nil {
 		return nil, err
@@ -281,21 +288,6 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	}
 
 	return resp, err
-}
-
-// rqPendingInc atomically increments transport.rqPending
-func (transport *UsbTransport) rqPendingInc() {
-	atomic.AddInt32(&transport.rqPending, 1)
-}
-
-// rqPendingDec atomically decrements transport.rqPending
-// and wakes sleeping Shutdown thread, if any
-func (transport *UsbTransport) rqPendingDec() {
-	atomic.AddInt32(&transport.rqPending, -1)
-	select {
-	case transport.rqPendingDone <- struct{}{}:
-	default:
-	}
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding
@@ -502,7 +494,7 @@ func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error)
 		return nil, ErrShutdown
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case conn := <-transport.connections:
+	case conn := <-transport.connPool:
 		transport.connstate.gotConn(conn)
 		transport.log.Debug(' ', "USB[%d]: connection allocated, %s",
 			conn.index, transport.connstate)
@@ -523,21 +515,27 @@ func (conn *usbConn) put() error {
 	transport.log.Debug(' ', "USB[%d]: connection released, %s",
 		conn.index, transport.connstate)
 
-	conn.transport.connections <- conn
+	transport.connPool <- conn
+
+	select {
+	case transport.connReleased <- struct{}{}:
+	default:
+	}
 
 	return nil
 }
 
 // Destroy USB connection
 func (conn *usbConn) destroy() {
+	conn.transport.log.Debug(' ', "USB[%d]: closed", conn.index)
 	conn.iface.Close()
 }
 
 // usbConnState tracks connections state, for logging
 type usbConnState struct {
-	alloc []int32
-	read  []int32
-	write []int32
+	alloc []int32 // Per-connection "allocated" flag
+	read  []int32 // Per-connection "reading" flag
+	write []int32 // Per-connection "writing" flag
 }
 
 // newUsbConnState creates a new usbConnState for given

@@ -502,9 +502,20 @@ func (msg *LogMessage) HTTPRequest(level LogLevel, prefix byte,
 	rq.Body = struct{ io.ReadCloser }{http.NoBody}
 
 	// Write it to the log
-	lw := msg.LineWriter(level, prefix)
-	lw.Prefix = "  "
-	rq.Write(lw)
+	buf := &bytes.Buffer{}
+	rq.Write(buf)
+
+	for _, l := range bytes.Split(buf.Bytes(), []byte("\n")) {
+		if sz := len(l); sz > 0 && l[sz-1] == '\r' {
+			l = l[:sz-1]
+		}
+
+		msg.Add(level, prefix, "  %s", l)
+
+		if len(l) == 0 {
+			break
+		}
+	}
 
 	return msg
 }

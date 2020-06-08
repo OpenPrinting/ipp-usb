@@ -10,6 +10,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -170,15 +171,8 @@ func (transport *UsbTransport) RoundTrip(r *http.Request) (
 func (transport *UsbTransport) RoundTripWithSession(session int,
 	rq *http.Request) (*http.Response, error) {
 
-	transport.rqPendingInc()
-	defer transport.rqPendingDec()
-
-	conn, err := transport.usbConnGet(rq.Context())
-	if err != nil {
-		return nil, err
-	}
-
-	transport.log.HTTPDebug(' ', session, "connection %d allocated", conn.index)
+	// Log the request
+	transport.log.HTTPRqParams(LogDebug, '>', session, rq)
 
 	// Prevent request from being canceled from outside
 	// We cannot do it on USB: closing USB connection
@@ -212,11 +206,52 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 		}
 	}
 
-	// Log the request
+	// Prepare to correctly handle HTTP transaction, in a case
+	// client drops request in a middle of reading body
+	switch {
+	case outreq.ContentLength <= 0:
+		// Nothing to do
+
+	case outreq.ContentLength < 16384:
+		// Body is small, prefetch it before sending to USB
+		buf := &bytes.Buffer{}
+		_, err := io.CopyN(buf, outreq.Body, outreq.ContentLength)
+		if err != nil {
+			return nil, err
+		}
+
+		outreq.Body.Close()
+		outreq.Body = ioutil.NopCloser(buf)
+
+		transport.log.HTTPDebug('>', session,
+			"body is small (%d bytes), prefetched before sending",
+			buf.Len())
+
+	default:
+		// Force chunked encoding, so if client drops request,
+		// we still be able to correctly handle HTTP transaction
+		transport.log.HTTPDebug('>', session,
+			"body is large (%d bytes), sending as chunked",
+			outreq.ContentLength)
+
+		outreq.ContentLength = -1
+	}
+
+	// Log request details
 	transport.log.Begin().
-		HTTPRqParams(LogDebug, '>', session, outreq).
 		HTTPRequest(LogTraceHTTP, '>', session, outreq).
 		Commit()
+
+	// Allocate USB connection
+	transport.rqPendingInc()
+	defer transport.rqPendingDec()
+
+	conn, err := transport.usbConnGet(rq.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	transport.log.HTTPDebug(' ', session, "connection %d allocated", conn.index)
 
 	// Send request and receive a response
 	err = outreq.Write(conn)
@@ -270,6 +305,7 @@ type usbRequestBodyWrapper struct {
 	session int           // HTTP session, for logging
 	count   int           // Total count of received bytes
 	body    io.ReadCloser // Request.body
+	drained bool          // EOF or error has been seen
 }
 
 // Read from usbRequestBodyWrapper
@@ -281,12 +317,19 @@ func (wrap *usbRequestBodyWrapper) Read(buf []byte) (int, error) {
 		wrap.log.HTTPDebug('>', wrap.session,
 			"request body: got %d bytes; %s", wrap.count, err)
 		err = io.EOF
+		wrap.drained = true
 	}
+
 	return n, err
 }
 
 // Close usbRequestBodyWrapper
 func (wrap *usbRequestBodyWrapper) Close() error {
+	if !wrap.drained {
+		wrap.log.HTTPDebug('>', wrap.session,
+			"request body: got %d bytes; closed", wrap.count)
+	}
+
 	return wrap.body.Close()
 }
 

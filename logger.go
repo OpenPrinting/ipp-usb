@@ -502,6 +502,8 @@ func (msg *LogMessage) HTTPRequest(level LogLevel, prefix byte,
 	rq.Body = struct{ io.ReadCloser }{http.NoBody}
 
 	// Write it to the log
+	msg.Add(level, prefix, "HTTP[%3.3d]: HTTP request header:", session)
+
 	buf := &bytes.Buffer{}
 	rq.Write(buf)
 
@@ -538,6 +540,7 @@ func (msg *LogMessage) HTTPResponse(level LogLevel, prefix byte,
 	}
 
 	// Write it to the log
+	msg.Add(level, prefix, "HTTP[%3.3d]: HTTP response header:", session)
 	msg.Add(level, prefix, "  %s %s", rsp.Proto, rsp.Status)
 
 	keys := make([]string, 0, len(hdr))

@@ -499,7 +499,7 @@ func (msg *LogMessage) HTTPRequest(level LogLevel, prefix byte,
 
 	// Clone request, drop body
 	rq = rq.WithContext(context.Background())
-	rq.Body = nil
+	rq.Body = struct{ io.ReadCloser }{http.NoBody}
 
 	// Write it to the log
 	lw := msg.LineWriter(level, prefix)

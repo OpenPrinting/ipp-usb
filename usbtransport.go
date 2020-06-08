@@ -64,6 +64,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 
 	// Write device info to the log
 	transport.log.Begin().
+		Nl(LogDebug).
 		Debug(' ', "===============================").
 		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
@@ -267,14 +268,18 @@ func (transport *UsbTransport) rqPendingDec() {
 type usbRequestBodyWrapper struct {
 	log     *Logger       // Device's logger
 	session int           // HTTP session, for logging
+	count   int           // Total count of received bytes
 	body    io.ReadCloser // Request.body
 }
 
 // Read from usbRequestBodyWrapper
 func (wrap *usbRequestBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
+	wrap.count += n
+
 	if err != nil {
-		wrap.log.HTTPDebug('>', wrap.session, "request body read: %s", err)
+		wrap.log.HTTPDebug('>', wrap.session,
+			"request body: got %d bytes; %s", wrap.count, err)
 		err = io.EOF
 	}
 	return n, err
@@ -292,14 +297,18 @@ type usbResponseBodyWrapper struct {
 	session int           // HTTP session, for logging
 	body    io.ReadCloser // Response.body
 	conn    *usbConn      // Underlying USB connection
+	count   int           // Total count of received bytes
 	drained bool          // EOF or error has been seen
 }
 
 // Read from usbResponseBodyWrapper
 func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 	n, err := wrap.body.Read(buf)
+	wrap.count += n
+
 	if err != nil {
-		wrap.log.HTTPDebug('<', wrap.session, "response body read: %s", err)
+		wrap.log.HTTPDebug('<', wrap.session,
+			"response body: got %d bytes; %s", wrap.count, err)
 		wrap.drained = true
 	}
 	return n, err
@@ -338,6 +347,8 @@ type usbConn struct {
 	index     int           // Connection index (for logging)
 	iface     *UsbInterface // Underlying interface
 	reader    *bufio.Reader // For http.ReadResponse
+	cntRecv   int           // Total bytes received
+	cntSent   int           // Total bytes sent
 }
 
 // Open usbConn
@@ -397,6 +408,12 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 	backoff := time.Millisecond * 100
 	for {
 		n, err := conn.iface.Recv(b, 0)
+		conn.cntRecv += n
+
+		conn.transport.log.Add(LogTraceHTTP, '<',
+			"USB[%d]: read: wanted %d got %d total %d",
+			conn.index, len(b), n, conn.cntRecv)
+
 		if err != nil {
 			conn.transport.log.Error('!',
 				"USB[%d]: recv: %s", conn.index, err)
@@ -422,6 +439,12 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 	defer conn.transport.connstate.doneWrite(conn)
 
 	n, err = conn.iface.Send(b, 0)
+	conn.cntSent += n
+
+	conn.transport.log.Add(LogTraceHTTP, '>',
+		"USB[%d]: write: wanted %d sent %d total %d",
+		conn.index, len(b), n, conn.cntSent)
+
 	if err != nil {
 		conn.transport.log.Error('!',
 			"USB[%d]: send: %s", conn.index, err)
@@ -450,6 +473,8 @@ func (conn *usbConn) put() error {
 	transport := conn.transport
 
 	conn.reader.Reset(conn)
+	conn.cntRecv = 0
+	conn.cntSent = 0
 
 	transport.connstate.putConn(conn)
 	transport.log.Debug(' ', "USB[%d]: connection released, %s",

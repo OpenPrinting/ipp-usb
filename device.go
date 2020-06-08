@@ -56,7 +56,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	// Load persistent state
 	dev.State = LoadDevState(info.Ident())
 
-	// Update comment
+	// Update comment in the state file
 	dev.State.SetComment(info.Comment())
 
 	// Create HTTP client for local queries
@@ -73,7 +73,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	// Create HTTP server
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)
 
-	// Obtain DNS-SD info for IPP, this is required, we are
+	// Obtain DNS-SD info for IPP, this is required, we are the
 	// IPP-USB gate, after all :-)
 	log = dev.Log.Begin()
 	defer log.Commit()
@@ -111,7 +111,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		ippSvc.Txt.Add("Scan", "F")
 	}
 
-	// Advertise Web service. Assume it always exist
+	// Advertise Web service. Assume it always exists
 	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
 
 	// Start DNS-SD publisher

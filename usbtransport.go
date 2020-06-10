@@ -264,17 +264,23 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	err = outreq.Write(conn)
 	if err != nil {
 		transport.log.HTTPError('!', session, "%s", err)
+		conn.put()
 		return nil, err
 	}
 
 	resp, err := http.ReadResponse(conn.reader, outreq)
-	if resp != nil {
-		resp.Body = &usbResponseBodyWrapper{
-			log:     transport.log,
-			session: session,
-			body:    resp.Body,
-			conn:    conn,
-		}
+	if err != nil {
+		transport.log.HTTPError('!', session, "%s", err)
+		conn.put()
+		return nil, err
+	}
+
+	// Wrap response body
+	resp.Body = &usbResponseBodyWrapper{
+		log:     transport.log,
+		session: session,
+		body:    resp.Body,
+		conn:    conn,
 	}
 
 	// Log the response
@@ -283,11 +289,9 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 			HTTPRspStatus(LogDebug, '<', session, outreq, resp).
 			HTTPResponse(LogTraceHTTP, '<', session, resp).
 			Commit()
-	} else {
-		transport.log.HTTPError('!', session, "%s", err)
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding
@@ -504,7 +508,7 @@ func (transport *UsbTransport) usbConnGet(ctx context.Context) (*usbConn, error)
 }
 
 // Release the connection
-func (conn *usbConn) put() error {
+func (conn *usbConn) put() {
 	transport := conn.transport
 
 	conn.reader.Reset(conn)
@@ -521,8 +525,6 @@ func (conn *usbConn) put() error {
 	case transport.connReleased <- struct{}{}:
 	default:
 	}
-
-	return nil
 }
 
 // Destroy USB connection

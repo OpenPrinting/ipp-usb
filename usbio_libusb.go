@@ -596,3 +596,24 @@ func (iface *UsbInterface) Recv(data []byte,
 
 	return
 }
+
+// Clear "halted" condition of either input or output  endpoint
+func (iface *UsbInterface) ClearHalt(in bool) error {
+	var ep C.uint8_t
+
+	if in {
+		ep = C.uint8_t(iface.addr.In | C.LIBUSB_ENDPOINT_IN)
+	} else {
+		ep = C.uint8_t(iface.addr.Out | C.LIBUSB_ENDPOINT_OUT)
+	}
+
+	rc := C.libusb_clear_halt(
+		(*C.libusb_device_handle)(iface.devhandle),
+		ep)
+
+	if rc < 0 {
+		return UsbError{"libusb_clear_halt", UsbErrCode(rc)}
+	}
+
+	return nil
+}

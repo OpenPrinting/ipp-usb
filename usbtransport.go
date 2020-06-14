@@ -426,7 +426,7 @@ ERROR:
 }
 
 // Read from USB
-func (conn *usbConn) Read(b []byte) (n int, err error) {
+func (conn *usbConn) Read(b []byte) (int, error) {
 	conn.transport.connstate.beginRead(conn)
 	defer conn.transport.connstate.doneRead(conn)
 
@@ -464,6 +464,12 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 		conn.transport.log.Error('!',
 			"USB[%d]: zero-size read", conn.index)
 
+		err = conn.iface.ClearHalt(true)
+		if err != nil {
+			conn.transport.log.Error('!',
+				"USB[%d]: %s", conn.index, err)
+		}
+
 		time.Sleep(backoff)
 		backoff *= 2
 		if backoff > time.Millisecond*1000 {
@@ -473,11 +479,11 @@ func (conn *usbConn) Read(b []byte) (n int, err error) {
 }
 
 // Write to USB
-func (conn *usbConn) Write(b []byte) (n int, err error) {
+func (conn *usbConn) Write(b []byte) (int, error) {
 	conn.transport.connstate.beginWrite(conn)
 	defer conn.transport.connstate.doneWrite(conn)
 
-	n, err = conn.iface.Send(b, 0)
+	n, err := conn.iface.Send(b, 0)
 	conn.cntSent += n
 
 	conn.transport.log.Add(LogTraceHTTP, '>',
@@ -488,7 +494,8 @@ func (conn *usbConn) Write(b []byte) (n int, err error) {
 		conn.transport.log.Error('!',
 			"USB[%d]: send: %s", conn.index, err)
 	}
-	return
+
+	return n, err
 }
 
 // Allocate a connection

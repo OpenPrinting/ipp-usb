@@ -471,7 +471,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		}
 
 		time.Sleep(backoff)
-		backoff *= 2
+		// backoff *= 2
 		if backoff > time.Millisecond*1000 {
 			backoff = time.Millisecond * 1000
 		}

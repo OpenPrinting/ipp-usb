@@ -16,6 +16,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"sort"
 	"sync/atomic"
 	"time"
 )
@@ -75,6 +77,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Nl(LogDebug).
 		Commit()
 
+	transport.dumpUSBparams()
+
 	transport.log.Debug(' ', "USB interfaces:")
 	transport.log.Debug(' ', "  Config Interface Alt Class Proto")
 	for _, ifdesc := range desc.IfDescs {
@@ -105,6 +109,54 @@ ERROR:
 
 	dev.Close()
 	return nil, err
+}
+
+// Dump USB stack parameters to the UsbTransport's log
+func (transport *UsbTransport) dumpUSBparams() {
+	const usbParamsDir = "/sys/module/usbcore/parameters"
+
+	// Obtain list of parameter names (file names)
+	dir, err := os.Open(usbParamsDir)
+	if err != nil {
+		return
+	}
+
+	files, err := dir.Readdirnames(-1)
+	dir.Close()
+	if err != nil {
+		return
+	}
+
+	sort.Strings(files)
+	if len(files) == 0 {
+		return
+	}
+
+	// Compute max width of parameter names
+	wid := 0
+	for _, file := range files {
+		if wid < len(file) {
+			wid = len(file)
+		}
+	}
+
+	wid++
+
+	// Write the table
+	transport.log.Debug(' ', "USB stack parameters")
+
+	for _, file := range files {
+		p, _ := ioutil.ReadFile(usbParamsDir + "/" + file)
+		if p == nil {
+			p = []byte("-")
+		} else {
+			p = bytes.TrimSpace(p)
+		}
+
+		transport.log.Debug(' ', "  %*s  %s", -wid, file+":", p)
+	}
+
+	transport.log.Nl(LogDebug)
 }
 
 // Get count of connections still in use

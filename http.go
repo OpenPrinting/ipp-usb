@@ -95,7 +95,6 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Adjust request headers
 	httpRemoveHopByHopHeaders(r.Header)
-	//r.Header.Add("Connection", "close")
 
 	if r.Host == "" {
 		// It's a pure black magic how to obtain Host if

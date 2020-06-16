@@ -75,6 +75,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:      %s", transport.info.ProductName).
 		Nl(LogDebug).
+		Debug(' ', "Device quirks:").
+		Debug(' ', "  Keep-Alive:   %v", transport.shouldKeepAlive()).
+		Nl(LogDebug).
 		Commit()
 
 	transport.dumpUSBparams()
@@ -246,15 +249,16 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// Remove Expect: 100-continue, if any
 	outreq.Header.Del("Expect")
 
-	// Disable HTTP/1.1 connection keep-alive
-	//
-	// Note, without these lines, some printers (namely, HP OfficeJet Pro 8730)
-	// sometimes stuck in generating HTTP response, so effectively blocking
-	// an USB interface. It's a pure black magic.
-	outreq.Header.Set("Connection", "close")
-	outreq.Close = true
+	// Configure HTTP/1.1 connection keep-alive
+	if transport.shouldKeepAlive() {
+		outreq.Header.Set("Connection", "keep-alive")
+		outreq.Close = false
+	} else {
+		outreq.Header.Set("Connection", "close")
+		outreq.Close = true
+	}
 
-	// Add User-Agent, if missed
+	// Add User-Agent, if missed. It is just cosmetic
 	if _, found := outreq.Header["User-Agent"]; !found {
 		outreq.Header["User-Agent"] = []string{"ipp-usb"}
 	}
@@ -344,6 +348,28 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	}
 
 	return resp, nil
+}
+
+// shouldKeepAlive returns true, if HTTP connection keep-alive
+// should be enabled in outgoing requests, false otherwise
+//
+// Although setting connection keep-alive for HTTP requests
+// going to USB sounds meaningless, without it some printers
+// sometimes stuck in generating HTTP response, so effectively
+// blocking the USB interface. And the "good" keep-alive mode
+// is different for different devices!
+//
+// It's a pure black magic, but we have to live with it
+func (transport *UsbTransport) shouldKeepAlive() bool {
+	switch transport.info.ProductName {
+	case "HP OfficeJet Pro 8730":
+		return false
+
+	case "HP LaserJet MFP M28-M31":
+		return true
+	}
+
+	return false // Seems to work in most cases
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding
@@ -523,7 +549,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		}
 
 		time.Sleep(backoff)
-		// backoff *= 2
+		backoff *= 2
 		if backoff > time.Millisecond*1000 {
 			backoff = time.Millisecond * 1000
 		}

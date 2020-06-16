@@ -530,8 +530,12 @@ func (msg *LogMessage) HTTPResponse(level LogLevel, prefix byte,
 		return msg
 	}
 
-	// Clone response header
-	hdr := rsp.Header.Clone()
+	// Clone response header. Avoid rsp.Header.Clone(),
+	// because Go 11 doesn't support it yet
+	hdr := make(http.Header, len(rsp.Header))
+	for k, v := range rsp.Header {
+		hdr[k] = v
+	}
 
 	// Go stdlib strips Transfer-Encoding header, so reconstruct it
 	if rsp.TransferEncoding != nil {

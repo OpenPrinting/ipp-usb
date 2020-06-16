@@ -29,12 +29,9 @@ import (
 )
 
 const (
-	// LogMaxFileSize specifies a maximum log file size
-	LogMaxFileSize = 256 * 1024
-
-	// LogMaxBackupFiles specifies how many backup files
-	// are preserved during log rotation
-	LogMaxBackupFiles = 5
+	// LogMinFileSize specifies a minimum value for the
+	// max-file-size parameter
+	LogMinFileSize = 16 * 1024
 )
 
 // Standard loggers
@@ -266,33 +263,32 @@ func (l *Logger) rotate() {
 	}
 
 	stat, err := file.Stat()
-	if err != nil || stat.Size() <= LogMaxFileSize {
+	if err != nil || stat.Size() <= Conf.LogMaxFileSize {
 		return
 	}
 
 	// Perform rotation
-	prevpath := ""
-	for i := LogMaxBackupFiles; i >= 0; i-- {
-		nextpath := l.path
-		if i > 0 {
-			nextpath += fmt.Sprintf(".%d.gz", i-1)
-		}
+	if Conf.LogMaxBackupFiles > 0 {
+		prevpath := ""
+		for i := Conf.LogMaxBackupFiles; i > 0; i-- {
+			nextpath := fmt.Sprintf("%s.%d.gz", l.path, i-1)
 
-		switch i {
-		case LogMaxBackupFiles:
-			os.Remove(nextpath)
-		case 0:
-			err := l.gzip(nextpath, prevpath)
-			if err == nil {
-				file.Truncate(0)
+			if i == Conf.LogMaxBackupFiles {
+				os.Remove(nextpath)
+			} else {
+				os.Rename(nextpath, prevpath)
 			}
-		default:
-			os.Rename(nextpath, prevpath)
+
+			prevpath = nextpath
 		}
 
-		prevpath = nextpath
+		err := l.gzip(l.path, prevpath)
+		if err != nil {
+			return
+		}
 	}
 
+	file.Truncate(0)
 }
 
 // gzip the log file

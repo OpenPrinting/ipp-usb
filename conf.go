@@ -11,8 +11,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/ini.v1"
 )
@@ -24,28 +26,32 @@ const (
 
 // Configuration represents a program configuration
 type Configuration struct {
-	HTTPMinPort  int      // Starting port number for HTTP to bind to
-	HTTPMaxPort  int      // Ending port number for HTTP to bind to
-	DNSSdEnable  bool     // Enable DNS-SD advertising
-	LoopbackOnly bool     // Use only loopback interface
-	IPV6Enable   bool     // Enable IPv6 advertising
-	LogDevice    LogLevel // Per-device LogLevel mask
-	LogMain      LogLevel // Main log LogLevel mask
-	LogConsole   LogLevel // Console  LogLevel mask
-	ColorConsole bool     // Enable ANSI colors on console
+	HTTPMinPort       int      // Starting port number for HTTP to bind to
+	HTTPMaxPort       int      // Ending port number for HTTP to bind to
+	DNSSdEnable       bool     // Enable DNS-SD advertising
+	LoopbackOnly      bool     // Use only loopback interface
+	IPV6Enable        bool     // Enable IPv6 advertising
+	LogDevice         LogLevel // Per-device LogLevel mask
+	LogMain           LogLevel // Main log LogLevel mask
+	LogConsole        LogLevel // Console  LogLevel mask
+	LogMaxFileSize    int64    // Maximum log file size
+	LogMaxBackupFiles uint     // Count of files preserved during rotation
+	ColorConsole      bool     // Enable ANSI colors on console
 }
 
 // Conf contains a global instance of program configuration
 var Conf = Configuration{
-	HTTPMinPort:  60000,
-	HTTPMaxPort:  65535,
-	DNSSdEnable:  true,
-	LoopbackOnly: true,
-	IPV6Enable:   true,
-	LogDevice:    LogDebug,
-	LogMain:      LogDebug,
-	LogConsole:   LogDebug,
-	ColorConsole: true,
+	HTTPMinPort:       60000,
+	HTTPMaxPort:       65535,
+	DNSSdEnable:       true,
+	LoopbackOnly:      true,
+	IPV6Enable:        true,
+	LogDevice:         LogDebug,
+	LogMain:           LogDebug,
+	LogConsole:        LogDebug,
+	LogMaxFileSize:    256 * 1024,
+	LogMaxBackupFiles: 5,
+	ColorConsole:      true,
 }
 
 // ConfLoad loads the program configuration
@@ -130,13 +136,30 @@ func confLoadInternal() error {
 			return err
 		}
 
-		err = confLoadLogLevelKey(&Conf.LogConsole, section, "console-log")
+		err = confLoadLogLevelKey(&Conf.LogConsole, section,
+			"console-log")
 		if err != nil {
 			return err
 		}
 
 		err = confLoadBinaryKey(&Conf.ColorConsole, section,
 			"console-color", "disable", "enable")
+		if err != nil {
+			return err
+		}
+
+		err = confLoadSizeKey(&Conf.LogMaxFileSize, section,
+			"max-file-size")
+		if err != nil {
+			return err
+		}
+
+		if Conf.LogMaxFileSize < LogMinFileSize {
+			Conf.LogMaxFileSize = LogMinFileSize
+		}
+
+		err = confLoadUintKey(&Conf.LogMaxBackupFiles, section,
+			"max-backup-files")
 		if err != nil {
 			return err
 		}
@@ -216,6 +239,57 @@ func confLoadLogLevelKey(out *LogLevel, section *ini.Section, name string) error
 			}
 		}
 		*out = mask
+	}
+
+	return nil
+}
+
+// Load size key
+func confLoadSizeKey(out *int64, section *ini.Section, name string) error {
+	key, _ := section.GetKey(name)
+	if key != nil {
+		val := key.String()
+		units := uint64(1)
+
+		if l := len(val); l > 0 {
+			switch val[l-1] {
+			case 'k', 'K':
+				units = 1024
+			case 'm', 'M':
+				units = 1024 * 1024
+			}
+
+			if units != 1 {
+				val = val[:l-1]
+			}
+		}
+
+		sz, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return confBadValue(key, "%q: invalid size", val)
+		}
+
+		if sz > uint64(math.MaxInt64/units) {
+			return confBadValue(key, "size too large")
+		}
+
+		*out = int64(sz * units)
+	}
+
+	return nil
+}
+
+// Load unsigned integer key
+func confLoadUintKey(out *uint, section *ini.Section, name string) error {
+	key, _ := section.GetKey(name)
+	if key != nil {
+		val := key.String()
+		num, err := strconv.ParseUint(val, 10, 0)
+		if err != nil {
+			return confBadValue(key, "%q: invalid number", val)
+		}
+
+		*out = uint(num)
 	}
 
 	return nil

@@ -117,6 +117,14 @@ Logging parameters are all in the \fB[logging]\fR section:
   main\-log      = debug
   console\-log   = debug
 
+  # Log rotation parameters:
+  #   log\-file\-size    \- max log file before rotation\. Use suffix M
+  #                      for megabytes or K for kilobytes
+  #   log\-backup\-files \- how many backup files to preserve during rotation
+  #
+  max\-file\-size    = 256K
+  max\-backup\-files = 5
+
   # Enable or disable ANSI colors on console
   console\-color = enable # enable | disable
 .

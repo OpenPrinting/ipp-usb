@@ -169,20 +169,30 @@ func (publisher *DNSSdPublisher) Unpublish() {
 
 // Build service instance name with optional collision-resolution suffix
 func (publisher *DNSSdPublisher) instance(suffix int) string {
+	name := publisher.DevState.DNSSdName
+	strSuffix := ""
+
 	switch {
 	// This happens when we try to resolve name conflict
 	case suffix != 0:
-		return publisher.DevState.DNSSdName + fmt.Sprintf(" (USB %d)", suffix)
+		strSuffix = fmt.Sprintf(" (USB %d)", suffix)
 
 	// This happens when we've just initialized or reset DNSSdOverride,
 	// so append "(USB)" suffix
 	case publisher.DevState.DNSSdName == publisher.DevState.DNSSdOverride:
-		return publisher.DevState.DNSSdName + " (USB)"
+		strSuffix = " (USB)"
 
 	// Otherwise, DNSSdOverride contains saved conflict-resolved device name
 	default:
-		return publisher.DevState.DNSSdOverride
+		name = publisher.DevState.DNSSdOverride
 	}
+
+	const MAX_DNSSD_NAME = 63
+	if len(name)+len(strSuffix) > MAX_DNSSD_NAME {
+		name = name[:MAX_DNSSD_NAME-len(strSuffix)]
+	}
+
+	return name + strSuffix
 }
 
 // Event handling goroutine

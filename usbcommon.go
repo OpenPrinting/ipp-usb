@@ -9,6 +9,7 @@
 package main
 
 import (
+	"crypto/sha1"
 	"fmt"
 	"sort"
 	"strings"
@@ -181,6 +182,47 @@ func (info UsbDeviceInfo) Ident() string {
 		return c
 	}, id)
 	return id
+}
+
+// DNSSdName generates device DNS-SD name in a case it is not available
+// from IPP or eSCL
+func (info UsbDeviceInfo) DNSSdName() string {
+	mfg := strings.TrimSpace(info.Manufacturer)
+	prod := strings.TrimSpace(info.ProductName)
+
+	if strings.HasPrefix(prod, mfg) {
+		return prod
+	}
+
+	return mfg + " " + prod
+}
+
+// UUID generates device UUID in a case it is not available
+// from IPP or eSCL
+func (info UsbDeviceInfo) UUID() string {
+	hash := sha1.New()
+
+	// Arbitrary namespace UUID
+	const namespace = "fe678de6-f422-467e-9f83-2354e26c3b41"
+
+	hash.Write([]byte(namespace))
+	hash.Write([]byte(info.Ident()))
+	uuid := hash.Sum(nil)
+
+	// UUID.Version = 5: Name-based with SHA1; see RFC4122, 4.1.3.
+	uuid[6] &= 0x0f
+	uuid[6] |= 0x5f
+
+	// UUID.Variant = 0b10: see RFC4122, 4.1.1.
+	uuid[8] &= 0x3F
+	uuid[8] |= 0x80
+
+	return fmt.Sprintf(
+		"%.2x%.2x%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x%.2x%.2x%.2x%.2x",
+		uuid[0], uuid[1], uuid[2], uuid[3],
+		uuid[4], uuid[5], uuid[6], uuid[7],
+		uuid[8], uuid[9], uuid[10], uuid[11],
+		uuid[12], uuid[13], uuid[14], uuid[15])
 }
 
 // Comment returns a short comment, describing a device

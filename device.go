@@ -39,7 +39,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var err error
 	var info UsbDeviceInfo
 	var listener net.Listener
-	var ippinfo IppPrinterInfo
+	var ippinfo *IppPrinterInfo
+	var dnssdName string
 	var dnssdServices DNSSdServices
 	var log *LogMessage
 
@@ -73,42 +74,50 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	// Create HTTP server
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)
 
-	// Obtain DNS-SD info for IPP, this is required, we are the
-	// IPP-USB gate, after all :-)
+	// Obtain DNS-SD info for IPP
 	log = dev.Log.Begin()
 	defer log.Commit()
 
 	ippinfo, err = IppService(log, &dnssdServices,
 		dev.State.HTTPPort, info, dev.HTTPClient)
 
+	if err != nil {
+		dev.Log.Error('!', "IPP: %s", err)
+	}
+
 	log.Flush()
 
-	if err != nil {
-		goto ERROR
+	// Obtain DNS-SD name
+	if ippinfo != nil {
+		dnssdName = ippinfo.DNSSdName
+	} else {
+		dnssdName = info.DNSSdName()
 	}
 
 	// Update device state, if name changed
-	if ippinfo.DNSSdName != dev.State.DNSSdName {
-		dev.State.DNSSdName = ippinfo.DNSSdName
-		dev.State.DNSSdOverride = ippinfo.DNSSdName
+	if dnssdName != dev.State.DNSSdName {
+		dev.State.DNSSdName = dnssdName
+		dev.State.DNSSdOverride = dnssdName
 		dev.State.Save()
 	}
 
-	// Obtain DNS-SD info for eSCL, this is optional
-	err = EsclService(log, &dnssdServices, dev.State.HTTPPort, info, ippinfo,
-		dev.HTTPClient)
+	// Obtain DNS-SD info for eSCL
+	err = EsclService(log, &dnssdServices, dev.State.HTTPPort, info,
+		ippinfo, dev.HTTPClient)
+
+	if err != nil {
+		dev.Log.Error('!', "ESCL: %s", err)
+	}
 
 	log.Flush()
 
-	if err != nil {
-		dev.Log.Error('!', "%s", err)
-	}
-
 	// Update IPP service advertising for scanner presence
-	if ippSvc := &dnssdServices[ippinfo.IppSvcIndex]; err == nil {
-		ippSvc.Txt.Add("Scan", "T")
-	} else {
-		ippSvc.Txt.Add("Scan", "F")
+	if ippinfo != nil {
+		if ippSvc := &dnssdServices[ippinfo.IppSvcIndex]; err == nil {
+			ippSvc.Txt.Add("Scan", "T")
+		} else {
+			ippSvc.Txt.Add("Scan", "F")
+		}
 	}
 
 	// Advertise Web service. Assume it always exists
@@ -116,7 +125,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	// Start DNS-SD publisher
 	for _, svc := range dnssdServices {
-		dev.Log.Debug('>', "%s: %s TXT record:", ippinfo.DNSSdName, svc.Type)
+		dev.Log.Debug('>', "%s: %s TXT record:", dnssdName, svc.Type)
 		for _, txt := range svc.Txt {
 			dev.Log.Debug(' ', "  %s=%s", txt.Key, txt.Value)
 		}

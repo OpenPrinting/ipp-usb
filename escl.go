@@ -26,12 +26,12 @@ import (
 //
 // Discovered services will be added to the services collection
 func EsclService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo, ippinfo IppPrinterInfo,
+	port int, usbinfo UsbDeviceInfo, ippinfo *IppPrinterInfo,
 	c *http.Client) (err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
 
-	decoder := newEsclCapsDecoder(ippinfo)
+	decoder := newEsclCapsDecoder(usbinfo, ippinfo)
 	svc := DNSSdSvcInfo{
 		Type: "_uscan._tcp",
 		Port: port,
@@ -148,15 +148,24 @@ type esclCapsDecoder struct {
 }
 
 // newesclCapsDecoder creates new esclCapsDecoder
-func newEsclCapsDecoder(ippinfo IppPrinterInfo) *esclCapsDecoder {
-	return &esclCapsDecoder{
-		uuid:           ippinfo.UUID,
-		adminurl:       ippinfo.AdminURL,
-		representation: ippinfo.IconURL,
+func newEsclCapsDecoder(usbinfo UsbDeviceInfo,
+	ippinfo *IppPrinterInfo) *esclCapsDecoder {
+
+	decoder := &esclCapsDecoder{
 
 		pdl: make(map[string]struct{}),
 		cs:  make(map[string]struct{}),
 	}
+
+	if ippinfo != nil {
+		decoder.uuid = ippinfo.UUID
+		decoder.adminurl = ippinfo.AdminURL
+		decoder.representation = ippinfo.IconURL
+	} else {
+		decoder.uuid = usbinfo.UUID()
+	}
+
+	return decoder
 }
 
 // Decode scanner capabilities

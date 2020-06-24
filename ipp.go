@@ -35,7 +35,8 @@ type IppPrinterInfo struct {
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo, c *http.Client) (ippinfo IppPrinterInfo, err error) {
+	port int, usbinfo UsbDeviceInfo,
+	c *http.Client) (ippinfo *IppPrinterInfo, err error) {
 
 	// Query printer attributes
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
@@ -198,18 +199,20 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     txtvers:          hardcoded as "1"
 //     adminurl:         "printer-more-info"
 //
-func (attrs ippAttrs) Decode() (ippinfo IppPrinterInfo, svc DNSSdSvcInfo) {
+func (attrs ippAttrs) Decode() (ippinfo *IppPrinterInfo, svc DNSSdSvcInfo) {
 	svc = DNSSdSvcInfo{
 		Type:     "_ipp._tcp",
 		SubTypes: []string{"_universal._sub._ipp._tcp"},
 	}
 
 	// Obtain IppPrinterInfo
-	ippinfo.DNSSdName = attrs.strSingle("printer-dns-sd-name",
-		"printer-info", "printer-make-and-model")
-	ippinfo.UUID = attrs.getUUID()
-	ippinfo.AdminURL = attrs.strSingle("printer-more-info")
-	ippinfo.IconURL = attrs.strSingle("printer-icons")
+	ippinfo = &IppPrinterInfo{
+		DNSSdName: attrs.strSingle("printer-dns-sd-name",
+			"printer-info", "printer-make-and-model"),
+		UUID:     attrs.getUUID(),
+		AdminURL: attrs.strSingle("printer-more-info"),
+		IconURL:  attrs.strSingle("printer-icons"),
+	}
 
 	// Obtain and parse IEEE 1284 device ID
 	devid := make(map[string]string)

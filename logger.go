@@ -635,7 +635,7 @@ func (msg *LogMessage) Commit() {
 // This is equal to committing the message and starting
 // the new message, with the exception that old message
 // pointer remains valid. Message logical atomicity is not
-// preserved between flushed
+// preserved between flushes
 func (msg *LogMessage) Flush() {
 	// Lock the logger
 	msg.logger.lock.Lock()

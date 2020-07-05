@@ -391,7 +391,7 @@ func (transport *UsbTransport) makeQuirks() {
 		transport.quirks = [][2]string{{"Connection", "keep-alive"}}
 	}
 
-	transport.quirks = [][2]string{{"Connection", "close"}}
+	transport.quirks = [][2]string{{"Connection", ""}}
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding

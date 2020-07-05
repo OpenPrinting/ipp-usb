@@ -148,11 +148,19 @@ type UsbDeviceDesc struct {
 
 // UsbIfDesc represents an USB interface descriptor
 type UsbIfDesc struct {
-	Config int // Configuration
-	IfNum  int // Interface number
-	Alt    int // Alternate setting
-	Class  int // Class
-	Proto  int // Protocol
+	Config   int // Configuration
+	IfNum    int // Interface number
+	Alt      int // Alternate setting
+	Class    int // Class
+	SubClass int // Subclass
+	Proto    int // Protocol
+}
+
+// UsbIfDesc check if interface is IPP over USB
+func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
+	return ifdesc.Class == 7 &&
+		ifdesc.SubClass == 1 &&
+		ifdesc.Proto == 4
 }
 
 // UsbDeviceInfo represents USB device information

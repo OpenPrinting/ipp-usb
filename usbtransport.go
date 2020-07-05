@@ -83,11 +83,17 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.dumpUSBparams()
 
 	transport.log.Debug(' ', "USB interfaces:")
-	transport.log.Debug(' ', "  Config Interface Alt Class Proto")
+	transport.log.Debug(' ', "  Config Interface Alt Class SubClass Proto")
 	for _, ifdesc := range desc.IfDescs {
-		transport.log.Debug(' ', "     %-3d     %-3d    %-3d %-3d   %-3d",
+		prefix := byte(' ')
+		if ifdesc.IsIppOverUsb() {
+			prefix = '*'
+		}
+
+		transport.log.Debug(prefix,
+			"     %-3d     %-3d    %-3d %-3d    %-3d     %-3d",
 			ifdesc.Config, ifdesc.IfNum,
-			ifdesc.Alt, ifdesc.Class, ifdesc.Proto)
+			ifdesc.Alt, ifdesc.Class, ifdesc.SubClass, ifdesc.Proto)
 	}
 	transport.log.Nl(LogDebug)
 

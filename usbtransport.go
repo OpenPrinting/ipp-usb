@@ -33,6 +33,7 @@ type UsbTransport struct {
 	connReleased chan struct{} // Signalled when connection released
 	shutdown     chan struct{} // Closed by Shutdown()
 	connstate    *usbConnState // Connections state tracker
+	quirks       [][2]string   // HTTP header quirks
 }
 
 // NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
@@ -65,8 +66,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.ToDevFile(transport.info)
 	transport.log.SetLevels(Conf.LogDevice)
 
+	// Setup quirks
+	transport.makeQuirks()
+
 	// Write device info to the log
-	transport.log.Begin().
+	log := transport.log.Begin().
 		Nl(LogDebug).
 		Debug(' ', "===============================").
 		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
@@ -74,28 +78,32 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Ident:        %s", transport.info.Ident()).
 		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:      %s", transport.info.ProductName).
-		Nl(LogDebug).
-		Debug(' ', "Device quirks:").
-		Debug(' ', "  Keep-Alive:   %v", transport.shouldKeepAlive()).
-		Nl(LogDebug).
-		Commit()
+		Nl(LogDebug)
 
-	transport.dumpUSBparams()
+	log.Debug(' ', "Device quirks:")
+	for _, quirk := range transport.quirks {
+		log.Debug(' ', "  %s: %s", quirk[0], quirk[1])
+	}
+	log.Nl(LogDebug)
 
-	transport.log.Debug(' ', "USB interfaces:")
-	transport.log.Debug(' ', "  Config Interface Alt Class SubClass Proto")
+	transport.dumpUSBparams(log)
+	log.Nl(LogDebug)
+
+	log.Debug(' ', "USB interfaces:")
+	log.Debug(' ', "  Config Interface Alt Class SubClass Proto")
 	for _, ifdesc := range desc.IfDescs {
 		prefix := byte(' ')
 		if ifdesc.IsIppOverUsb() {
 			prefix = '*'
 		}
 
-		transport.log.Debug(prefix,
+		log.Debug(prefix,
 			"     %-3d     %-3d    %-3d %-3d    %-3d     %-3d",
 			ifdesc.Config, ifdesc.IfNum,
 			ifdesc.Alt, ifdesc.Class, ifdesc.SubClass, ifdesc.Proto)
 	}
-	transport.log.Nl(LogDebug)
+	log.Nl(LogDebug)
+	log.Commit()
 
 	// Open connections
 	for i, ifaddr := range desc.IfAddrs {
@@ -121,7 +129,7 @@ ERROR:
 }
 
 // Dump USB stack parameters to the UsbTransport's log
-func (transport *UsbTransport) dumpUSBparams() {
+func (transport *UsbTransport) dumpUSBparams(log *LogMessage) {
 	const usbParamsDir = "/sys/module/usbcore/parameters"
 
 	// Obtain list of parameter names (file names)
@@ -152,7 +160,7 @@ func (transport *UsbTransport) dumpUSBparams() {
 	wid++
 
 	// Write the table
-	transport.log.Debug(' ', "USB stack parameters")
+	log.Debug(' ', "USB stack parameters")
 
 	for _, file := range files {
 		p, _ := ioutil.ReadFile(usbParamsDir + "/" + file)
@@ -162,10 +170,8 @@ func (transport *UsbTransport) dumpUSBparams() {
 			p = bytes.TrimSpace(p)
 		}
 
-		transport.log.Debug(' ', "  %*s  %s", -wid, file+":", p)
+		log.Debug(' ', "  %*s  %s", -wid, file+":", p)
 	}
-
-	transport.log.Nl(LogDebug)
 }
 
 // Get count of connections still in use
@@ -255,14 +261,18 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// Remove Expect: 100-continue, if any
 	outreq.Header.Del("Expect")
 
-	// Configure HTTP/1.1 connection keep-alive
-	if transport.shouldKeepAlive() {
-		outreq.Header.Set("Connection", "keep-alive")
-		outreq.Close = false
-	} else {
-		outreq.Header.Set("Connection", "close")
-		outreq.Close = true
+	// Apply quirks
+	for _, quirk := range transport.quirks {
+		if quirk[1] != "" {
+			outreq.Header.Set(quirk[0], quirk[1])
+		} else {
+			outreq.Header.Del(quirk[0])
+		}
 	}
+
+	// Don't let Go's stdlib to add Connection: close header
+	// automatically
+	outreq.Close = false
 
 	// Add User-Agent, if missed. It is just cosmetic
 	if _, found := outreq.Header["User-Agent"]; !found {
@@ -356,8 +366,14 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	return resp, nil
 }
 
-// shouldKeepAlive returns true, if HTTP connection keep-alive
-// should be enabled in outgoing requests, false otherwise
+// makeQuirks computes device-specific quirks that applied
+// to outgoing HTTP request header
+//
+// Each quirk is a touple of two strings: header name
+// and header value. If header value is "", the corresponding
+// header field is deleted from request
+//
+// For now it affects connection keep-alive settings.
 //
 // Although setting connection keep-alive for HTTP requests
 // going to USB sounds meaningless, without it some printers
@@ -366,16 +382,16 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 // is different for different devices!
 //
 // It's a pure black magic, but we have to live with it
-func (transport *UsbTransport) shouldKeepAlive() bool {
+func (transport *UsbTransport) makeQuirks() {
 	switch transport.info.ProductName {
 	case "HP OfficeJet Pro 8730":
-		return false
+		transport.quirks = [][2]string{{"Connection", "close"}}
 
 	case "HP LaserJet MFP M28-M31":
-		return true
+		transport.quirks = [][2]string{{"Connection", "keep-alive"}}
 	}
 
-	return false // Seems to work in most cases
+	transport.quirks = [][2]string{{"Connection", "close"}}
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding

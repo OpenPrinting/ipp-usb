@@ -165,18 +165,33 @@ func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
 
 // UsbDeviceInfo represents USB device information
 type UsbDeviceInfo struct {
+	// Fields, directly decoded from USB
 	Vendor       uint16 // Vendor ID
 	Product      uint16 // Device ID
 	SerialNumber string // Device serial number
 	Manufacturer string // Manufacturer name
 	ProductName  string // Product name
+
+	// Precomputed fields
+	MfgAndProduct string // Product with Manufacturer prefix, if needed
+}
+
+// Fix up precomputed fields
+func (info *UsbDeviceInfo) FixUp() {
+	mfg := strings.TrimSpace(info.Manufacturer)
+	prod := strings.TrimSpace(info.ProductName)
+
+	info.MfgAndProduct = prod
+	if !strings.HasPrefix(prod, mfg) {
+		info.MfgAndProduct = mfg + " " + prod
+	}
 }
 
 // Ident returns device identification string, suitable as
 // persistent state identifier
 func (info UsbDeviceInfo) Ident() string {
 	id := fmt.Sprintf("%4.4x-%4.4x-%s-%s",
-		info.Vendor, info.Product, info.SerialNumber, info.ProductName)
+		info.Vendor, info.Product, info.SerialNumber, info.MfgAndProduct)
 
 	id = strings.Map(func(c rune) rune {
 		switch {
@@ -195,14 +210,7 @@ func (info UsbDeviceInfo) Ident() string {
 // DNSSdName generates device DNS-SD name in a case it is not available
 // from IPP or eSCL
 func (info UsbDeviceInfo) DNSSdName() string {
-	mfg := strings.TrimSpace(info.Manufacturer)
-	prod := strings.TrimSpace(info.ProductName)
-
-	if strings.HasPrefix(prod, mfg) {
-		return prod
-	}
-
-	return mfg + " " + prod
+	return info.MfgAndProduct
 }
 
 // UUID generates device UUID in a case it is not available
@@ -235,15 +243,5 @@ func (info UsbDeviceInfo) UUID() string {
 
 // Comment returns a short comment, describing a device
 func (info UsbDeviceInfo) Comment() string {
-	c := ""
-
-	if !strings.HasPrefix(info.ProductName, info.Manufacturer) {
-		c += info.Manufacturer + " " + info.ProductName
-	} else {
-		c = info.ProductName
-	}
-
-	c += " serial=" + info.SerialNumber
-
-	return c
+	return info.MfgAndProduct + " serial=" + info.SerialNumber
 }

@@ -482,6 +482,8 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 		}
 	}
 
+	info.FixUp()
+
 	return info, nil
 }
 

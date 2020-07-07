@@ -389,6 +389,9 @@ func (transport *UsbTransport) makeQuirks() {
 
 	case "HP LaserJet MFP M28-M31":
 		transport.quirks = [][2]string{{"Connection", "keep-alive"}}
+
+	case "Canon iR2625/2630 UFR":
+		transport.quirks = [][2]string{{"Connection", "close"}}
 	}
 
 	transport.quirks = [][2]string{{"Connection", ""}}

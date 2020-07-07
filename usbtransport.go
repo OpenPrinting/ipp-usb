@@ -75,9 +75,10 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "===============================").
 		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
-		Debug(' ', "  Ident:        %s", transport.info.Ident()).
-		Debug(' ', "  Manufacturer: %s", transport.info.Manufacturer).
-		Debug(' ', "  Product:      %s", transport.info.ProductName).
+		Debug(' ', "  Ident:         %s", transport.info.Ident()).
+		Debug(' ', "  Manufacturer:  %s", transport.info.Manufacturer).
+		Debug(' ', "  Product:       %s", transport.info.ProductName).
+		Debug(' ', "  MfgAndProduct: %s", transport.info.MfgAndProduct).
 		Nl(LogDebug)
 
 	log.Debug(' ', "Device quirks:")
@@ -383,7 +384,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 //
 // It's a pure black magic, but we have to live with it
 func (transport *UsbTransport) makeQuirks() {
-	switch transport.info.ProductName {
+	switch transport.info.MfgAndProduct {
 	case "HP OfficeJet Pro 8730":
 		transport.quirks = [][2]string{{"Connection", "close"}}
 

@@ -330,14 +330,6 @@ func UsbOpenDevice(desc UsbDeviceDesc) (*UsbDevHandle, error) {
 				return nil, err
 			}
 
-			// Get current configuration
-			var config C.int
-			rc = C.libusb_get_configuration(devhandle, &config)
-			if rc < 0 {
-				C.libusb_close(devhandle)
-				return nil, UsbError{"libusb_get_configuration", UsbErrCode(rc)}
-			}
-
 			// Set configuration
 			rc = C.libusb_set_configuration(devhandle, C.int(desc.Config))
 			if rc < 0 {

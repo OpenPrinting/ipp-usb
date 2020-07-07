@@ -330,6 +330,10 @@ func UsbOpenDevice(desc UsbDeviceDesc) (*UsbDevHandle, error) {
 				return nil, err
 			}
 
+			// Reset the device - it may be left in unclear state
+			// by its previous user
+			(*UsbDevHandle)(devhandle).Reset()
+
 			// Set configuration
 			rc = C.libusb_set_configuration(devhandle, C.int(desc.Config))
 			if rc < 0 {

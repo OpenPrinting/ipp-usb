@@ -581,6 +581,10 @@ func (iface *UsbInterface) Recv(data []byte,
 		C.uint(timeout/time.Millisecond),
 	)
 
+	if rc == C.LIBUSB_ERROR_PIPE {
+		iface.ClearHalt(true)
+	}
+
 	if rc < 0 {
 		err = UsbError{"libusb_bulk_transfer", UsbErrCode(rc)}
 	}

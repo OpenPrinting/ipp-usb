@@ -565,12 +565,6 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		conn.transport.log.Error('!',
 			"USB[%d]: zero-size read", conn.index)
 
-		err = conn.iface.ClearHalt(true)
-		if err != nil {
-			conn.transport.log.Error('!',
-				"USB[%d]: %s", conn.index, err)
-		}
-
 		time.Sleep(backoff)
 		backoff *= 2
 		if backoff > time.Millisecond*1000 {

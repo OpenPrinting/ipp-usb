@@ -1,4 +1,4 @@
-ipp-usb(1) -- Daemon for IPP over USB printer support
+ipp-usb(8) -- Daemon for IPP over USB printer support
 =====================================================
 
 ## DESCRIPTION

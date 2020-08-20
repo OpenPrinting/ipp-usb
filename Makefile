@@ -9,7 +9,7 @@ endif
 
 all:
 	-gotags -R . > tags
-	go build -ldflags "-s -w"
+	go build -ldflags "-s -w" -tags nethttpomithttp2
 
 man:	$(MANPAGE)
 

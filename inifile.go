@@ -17,10 +17,10 @@ import (
 
 // IniFile represents opened .INI file
 type IniFile struct {
-	file   *os.File // Underlying file
-	reader *bufio.Reader
-	buf    bytes.Buffer
-	rec    IniRecord // Next record
+	file   *os.File      // Underlying file
+	reader *bufio.Reader // Reader on a top of file
+	buf    bytes.Buffer  // Temporary buffer to speed up things
+	rec    IniRecord     // Next record
 }
 
 // IniRecord represents a single .INI file record
@@ -38,7 +38,7 @@ type IniError struct {
 	Message string // Error message
 }
 
-// Open the .INI file
+// OpenIniFile opens the .INI file for reading
 func OpenIniFile(path string) (ini *IniFile, err error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -46,18 +46,12 @@ func OpenIniFile(path string) (ini *IniFile, err error) {
 	}
 
 	ini = &IniFile{
-		file: f,
+		file:   f,
+		reader: bufio.NewReader(f),
 		rec: IniRecord{
 			File: path,
 			Line: 1,
 		},
-	}
-
-	if f != nil {
-		ini.reader = bufio.NewReader(f)
-	} else {
-		ini.reader = bufio.NewReader(bytes.NewBuffer(nil))
-
 	}
 
 	return ini, nil
@@ -68,14 +62,14 @@ func (ini *IniFile) Close() error {
 	return ini.file.Close()
 }
 
-// Read next IniRecord
+// Next returns next IniRecord or an error
 func (ini *IniFile) Next() (*IniRecord, error) {
 	for {
 		// Read until next non-space character, skipping all comments
-		c, err := ini.getc_nonspace()
+		c, err := ini.getcNonspace()
 		for err == nil && ini.iscomment(c) {
-			ini.getc_nl()
-			c, err = ini.getc_nonspace()
+			ini.getcNl()
+			c, err = ini.getcNonspace()
 		}
 
 		if err != nil {
@@ -92,10 +86,10 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 				ini.rec.Section = token
 			}
 
-			ini.getc_nl()
+			ini.getcNl()
 
 		case '=':
-			ini.getc_nl()
+			ini.getcNl()
 			return nil, ini.errorf("unexpected '=' character")
 
 		default:
@@ -118,22 +112,22 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 
 // Read next token
 func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
-	var accumulator, count, trailing_space int
+	var accumulator, count, trailingSpace int
 	var c byte
 	var err error
 	type prsState int
 	const (
-		PRS_SKIP_SPACE prsState = iota
-		PRS_BODY
-		PRS_STRING
-		PRS_STRING_BSLASH
-		PRS_STRING_HEX
-		PRS_STRING_OCTAL
-		PRS_COMMENT
+		prsSkipSpace prsState = iota
+		prsBody
+		prsString
+		prsStringBslash
+		prsStringHex
+		prsStringOctal
+		prsComment
 	)
 
 	// Parse the string
-	state := PRS_SKIP_SPACE
+	state := prsSkipSpace
 	ini.buf.Reset()
 
 	for {
@@ -142,30 +136,30 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 			break
 		}
 
-		if (state == PRS_BODY || state == PRS_SKIP_SPACE) && rune(c) == delimiter {
+		if (state == prsBody || state == prsSkipSpace) && rune(c) == delimiter {
 			break
 		}
 
 		switch state {
-		case PRS_SKIP_SPACE:
+		case prsSkipSpace:
 			if ini.isspace(c) {
 				break
 			}
 
-			state = PRS_BODY
+			state = prsBody
 			fallthrough
 
-		case PRS_BODY:
+		case prsBody:
 			if c == '"' {
-				state = PRS_STRING
+				state = prsString
 			} else if ini.iscomment(c) {
-				state = PRS_COMMENT
+				state = prsComment
 			} else if c == '\\' && linecont {
 				c2, _ := ini.getc()
 				if c2 == '\n' {
-					ini.buf.Truncate(ini.buf.Len() - trailing_space)
-					trailing_space = 0
-					state = PRS_SKIP_SPACE
+					ini.buf.Truncate(ini.buf.Len() - trailingSpace)
+					trailingSpace = 0
+					state = prsSkipSpace
 				} else {
 					ini.ungetc(c2)
 				}
@@ -173,34 +167,34 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 				ini.buf.WriteByte(c)
 			}
 
-			if state == PRS_BODY {
+			if state == prsBody {
 				if ini.isspace(c) {
-					trailing_space++
+					trailingSpace++
 				} else {
-					trailing_space = 0
+					trailingSpace = 0
 				}
 			} else {
-				ini.buf.Truncate(ini.buf.Len() - trailing_space)
-				trailing_space = 0
+				ini.buf.Truncate(ini.buf.Len() - trailingSpace)
+				trailingSpace = 0
 			}
 			break
 
-		case PRS_STRING:
+		case prsString:
 			if c == '\\' {
-				state = PRS_STRING_BSLASH
+				state = prsStringBslash
 			} else if c == '"' {
-				state = PRS_BODY
+				state = prsBody
 			} else {
 				ini.buf.WriteByte(c)
 			}
 			break
 
-		case PRS_STRING_BSLASH:
+		case prsStringBslash:
 			if c == 'x' || c == 'X' {
-				state = PRS_STRING_HEX
+				state = prsStringHex
 				accumulator, count = 0, 0
 			} else if ini.isoctal(c) {
-				state = PRS_STRING_OCTAL
+				state = prsStringOctal
 				accumulator = ini.hex2int(c)
 				count = 1
 			} else {
@@ -232,53 +226,53 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 				}
 
 				ini.buf.WriteByte(c)
-				state = PRS_STRING
+				state = prsString
 			}
 			break
 
-		case PRS_STRING_HEX:
+		case prsStringHex:
 			if ini.isxdigit(c) {
 				if count != 2 {
 					accumulator = accumulator*16 + ini.hex2int(c)
 					count++
 				}
 			} else {
-				state = PRS_STRING
+				state = prsString
 				ini.ungetc(c)
 			}
 
-			if state != PRS_STRING_HEX {
+			if state != prsStringHex {
 				ini.buf.WriteByte(c)
 			}
 			break
 
-		case PRS_STRING_OCTAL:
+		case prsStringOctal:
 			if ini.isoctal(c) {
 				accumulator = accumulator*8 + ini.hex2int(c)
 				count++
 				if count == 3 {
-					state = PRS_STRING
+					state = prsString
 				}
 			} else {
-				state = PRS_STRING
+				state = prsString
 				ini.ungetc(c)
 			}
 
-			if state != PRS_STRING_OCTAL {
+			if state != prsStringOctal {
 				ini.buf.WriteByte(c)
 			}
 			break
 
-		case PRS_COMMENT:
+		case prsComment:
 			break
 		}
 	}
 
 	// Remove trailing space, if any
-	ini.buf.Truncate(ini.buf.Len() - trailing_space)
+	ini.buf.Truncate(ini.buf.Len() - trailingSpace)
 
 	// Check for syntax error
-	if state != PRS_SKIP_SPACE && state != PRS_BODY && state != PRS_COMMENT {
+	if state != prsSkipSpace && state != prsBody && state != prsComment {
 		return 0, "", ini.errorf("unterminated string")
 	}
 
@@ -294,8 +288,8 @@ func (ini *IniFile) getc() (byte, error) {
 	return c, err
 }
 
-// getc_nonspace returns a next non-space character from the input file
-func (ini *IniFile) getc_nonspace() (byte, error) {
+// getcNonspace returns a next non-space character from the input file
+func (ini *IniFile) getcNonspace() (byte, error) {
 	for {
 		c, err := ini.getc()
 		if err != nil || !ini.isspace(c) {
@@ -304,8 +298,8 @@ func (ini *IniFile) getc_nonspace() (byte, error) {
 	}
 }
 
-// getc_nl returns a next newline character, or reads until EOF or error
-func (ini *IniFile) getc_nl() (byte, error) {
+// getcNl returns a next newline character, or reads until EOF or error
+func (ini *IniFile) getcNl() (byte, error) {
 	for {
 		c, err := ini.getc()
 		if err != nil || c == '\n' {

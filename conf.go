@@ -11,12 +11,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"gopkg.in/ini.v1"
+	"strings"
 )
 
 const (
@@ -56,113 +56,91 @@ var Conf = Configuration{
 
 // ConfLoad loads the program configuration
 func ConfLoad() error {
-	err := confLoadInternal()
+	// Obtain path to executable directory
+	exepath, err := os.Executable()
 	if err != nil {
-		err = fmt.Errorf("conf: %s", err)
+		return fmt.Errorf("conf: %s", err)
+	}
+
+	exepath = filepath.Dir(exepath)
+
+	// Build list of configuration files
+	files := []string{
+		filepath.Join(PathConfDir, ConfFileName),
+		filepath.Join(exepath, ConfFileName),
+	}
+
+	// Load file by file
+	for _, file := range files {
+		err = confLoadInternal(file)
+		if err != nil {
+			return fmt.Errorf("conf: %s", err)
+		}
 	}
 
 	return err
 }
 
 // Create "bad value" error
-func confBadValue(key *ini.Key, format string, args ...interface{}) error {
-	return fmt.Errorf(key.Name()+": "+format, args...)
+func confBadValue(rec *IniRecord, format string, args ...interface{}) error {
+	return fmt.Errorf(rec.Key+": "+format, args...)
 }
 
 // Load the program configuration -- internal version
-func confLoadInternal() error {
-	// Obtain path to executable directory
-	exepath, err := os.Executable()
+func confLoadInternal(path string) error {
+	// Open configuration file
+	ini, err := OpenIniFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
 		return err
 	}
 
-	exepath = filepath.Dir(exepath)
-
-	// Load configuration file
-	inifile, err := ini.LooseLoad(
-		filepath.Join(PathConfDir, ConfFileName),
-		filepath.Join(exepath, ConfFileName))
-
-	if err != nil {
-		return err
-	}
+	defer ini.Close()
 
 	// Extract options
-	if section, _ := inifile.GetSection("network"); section != nil {
-		err = confLoadIPPortKey(&Conf.HTTPMinPort, section, "http-min-port")
+	for err == nil {
+		var rec *IniRecord
+		rec, err = ini.Next()
 		if err != nil {
-			return err
+			break
 		}
 
-		err = confLoadIPPortKey(&Conf.HTTPMaxPort, section, "http-max-port")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadBinaryKey(&Conf.DNSSdEnable, section,
-			"dns-sd", "disable", "enable")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadBinaryKey(&Conf.LoopbackOnly, section,
-			"interface", "all", "loopback")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadBinaryKey(&Conf.DNSSdEnable, section,
-			"ipv6-sd", "disable", "enable")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadBinaryKey(&Conf.IPV6Enable, section,
-			"ipv6", "disable", "enable")
-		if err != nil {
-			return err
+		switch rec.Section {
+		case "network":
+			switch rec.Key {
+			case "http-min-port":
+				err = confLoadIPPortKey(&Conf.HTTPMinPort, rec)
+			case "http-max-port":
+				err = confLoadIPPortKey(&Conf.HTTPMaxPort, rec)
+			case "dns-sd":
+				err = confLoadBinaryKey(&Conf.DNSSdEnable, rec, "disable", "enable")
+			case "interface":
+				err = confLoadBinaryKey(&Conf.LoopbackOnly, rec, "all", "loopback")
+			case "ipv6":
+				err = confLoadBinaryKey(&Conf.IPV6Enable, rec, "disable", "enable")
+			}
+		case "logging":
+			switch rec.Key {
+			case "device-log":
+				err = confLoadLogLevelKey(&Conf.LogDevice, rec)
+			case "main-log":
+				err = confLoadLogLevelKey(&Conf.LogMain, rec)
+			case "console-log":
+				err = confLoadLogLevelKey(&Conf.LogConsole, rec)
+			case "console-color":
+				err = confLoadBinaryKey(&Conf.ColorConsole, rec, "disable", "enable")
+			case "max-file-size":
+				err = confLoadSizeKey(&Conf.LogMaxFileSize, rec)
+			case "max-backup-files":
+				err = confLoadUintKey(&Conf.LogMaxBackupFiles, rec)
+			}
 		}
 	}
 
-	if section, _ := inifile.GetSection("logging"); section != nil {
-		err = confLoadLogLevelKey(&Conf.LogDevice, section, "device-log")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadLogLevelKey(&Conf.LogMain, section, "main-log")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadLogLevelKey(&Conf.LogConsole, section,
-			"console-log")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadBinaryKey(&Conf.ColorConsole, section,
-			"console-color", "disable", "enable")
-		if err != nil {
-			return err
-		}
-
-		err = confLoadSizeKey(&Conf.LogMaxFileSize, section,
-			"max-file-size")
-		if err != nil {
-			return err
-		}
-
-		if Conf.LogMaxFileSize < LogMinFileSize {
-			Conf.LogMaxFileSize = LogMinFileSize
-		}
-
-		err = confLoadUintKey(&Conf.LogMaxBackupFiles, section,
-			"max-backup-files")
-		if err != nil {
-			return err
-		}
+	if err != nil && err != io.EOF {
+		return err
 	}
 
 	// Validate configuration
@@ -174,123 +152,98 @@ func confLoadInternal() error {
 }
 
 // Load IP port key
-func confLoadIPPortKey(out *int, section *ini.Section, name string) error {
-	key, _ := section.GetKey(name)
-	if key != nil {
-		port, err := key.Uint()
-		if err == nil && (port < 1 || port > 65535) {
-			err = confBadValue(key, "must be in range 1...65535")
-		}
-		if err != nil {
-			return err
-		}
-
-		*out = int(port)
+func confLoadIPPortKey(out *int, rec *IniRecord) error {
+	port, err := strconv.Atoi(rec.Value)
+	if err == nil && (port < 1 || port > 65535) {
+		err = confBadValue(rec, "must be in range 1...65535")
+	}
+	if err != nil {
+		return err
 	}
 
-	return nil // Missed key is not error
+	*out = int(port)
+	return nil
 }
 
 // Load the binary key
-func confLoadBinaryKey(out *bool,
-	section *ini.Section, name, vFalse, vTrue string) error {
-
-	key, _ := section.GetKey(name)
-	if key != nil {
-		switch key.String() {
-		case vFalse:
-			*out = false
-			return nil
-		case vTrue:
-			*out = true
-			return nil
-		default:
-			return confBadValue(key,
-				"must be %s or %s", vFalse, vTrue)
-		}
+func confLoadBinaryKey(out *bool, rec *IniRecord, vFalse, vTrue string) error {
+	switch rec.Value {
+	case vFalse:
+		*out = false
+		return nil
+	case vTrue:
+		*out = true
+		return nil
+	default:
+		return confBadValue(rec, "must be %s or %s", vFalse, vTrue)
 	}
-
-	return nil // Missed key is not error
 }
 
 // Load LogLevel key
-func confLoadLogLevelKey(out *LogLevel, section *ini.Section, name string) error {
-	key, _ := section.GetKey(name)
-	if key != nil {
-		var mask LogLevel
-		for _, s := range key.Strings(",") {
-			switch s {
-			case "error":
-				mask |= LogError
-			case "info":
-				mask |= LogInfo | LogError
-			case "debug":
-				mask |= LogDebug | LogInfo | LogError
-			case "trace-ipp":
-				mask |= LogTraceIPP | LogDebug | LogInfo | LogError
-			case "trace-escl":
-				mask |= LogTraceESCL | LogDebug | LogInfo | LogError
-			case "trace-http":
-				mask |= LogTraceHTTP | LogDebug | LogInfo | LogError
-			case "all", "trace-all":
-				mask |= LogAll
-			default:
-				return confBadValue(key, "invalid log level %q", s)
-			}
+func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
+	var mask LogLevel
+	for _, s := range strings.Split(rec.Value, ",") {
+		switch s {
+		case "error":
+			mask |= LogError
+		case "info":
+			mask |= LogInfo | LogError
+		case "debug":
+			mask |= LogDebug | LogInfo | LogError
+		case "trace-ipp":
+			mask |= LogTraceIPP | LogDebug | LogInfo | LogError
+		case "trace-escl":
+			mask |= LogTraceESCL | LogDebug | LogInfo | LogError
+		case "trace-http":
+			mask |= LogTraceHTTP | LogDebug | LogInfo | LogError
+		case "all", "trace-all":
+			mask |= LogAll
+		default:
+			return confBadValue(rec, "invalid log level %q", s)
 		}
-		*out = mask
 	}
 
+	*out = mask
 	return nil
 }
 
 // Load size key
-func confLoadSizeKey(out *int64, section *ini.Section, name string) error {
-	key, _ := section.GetKey(name)
-	if key != nil {
-		val := key.String()
-		units := uint64(1)
+func confLoadSizeKey(out *int64, rec *IniRecord) error {
+	units := uint64(1)
 
-		if l := len(val); l > 0 {
-			switch val[l-1] {
-			case 'k', 'K':
-				units = 1024
-			case 'm', 'M':
-				units = 1024 * 1024
-			}
-
-			if units != 1 {
-				val = val[:l-1]
-			}
+	if l := len(rec.Value); l > 0 {
+		switch rec.Value[l-1] {
+		case 'k', 'K':
+			units = 1024
+		case 'm', 'M':
+			units = 1024 * 1024
 		}
 
-		sz, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return confBadValue(key, "%q: invalid size", val)
+		if units != 1 {
+			rec.Value = rec.Value[:l-1]
 		}
-
-		if sz > uint64(math.MaxInt64/units) {
-			return confBadValue(key, "size too large")
-		}
-
-		*out = int64(sz * units)
 	}
 
+	sz, err := strconv.ParseUint(rec.Value, 10, 64)
+	if err != nil {
+		return confBadValue(rec, "%q: invalid size", rec.Value)
+	}
+
+	if sz > uint64(math.MaxInt64/units) {
+		return confBadValue(rec, "size too large")
+	}
+
+	*out = int64(sz * units)
 	return nil
 }
 
 // Load unsigned integer key
-func confLoadUintKey(out *uint, section *ini.Section, name string) error {
-	key, _ := section.GetKey(name)
-	if key != nil {
-		val := key.String()
-		num, err := strconv.ParseUint(val, 10, 0)
-		if err != nil {
-			return confBadValue(key, "%q: invalid number", val)
-		}
-
-		*out = uint(num)
+func confLoadUintKey(out *uint, rec *IniRecord) error {
+	num, err := strconv.ParseUint(rec.Value, 10, 0)
+	if err != nil {
+		return confBadValue(rec, "%q: invalid number", rec.Value)
 	}
 
+	*out = uint(num)
 	return nil
 }

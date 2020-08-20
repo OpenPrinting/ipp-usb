@@ -55,10 +55,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	dev.Log = dev.UsbTransport.Log()
 
 	// Load persistent state
-	dev.State = LoadDevState(info.Ident())
-
-	// Update comment in the state file
-	dev.State.SetComment(info.Comment())
+	dev.State = LoadDevState(info.Ident(), info.Comment())
 
 	// Create HTTP client for local queries
 	dev.HTTPClient = &http.Client{

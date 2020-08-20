@@ -1,4 +1,2 @@
 github.com/OpenPrinting/goipp v0.0.0-20200517195333-da79ff13b3a4 h1:almASMS7yPJcqrnYwSNtAZGrmLtOj6j3lSREqF5P5Uk=
 github.com/OpenPrinting/goipp v0.0.0-20200517195333-da79ff13b3a4/go.mod h1:ot2iw+QF7fVLaX+55JUNlF5YSDNiXVo2LRAv21iGcQI=
-gopkg.in/ini.v1 v1.51.1 h1:GyboHr4UqMiLUybYjd22ZjQIKEJEpgtLXtuGbR21Oho=
-gopkg.in/ini.v1 v1.51.1/go.mod h1:pNLf8WUiyNEtQjuu5G5vTm06TEv9tsIgeAvK8hOrP4k=

@@ -9,60 +9,68 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"gopkg.in/ini.v1"
 )
 
 // DevState manages a per-device persistent state (such as HTTP
 // port allocation etc)
 type DevState struct {
 	Ident         string // Device identification
-	Comment       string // Device comment
 	HTTPPort      int    // Allocated HTTP port
 	DNSSdName     string // DNS-SD name, as reported by device
 	DNSSdOverride string // DNS-SD name after collision resolution
 
-	path string // Path to the disk file
+	comment string // Comment in the state file
+	path    string // Path to the disk file
 }
 
 // LoadDevState loads DevState from a disk file
-func LoadDevState(ident string) *DevState {
+func LoadDevState(ident, comment string) *DevState {
 	state := &DevState{
-		Ident: ident,
+		Ident:   ident,
+		comment: comment,
 	}
 	state.path = state.devStatePath()
 
-	// Load state file
-	inifile, err := ini.Load(state.path)
-	if err != nil {
-		err = state.error("%s", err)
-		Log.Error('!', "STATE LOAD: %s", err)
-		state.Save()
-		return state
+	// Open state file
+	ini, err := OpenIniFile(state.path)
+	if err == nil {
+		defer ini.Close()
 	}
 
 	// Extract data
-	var update bool
-	if section, _ := inifile.GetSection("device"); section != nil {
-		state.Comment = section.Comment
-
-		err = state.loadTCPPort(section, &state.HTTPPort, "http-port")
+	for err == nil {
+		var rec *IniRecord
+		rec, err = ini.Next()
 		if err != nil {
-			err = state.error("%s", err)
-			Log.Error('!', "STATE LOAD: %s", err)
-			update = true
+			break
 		}
 
-		state.DNSSdName = state.loadString(section, "dns-sd-name")
-		state.DNSSdOverride = state.loadString(section, "dns-sd-override")
+		switch rec.Section {
+		case "device":
+			switch rec.Key {
+			case "http-port":
+				err = state.loadTCPPort(&state.HTTPPort, rec)
+			case "dns-sd-name":
+				state.DNSSdName = rec.Value
+			case "dns-sd-override":
+				state.DNSSdOverride = rec.Value
+			}
+		}
+
 	}
 
-	if update {
+	if err != nil && err != io.EOF {
+		if !os.IsNotExist(err) {
+			Log.Error('!', "STATE LOAD: %s", state.error("%s", err))
+		}
 		state.Save()
 	}
 
@@ -70,60 +78,40 @@ func LoadDevState(ident string) *DevState {
 }
 
 // Load TCP port
-func (state *DevState) loadTCPPort(section *ini.Section,
-	out *int, name string) error {
+func (state *DevState) loadTCPPort(out *int, rec *IniRecord) error {
+	port, err := strconv.Atoi(rec.Value)
 
-	if key, _ := section.GetKey(name); key != nil {
-		port, err := key.Int()
-
-		if err != nil {
-			err = state.error("%s", err)
-		} else if port < 1 || port > 65535 {
-			err = state.error("%s: out of range", key.Name())
-		}
-
-		if err != nil {
-			return err
-		}
-
-		*out = port
+	if err != nil {
+		err = state.error("%s", err)
+	} else if port < 1 || port > 65535 {
+		err = state.error("%s: out of range", rec.Key)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	*out = port
 
 	return nil
-}
-
-// Load string, defaults to ""
-func (state *DevState) loadString(section *ini.Section,
-	name string) string {
-
-	if key, _ := section.GetKey(name); key != nil {
-		return key.String()
-	}
-
-	return ""
 }
 
 // Save updates DevState on disk
 func (state *DevState) Save() {
 	os.MkdirAll(PathProgStateDev, 0755)
 
-	inifile := ini.Empty()
-	section, _ := inifile.NewSection("device")
-	section.Comment = state.Comment
+	var buf bytes.Buffer
 
-	if state.HTTPPort > 0 {
-		section.NewKey("http-port", strconv.Itoa(state.HTTPPort))
+	if state.comment != "" {
+		fmt.Fprintf(&buf, "; %s\n", state.comment)
 	}
 
-	if state.DNSSdName != "" {
-		section.NewKey("dns-sd-name", state.DNSSdName)
-	}
+	fmt.Fprintf(&buf, "[device]\n")
+	fmt.Fprintf(&buf, "http-port       = %d\n", state.HTTPPort)
+	fmt.Fprintf(&buf, "dns-sd-name     = %q\n", state.DNSSdName)
+	fmt.Fprintf(&buf, "dns-sd-override = %q\n", state.DNSSdOverride)
 
-	if state.DNSSdOverride != "" {
-		section.NewKey("dns-sd-override", state.DNSSdOverride)
-	}
-
-	err := inifile.SaveTo(state.path)
+	err := ioutil.WriteFile(state.path, buf.Bytes(), 0644)
 	if err != nil {
 		err = state.error("%s", err)
 		Log.Error('!', "STATE SAVE: %s", err)
@@ -171,12 +159,4 @@ func (state *DevState) devStatePath() string {
 // error creates a state-related error
 func (state *DevState) error(format string, args ...interface{}) error {
 	return fmt.Errorf(state.Ident+": "+format, args...)
-}
-
-// SetComment sets comment on a device state file
-func (state *DevState) SetComment(comment string) {
-	if comment != state.Comment {
-		state.Comment = comment
-		state.Save()
-	}
 }

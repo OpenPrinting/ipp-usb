@@ -66,10 +66,10 @@ func (ini *IniFile) Close() error {
 func (ini *IniFile) Next() (*IniRecord, error) {
 	for {
 		// Read until next non-space character, skipping all comments
-		c, err := ini.getcNonspace()
+		c, err := ini.getcNonSpace()
 		for err == nil && ini.iscomment(c) {
 			ini.getcNl()
-			c, err = ini.getcNonspace()
+			c, err = ini.getcNonSpace()
 		}
 
 		if err != nil {
@@ -288,8 +288,8 @@ func (ini *IniFile) getc() (byte, error) {
 	return c, err
 }
 
-// getcNonspace returns a next non-space character from the input file
-func (ini *IniFile) getcNonspace() (byte, error) {
+// getcNonSpace returns a next non-space character from the input file
+func (ini *IniFile) getcNonSpace() (byte, error) {
 	for {
 		c, err := ini.getc()
 		if err != nil || !ini.isspace(c) {

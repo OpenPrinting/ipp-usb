@@ -24,3 +24,5 @@ install:
 	mkdir -p $(PREFIX)/$(MANDIR)/man8
 	gzip <$(MANPAGE) > $(PREFIX)$(MANDIR)/man8/$(MANPAGE).gz
 
+test:
+	go test

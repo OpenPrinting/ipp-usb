@@ -31,7 +31,7 @@ var testData = []struct{ section, key, value string }{
 // Test .INI reader
 func TestIniReader(t *testing.T) {
 	// Open ipp-usb.conf
-	ini, err := OpenIniFile("ipp-usb.conf")
+	ini, err := OpenIniFile("testdata/ipp-usb.conf")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}

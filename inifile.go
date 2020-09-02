@@ -17,19 +17,29 @@ import (
 
 // IniFile represents opened .INI file
 type IniFile struct {
-	file   *os.File      // Underlying file
-	reader *bufio.Reader // Reader on a top of file
-	buf    bytes.Buffer  // Temporary buffer to speed up things
-	rec    IniRecord     // Next record
+	file        *os.File      // Underlying file
+	reader      *bufio.Reader // Reader on a top of file
+	buf         bytes.Buffer  // Temporary buffer to speed up things
+	rec         IniRecord     // Next record
+	withRecType bool          // Return records of any type
 }
 
 // IniRecord represents a single .INI file record
 type IniRecord struct {
-	Section    string // Section name
-	Key, Value string // Key and value
-	File       string // Origin file
-	Line       int    // Line in that file
+	Section    string        // Section name
+	Key, Value string        // Key and value
+	File       string        // Origin file
+	Line       int           // Line in that file
+	Type       IniRecordType // Record type
 }
+
+// IniRecordType represents IniRecord type
+type IniRecordType int
+
+const (
+	IniRecordSection IniRecordType = iota
+	IniRecordKeyVal
+)
 
 // IniError represents an .INI file read error
 type IniError struct {
@@ -39,6 +49,9 @@ type IniError struct {
 }
 
 // OpenIniFile opens the .INI file for reading
+//
+// If file is opened this way, (*IniFile) Next() returns
+// records of IniRecordKeyVal type only
 func OpenIniFile(path string) (ini *IniFile, err error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -55,6 +68,18 @@ func OpenIniFile(path string) (ini *IniFile, err error) {
 	}
 
 	return ini, nil
+}
+
+// OpenIniFileWithRecType opens the .INI file for reading
+//
+// If file is opened this way, (*IniFile) Next() returns
+// records of any type
+func OpenIniFileWithRecType(path string) (ini *IniFile, err error) {
+	ini, err = OpenIniFile(path)
+	if ini != nil {
+		ini.withRecType = true
+	}
+	return
 }
 
 // Close the .INI file
@@ -87,6 +112,11 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 			}
 
 			ini.getcNl()
+			ini.rec.Type = IniRecordSection
+
+			if ini.withRecType {
+				return &ini.rec, nil
+			}
 
 		case '=':
 			ini.getcNl()
@@ -101,6 +131,7 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 				c, token, err = ini.token(-1, true)
 				if err == nil {
 					ini.rec.Value = token
+					ini.rec.Type = IniRecordKeyVal
 					return &ini.rec, nil
 				}
 			} else if err == nil {

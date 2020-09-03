@@ -323,30 +323,43 @@ func UsbOpenDevice(desc UsbDeviceDesc) (*UsbDevHandle, error) {
 				return nil, UsbError{"libusb_open", UsbErrCode(rc)}
 			}
 
-			// Detach kernel driver
-			C.libusb_set_auto_detach_kernel_driver(devhandle, 1)
-			err := (*UsbDevHandle)(devhandle).detachKernelDriver()
-			if err != nil {
-				return nil, err
-			}
-
-			// Set configuration
-			rc = C.libusb_set_configuration(devhandle, C.int(desc.Config))
-			if rc < 0 {
-				C.libusb_close(devhandle)
-				return nil, UsbError{"libusb_set_configuration", UsbErrCode(rc)}
-			}
-
 			return (*UsbDevHandle)(devhandle), nil
 		}
 	}
 
-	return nil, nil
+	return nil, UsbError{"libusb_get_device_list", UsbENotFound}
+}
+
+// Configure prepares the device for further work:
+//   - set proper USB configuration
+//   - detach kernel driver
+func (devhandle *UsbDevHandle) Configure(desc UsbDeviceDesc) error {
+	// Detach kernel driver
+	err := (*UsbDevHandle)(devhandle).detachKernelDriver()
+	if err != nil {
+		return err
+	}
+
+	// Set configuration
+	rc := C.libusb_set_configuration(
+		(*C.libusb_device_handle)(devhandle), C.int(desc.Config))
+
+	if rc < 0 {
+		return UsbError{"libusb_set_configuration", UsbErrCode(rc)}
+	}
+
+	// Printer may require some time to switch configuration
+	time.Sleep(time.Second / 4)
+
+	return nil
 }
 
 // detachKernelDriver detaches kernel driver from all interfaces
 // of current configuration
 func (devhandle *UsbDevHandle) detachKernelDriver() error {
+	C.libusb_set_auto_detach_kernel_driver(
+		(*C.libusb_device_handle)(devhandle), 1)
+
 	ifnums, err := devhandle.currentInterfaces()
 	if err != nil {
 		return err
@@ -525,6 +538,41 @@ func (iface *UsbInterface) Close() {
 		(*C.libusb_device_handle)(iface.devhandle),
 		C.int(iface.addr.Num),
 	)
+}
+
+// SoftReset performs interface soft reset, using class-specific
+// SOFT_RESET request
+//
+// This code was inspired by CUPS, and the original comment follows:
+//
+//    This soft reset is specific to the printer device class and is much less
+//    invasive than the general USB reset libusb_reset_device(). Especially it
+//    does never happen that the USB addressing and configuration changes. What
+//    is actually done is that all buffers get flushed and the bulk IN and OUT
+//    pipes get reset to their default states. This clears all stall conditions.
+//    See http://cholla.mmto.org/computers/linux/usb/usbprint11.pdf
+func (iface *UsbInterface) SoftReset() error {
+	rc := C.libusb_control_transfer(
+		(*C.libusb_device_handle)(iface.devhandle),
+		C.LIBUSB_REQUEST_TYPE_CLASS|
+			C.LIBUSB_ENDPOINT_OUT|
+			C.LIBUSB_RECIPIENT_OTHER,
+		2, 0, C.ushort(iface.addr.Num), nil, 0, 5000)
+
+	if rc < 0 {
+		rc = C.libusb_control_transfer(
+			(*C.libusb_device_handle)(iface.devhandle),
+			C.LIBUSB_REQUEST_TYPE_CLASS|
+				C.LIBUSB_ENDPOINT_OUT|
+				C.LIBUSB_RECIPIENT_INTERFACE,
+			2, 0, C.ushort(iface.addr.Num), nil, 0, 5000)
+	}
+
+	if rc < 0 {
+		return UsbError{"libusb_control_transfer", UsbErrCode(rc)}
+	}
+
+	return nil
 }
 
 // Send data to interface. Returns count of bytes actually transmitted

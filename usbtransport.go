@@ -106,6 +106,12 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	log.Nl(LogDebug)
 	log.Commit()
 
+	// Configure the device
+	err = dev.Configure(desc)
+	if err != nil {
+		goto ERROR
+	}
+
 	// Open connections
 	for i, ifaddr := range desc.IfAddrs {
 		var conn *usbConn
@@ -512,6 +518,13 @@ func (transport *UsbTransport) openUsbConn(
 	conn.iface, err = dev.OpenUsbInterface(ifaddr)
 	if err != nil {
 		goto ERROR
+	}
+
+	// Soft-reset interface
+	err = conn.iface.SoftReset()
+	if err != nil {
+		// Don't treat it too seriously
+		transport.log.Info('?', "USB[%d]: SOFT_RESET: %s", index, err)
 	}
 
 	return conn, nil

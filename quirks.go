@@ -20,7 +20,7 @@ import (
 type Quirks struct {
 	Origin      string            // file:line of definition
 	Model       string            // Device model name
-	Ignore      bool              // Device must be ignored by ipp-usb
+	Blacklist   bool              // Blacklist the device
 	HttpHeaders map[string]string // HTTP header override
 	Index       int               // Incremented in order of loading
 }
@@ -101,8 +101,9 @@ func (qset QuirksSet) readFile(file string) error {
 		}
 
 		switch rec.Key {
-		case "ignore":
-			err = confLoadBinaryKey(&q.Ignore, rec, "false", "true")
+		case "blacklist":
+			err = confLoadBinaryKey(&q.Blacklist, rec,
+				"false", "true")
 		}
 
 		if err != nil {
@@ -146,13 +147,13 @@ func (qset QuirksSet) Get(model string) []*Quirks {
 		quirks[i] = list[i].q
 	}
 
-	// If at least one Quirks contains Ignore == true,
+	// If at least one Quirks contains Blacklist == true,
 	// it overrides everything else.
 	//
 	// Note, we check it after building and sorting the entire
 	// list for more accurate logging
 	for _, q := range quirks {
-		if q.Ignore {
+		if q.Blacklist {
 			return []*Quirks{q}
 		}
 	}

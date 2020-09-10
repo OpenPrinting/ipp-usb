@@ -42,7 +42,8 @@ func (qset QuirksSet) readDir(path string) error {
 	}
 
 	for _, file := range files {
-		if file.Mode().IsRegular() && strings.HasSuffix(file.Name(), ".conf") {
+		if file.Mode().IsRegular() &&
+			strings.HasSuffix(file.Name(), ".conf") {
 			err = qset.readFile(file.Name())
 			if err != nil {
 				return err

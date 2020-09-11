@@ -210,7 +210,6 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 
 	// Obtain IppPrinterInfo
 	ippinfo = &IppPrinterInfo{
-		UUID:     attrs.getUUID(),
 		AdminURL: attrs.strSingle("printer-more-info"),
 		IconURL:  attrs.strSingle("printer-icons"),
 	}
@@ -225,6 +224,12 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	}
 	if ippinfo.DNSSdName == "" {
 		ippinfo.DNSSdName = usbinfo.MfgAndProduct
+	}
+
+	// Obtain UUID
+	ippinfo.UUID = attrs.getUUID()
+	if ippinfo.UUID == "" {
+		ippinfo.UUID = usbinfo.UUID()
 	}
 
 	// Obtain and parse IEEE 1284 device ID
@@ -264,7 +269,8 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 
 // getUUID returns printer UUID, or "", if UUID not available
 func (attrs ippAttrs) getUUID() string {
-	return strings.TrimPrefix(attrs.strSingle("printer-uuid"), "urn:uuid:")
+	uuid := attrs.strSingle("printer-uuid")
+	return UUIDNormalize(uuid)
 }
 
 // getDuplex returns "T" if printer supports two-sided

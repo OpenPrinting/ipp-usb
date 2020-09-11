@@ -47,7 +47,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)
-	ippinfo, ippScv := attrs.Decode()
+	ippinfo, ippScv := attrs.decode(usbinfo)
 
 	// Probe for fax support
 	uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
@@ -172,8 +172,9 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //
 // This is where information comes from:
 //
-//   DNS-SD name: "printer-dns-sd-name" with fallback to
-//                "printer-info" and "printer-make-and-model"
+//   DNS-SD name: "printer-dns-sd-name" with fallback to "printer-info",
+//                "printer-make-and-model" and finally to MfgAndProduct
+//                from the UsbDeviceInfo
 //
 //   TXT fields:
 //     air:              hardcoded as "none"
@@ -199,7 +200,9 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //     txtvers:          hardcoded as "1"
 //     adminurl:         "printer-more-info"
 //
-func (attrs ippAttrs) Decode() (ippinfo *IppPrinterInfo, svc DNSSdSvcInfo) {
+func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
+	ippinfo *IppPrinterInfo, svc DNSSdSvcInfo) {
+
 	svc = DNSSdSvcInfo{
 		Type:     "_ipp._tcp",
 		SubTypes: []string{"_universal._sub._ipp._tcp"},
@@ -207,11 +210,21 @@ func (attrs ippAttrs) Decode() (ippinfo *IppPrinterInfo, svc DNSSdSvcInfo) {
 
 	// Obtain IppPrinterInfo
 	ippinfo = &IppPrinterInfo{
-		DNSSdName: attrs.strSingle("printer-dns-sd-name",
-			"printer-info", "printer-make-and-model"),
 		UUID:     attrs.getUUID(),
 		AdminURL: attrs.strSingle("printer-more-info"),
 		IconURL:  attrs.strSingle("printer-icons"),
+	}
+
+	// Obtain DNSSdName
+	ippinfo.DNSSdName = attrs.strSingle("printer-dns-sd-name")
+	if ippinfo.DNSSdName == "" {
+		ippinfo.DNSSdName = attrs.strSingle("printer-info")
+	}
+	if ippinfo.DNSSdName == "" {
+		ippinfo.DNSSdName = attrs.strSingle("printer-make-and-model")
+	}
+	if ippinfo.DNSSdName == "" {
+		ippinfo.DNSSdName = usbinfo.MfgAndProduct
 	}
 
 	// Obtain and parse IEEE 1284 device ID
@@ -348,10 +361,9 @@ func (attrs ippAttrs) getPaperMax() string {
 	return PaperSize{x_dim_max, y_dim_max}.Classify()
 }
 
-// Get a single-string attribute. Multiple names can be
-// specified, for fallback purposes
-func (attrs ippAttrs) strSingle(names ...string) string {
-	strs := attrs.getStrings(names...)
+// Get a single-string attribute.
+func (attrs ippAttrs) strSingle(name string) string {
+	strs := attrs.getStrings(name)
 	if len(strs) == 0 {
 		return ""
 	}
@@ -360,14 +372,14 @@ func (attrs ippAttrs) strSingle(names ...string) string {
 }
 
 // Get a multi-string attribute, represented as a comma-separated list
-func (attrs ippAttrs) strJoined(names ...string) string {
-	strs := attrs.getStrings(names...)
+func (attrs ippAttrs) strJoined(name string) string {
+	strs := attrs.getStrings(name)
 	return strings.Join(strs, ",")
 }
 
 // Get a single string, and put it into brackets
-func (attrs ippAttrs) strBrackets(names ...string) string {
-	s := attrs.strSingle(names...)
+func (attrs ippAttrs) strBrackets(name string) string {
+	s := attrs.strSingle(name)
 	if s != "" {
 		s = "(" + s + ")"
 	}
@@ -375,9 +387,8 @@ func (attrs ippAttrs) strBrackets(names ...string) string {
 }
 
 // Get attribute's []string value by attribute name
-// Multiple names may be specified, for fallback purposes
-func (attrs ippAttrs) getStrings(names ...string) []string {
-	vals := attrs.getAttr(goipp.TypeString, names...)
+func (attrs ippAttrs) getStrings(name string) []string {
+	vals := attrs.getAttr(goipp.TypeString, name)
 	strs := make([]string, len(vals))
 	for i := range vals {
 		strs[i] = string(vals[i].(goipp.String))
@@ -388,9 +399,8 @@ func (attrs ippAttrs) getStrings(names ...string) []string {
 
 // Get boolean attribute. Returns "F" or "T" if attribute is found,
 // empty string otherwise.
-// Multiple names may be specified, for fallback purposes
-func (attrs ippAttrs) getBool(names ...string) string {
-	vals := attrs.getAttr(goipp.TypeBoolean, names...)
+func (attrs ippAttrs) getBool(name string) string {
+	vals := attrs.getAttr(goipp.TypeBoolean, name)
 	if vals == nil {
 		return ""
 	}
@@ -401,19 +411,16 @@ func (attrs ippAttrs) getBool(names ...string) string {
 }
 
 // Get attribute's value by attribute name
-// Multiple names may be specified, for fallback purposes
 // Value type is checked and enforced
-func (attrs ippAttrs) getAttr(t goipp.Type, names ...string) []goipp.Value {
+func (attrs ippAttrs) getAttr(t goipp.Type, name string) []goipp.Value {
 
-	for _, name := range names {
-		v, ok := attrs[name]
-		if ok && v[0].V.Type() == t {
-			var vals []goipp.Value
-			for i := range v {
-				vals = append(vals, v[i].V)
-			}
-			return vals
+	v, ok := attrs[name]
+	if ok && v[0].V.Type() == t {
+		var vals []goipp.Value
+		for i := range v {
+			vals = append(vals, v[i].V)
 		}
+		return vals
 	}
 
 	return nil

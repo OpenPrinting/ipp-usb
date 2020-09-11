@@ -10,8 +10,10 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -44,7 +46,7 @@ func (qset QuirksSet) readDir(path string) error {
 	for _, file := range files {
 		if file.Mode().IsRegular() &&
 			strings.HasSuffix(file.Name(), ".conf") {
-			err = qset.readFile(file.Name())
+			err = qset.readFile(filepath.Join(path, file.Name()))
 			if err != nil {
 				return err
 			}
@@ -70,7 +72,7 @@ func (qset QuirksSet) readFile(file string) error {
 		var rec *IniRecord
 		rec, err = ini.Next()
 		if err != nil {
-			return err
+			break
 		}
 
 		// Get Quirks structure
@@ -90,8 +92,9 @@ func (qset QuirksSet) readFile(file string) error {
 			qset[rec.Section] = q
 			continue
 		} else if q == nil {
-			return fmt.Errorf("%s:%d: %q = %q out of any section",
+			err = fmt.Errorf("%s:%d: %q = %q out of any section",
 				rec.File, rec.Line, rec.Key, rec.Value)
+			break
 		}
 
 		// Update Quirks data
@@ -106,10 +109,10 @@ func (qset QuirksSet) readFile(file string) error {
 			err = confLoadBinaryKey(&q.Blacklist, rec,
 				"false", "true")
 		}
+	}
 
-		if err != nil {
-			return err
-		}
+	if err == io.EOF {
+		err = nil
 	}
 
 	return nil

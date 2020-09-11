@@ -39,5 +39,39 @@ func TestQuirksSetMatchModelName(t *testing.T) {
 				data.model, data.pattern, data.count, n)
 		}
 	}
+}
 
+// Test quirls loading and lookup
+func TestQuirksSetLoadAndLookup(t *testing.T) {
+	const path = "testdata/quirks"
+
+	qset, err := LoadQuirksSet(path)
+	if err != nil {
+		t.Fatalf("LoadQuirksSet(%q): %s", path, err)
+	}
+
+	// Test default quirks
+	quirks := qset.Get("unknown device")
+	if quirks == nil {
+		t.Fatalf("default quirls: missed")
+	}
+
+	if len(quirks) != 1 {
+		t.Fatalf("default quirls: expected 1, got %d", len(quirks))
+	}
+
+	// Test quirks for some known device
+	device := "HP LaserJet MFP M28-M31"
+	quirks = qset.Get(device)
+	if quirks == nil {
+		t.Fatalf("%q quirls: missed", device)
+	}
+
+	if len(quirks) != 2 { // this device + default
+		t.Fatalf("%q quirls: expected 1, got %d", device, len(quirks))
+	}
+
+	if quirks[0].Model != device {
+		t.Fatalf("%q quirls: wrong ordering of returned quirks", device)
+	}
 }

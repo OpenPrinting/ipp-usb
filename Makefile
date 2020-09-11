@@ -24,7 +24,7 @@ install:
 	install -m 644 -D -t $(PREFIX)/etc/ipp-usb ipp-usb.conf
 	mkdir -p $(PREFIX)/$(MANDIR)/man8
 	gzip <$(MANPAGE) > $(PREFIX)$(MANDIR)/man8/$(MANPAGE).gz
-	install -m 644 -D -t $(PREFIX)/$(QUIRKSDIR) quirks/*
+	install -m 644 -D -t $(PREFIX)/$(QUIRKSDIR) ipp-usb-quirks/*
 
 test:
 	go test

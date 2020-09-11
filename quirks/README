@@ -1,0 +1,27 @@
+This directory contains a collection of quirks files for various
+devices.
+
+Each file consist of sections, each section contains various parameters:
+
+[Device Name]
+  http-xxx  = yyy
+  blacklist = false | true
+
+When searching for quirks for a particular device, device name is
+matched against section names. Section names may contain a glob-style
+wildcards (* or ?). If device name must contain one of these characters,
+use \ as escape.
+
+All matching sections are taken in consideration and sorted in priority
+order. Priority is ordered by amount of matched non-wildcard characters.
+The more non-wildcard characters are matched, the more the priority
+
+If some parameter was found in multiple sections, the value for most
+prioritized section is taken
+
+The following parameters are recognized:
+
+  http-xxx  = yyy   - set HTTP header Xxx: yyy
+  http-xxx  = ""    - drop HTTP header Xxx
+  blacklist = true  - blacklist the matching devices
+  blacklist = false - don't blacklist the matching devices

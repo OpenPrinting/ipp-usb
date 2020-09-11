@@ -1,5 +1,6 @@
-MANDIR = /usr/share/man/
-MANPAGE = ipp-usb.8
+MANDIR    = /usr/share/man/
+QUIRKSDIR = /usr/share/ipp-usb/quirks
+MANPAGE   = ipp-usb.8
 
 # Merge DESTDIR and PREFIX
 PREFIX := $(abspath $(DESTDIR)/$(PREFIX))
@@ -23,6 +24,7 @@ install:
 	install -m 644 -D -t $(PREFIX)/etc/ipp-usb ipp-usb.conf
 	mkdir -p $(PREFIX)/$(MANDIR)/man8
 	gzip <$(MANPAGE) > $(PREFIX)$(MANDIR)/man8/$(MANPAGE).gz
+	install -m 644 -D -t $(PREFIX)/$(QUIRKSDIR) quirks/*
 
 test:
 	go test

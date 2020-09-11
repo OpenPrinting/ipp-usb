@@ -348,7 +348,8 @@ func (attrs ippAttrs) getPaperMax() string {
 	return PaperSize{x_dim_max, y_dim_max}.Classify()
 }
 
-// Get a single-string attribute
+// Get a single-string attribute. Multiple names can be
+// specified, for fallback purposes
 func (attrs ippAttrs) strSingle(names ...string) string {
 	strs := attrs.getStrings(names...)
 	if len(strs) == 0 {

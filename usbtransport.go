@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -33,7 +34,7 @@ type UsbTransport struct {
 	connReleased chan struct{} // Signalled when connection released
 	shutdown     chan struct{} // Closed by Shutdown()
 	connstate    *usbConnState // Connections state tracker
-	quirks       [][2]string   // HTTP header quirks
+	quirks       []Quirks      // Device quirks
 }
 
 // NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
@@ -67,7 +68,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.SetLevels(Conf.LogDevice)
 
 	// Setup quirks
-	transport.makeQuirks()
+	transport.quirks = Conf.Quirks.Get(transport.info.MfgAndProduct)
 
 	// Write device info to the log
 	log := transport.log.Begin().
@@ -83,8 +84,12 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Nl(LogDebug)
 
 	log.Debug(' ', "Device quirks:")
-	for _, quirk := range transport.quirks {
-		log.Debug(' ', "  %s: %s", quirk[0], quirk[1])
+	for _, quirks := range transport.quirks {
+		log.Debug(' ', "  from [%s] (%s)", quirks.Model, quirks.Origin)
+		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
+		for name, value := range quirks.HttpHeaders {
+			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
+		}
 	}
 	log.Nl(LogDebug)
 
@@ -106,6 +111,12 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 	log.Nl(LogDebug)
 	log.Commit()
+
+	// Check for blacklisted device
+	if len(transport.quirks) > 0 && transport.quirks[0].Blacklist {
+		err = ErrBlackListed
+		goto ERROR
+	}
 
 	// Configure the device
 	err = dev.Configure(desc)
@@ -270,11 +281,13 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	outreq.Header.Del("Expect")
 
 	// Apply quirks
-	for _, quirk := range transport.quirks {
-		if quirk[1] != "" {
-			outreq.Header.Set(quirk[0], quirk[1])
-		} else {
-			outreq.Header.Del(quirk[0])
+	for _, quirks := range transport.quirks {
+		for name, value := range quirks.HttpHeaders {
+			if value != "" {
+				outreq.Header.Set(name, value)
+			} else {
+				outreq.Header.Del(name)
+			}
 		}
 	}
 
@@ -372,34 +385,6 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	}
 
 	return resp, nil
-}
-
-// makeQuirks computes device-specific quirks that applied
-// to outgoing HTTP request header
-//
-// Each quirk is a touple of two strings: header name
-// and header value. If header value is "", the corresponding
-// header field is deleted from request
-//
-// For now it affects connection keep-alive settings.
-//
-// Although setting connection keep-alive for HTTP requests
-// going to USB sounds meaningless, without it some printers
-// sometimes stuck in generating HTTP response, so effectively
-// blocking the USB interface. And the "good" keep-alive mode
-// is different for different devices!
-//
-// It's a pure black magic, but we have to live with it
-func (transport *UsbTransport) makeQuirks() {
-	switch transport.info.MfgAndProduct {
-	case "HP OfficeJet Pro 8730":
-		transport.quirks = [][2]string{{"Connection", "close"}}
-
-	case "HP LaserJet MFP M28-M31":
-		transport.quirks = [][2]string{{"Connection", "keep-alive"}}
-	}
-
-	transport.quirks = [][2]string{{"Connection", ""}}
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding

@@ -126,7 +126,12 @@ func (qset QuirksSet) readFile(file string) error {
 //
 // In a case of multiple match, quirks are returned in
 // the from most prioritized to least prioritized order
-func (qset QuirksSet) Get(model string) []*Quirks {
+//
+// Duplicates are removed: if some parameter is set by
+// more prioritized entry, it is removed from the less
+// prioritized entries. Entries, that in result become
+// empty, are removed at all
+func (qset QuirksSet) Get(model string) []Quirks {
 	type item struct {
 		q        *Quirks
 		matchlen int
@@ -150,9 +155,9 @@ func (qset QuirksSet) Get(model string) []*Quirks {
 	})
 
 	// Rebuild it into the slice of *Quirks
-	quirks := make([]*Quirks, len(list))
+	quirks := make([]Quirks, len(list))
 	for i := range list {
-		quirks[i] = list[i].q
+		quirks[i] = *list[i].q
 	}
 
 	// If at least one Quirks contains Blacklist == true,
@@ -162,9 +167,30 @@ func (qset QuirksSet) Get(model string) []*Quirks {
 	// list for more accurate logging
 	for _, q := range quirks {
 		if q.Blacklist {
-			return []*Quirks{q}
+			return []Quirks{q}
 		}
 	}
+
+	// Remove duplicates and empty entries
+	httpHeaderSeen := make(map[string]struct{})
+	out := 0
+	for in, q := range quirks {
+		q.HttpHeaders = make(map[string]string)
+
+		for name, value := range quirks[in].HttpHeaders {
+			if _, seen := httpHeaderSeen[name]; !seen {
+				httpHeaderSeen[name] = struct{}{}
+				q.HttpHeaders[name] = value
+			}
+		}
+
+		if len(q.HttpHeaders) != 0 {
+			quirks[out] = q
+			out++
+		}
+	}
+
+	quirks = quirks[:out]
 
 	return quirks
 }

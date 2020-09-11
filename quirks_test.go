@@ -75,7 +75,7 @@ func TestQuirksSetLoadAndLookup(t *testing.T) {
 		t.Fatalf("%q quirls: missed", device)
 	}
 
-	if len(quirks) != 2 { // this device + default
+	if len(quirks) != 1 { // default overridden by this device
 		t.Fatalf("%q quirls: expected 1, got %d", device, len(quirks))
 	}
 

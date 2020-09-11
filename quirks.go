@@ -143,7 +143,7 @@ func (qset QuirksSet) Get(model string) []Quirks {
 
 	// Get list of matching quirks
 	for _, q := range qset {
-		matchlen := qset.matchModelName(model, q.Model, 0)
+		matchlen := GlobMatch(model, q.Model)
 		if matchlen >= 0 {
 			list = append(list, item{q, matchlen})
 		}
@@ -196,67 +196,4 @@ func (qset QuirksSet) Get(model string) []Quirks {
 	quirks = quirks[:out]
 
 	return quirks
-}
-
-// matchModelName matches model name against pattern. Pattern
-// may contain wildcards and has a following syntax:
-//   *   - matches any sequence of characters
-//   ?   - matches exactly one character
-//   \ C - matches character C
-//   C   - matches character C (C is not *, ? or \)
-//
-// It return a counter of matched non-wildcard characters, -1 if no match
-// Implemented as QuirksSet method, to avoid global namespace pollution
-func (qset QuirksSet) matchModelName(model, pattern string, count int) int {
-	for model != "" && pattern != "" {
-		p := pattern[0]
-		pattern = pattern[1:]
-
-		switch p {
-		case '*':
-			for pattern != "" && pattern[0] == '*' {
-				pattern = pattern[1:]
-			}
-
-			if pattern == "" {
-				return count
-			}
-
-			for i := 0; i < len(model); i++ {
-				c2 := qset.matchModelName(model[i:],
-					pattern, count)
-				if c2 >= 0 {
-					return c2
-				}
-			}
-
-		case '?':
-			model = model[1:]
-
-		case '\\':
-			if pattern == "" {
-				return -1
-			}
-			p, pattern = pattern[0], pattern[1:]
-			fallthrough
-
-		default:
-			if model[0] != p {
-				return -1
-			}
-			model = model[1:]
-			count++
-
-		}
-	}
-
-	for pattern != "" && pattern[0] == '*' {
-		pattern = pattern[1:]
-	}
-
-	if model == "" && pattern == "" {
-		return count
-	}
-
-	return -1
 }

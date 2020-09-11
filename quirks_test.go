@@ -44,7 +44,15 @@ func TestQuirksSetMatchModelName(t *testing.T) {
 // Test quirls loading and lookup
 func TestQuirksSetLoadAndLookup(t *testing.T) {
 	const path = "testdata/quirks"
+	const bad_path = path + "-not-exist"
 
+	// Try non-existent directory
+	_, err := LoadQuirksSet(bad_path)
+	if err != nil {
+		t.Fatalf("LoadQuirksSet(%q): %s", bad_path, err)
+	}
+
+	// Try test data
 	qset, err := LoadQuirksSet(path)
 	if err != nil {
 		t.Fatalf("LoadQuirksSet(%q): %s", path, err)

@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -40,6 +41,9 @@ func LoadQuirksSet(path string) (QuirksSet, error) {
 func (qset QuirksSet) readDir(path string) error {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
 		return err
 	}
 

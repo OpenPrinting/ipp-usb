@@ -29,16 +29,24 @@ type Quirks struct {
 }
 
 // QuirksSet represents collection of quirks, indexed by model name
-type QuirksSet map[string]*Quirks
+type QuirksSet []*Quirks
 
 // LoadQuirksSet creates new QuirksSet and loads its content from a directory
-func LoadQuirksSet(path string) (QuirksSet, error) {
-	qset := make(QuirksSet)
-	return qset, qset.readDir(path)
+func LoadQuirksSet(paths ...string) (QuirksSet, error) {
+	qset := QuirksSet{}
+
+	for _, path := range paths {
+		err := qset.readDir(path)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return qset, nil
 }
 
 // readDir loads all Quirks from a directory
-func (qset QuirksSet) readDir(path string) error {
+func (qset *QuirksSet) readDir(path string) error {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -61,7 +69,7 @@ func (qset QuirksSet) readDir(path string) error {
 }
 
 // readFile reads all Quirks from a file
-func (qset QuirksSet) readFile(file string) error {
+func (qset *QuirksSet) readFile(file string) error {
 	// Open quirks file
 	ini, err := OpenIniFileWithRecType(file)
 	if err != nil {
@@ -81,19 +89,14 @@ func (qset QuirksSet) readFile(file string) error {
 
 		// Get Quirks structure
 		if rec.Type == IniRecordSection {
-			q = qset[rec.Section]
-			if q != nil {
-				return fmt.Errorf("%s:%d: section %q already defined at %s",
-					rec.File, rec.Line, rec.Section, q.Origin)
-			}
-
 			q = &Quirks{
 				Origin:      fmt.Sprintf("%s:%d", rec.File, rec.Line),
 				Model:       rec.Section,
 				HttpHeaders: make(map[string]string),
-				Index:       len(qset),
+				Index:       len(*qset),
 			}
-			qset[rec.Section] = q
+			*qset = append(*qset, q)
+
 			continue
 		} else if q == nil {
 			err = fmt.Errorf("%s:%d: %q = %q out of any section",

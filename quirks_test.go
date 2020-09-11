@@ -31,7 +31,7 @@ func TestQuirksSetMatchModelName(t *testing.T) {
 		{"t?st", "t\\?st", 4},
 	}
 
-	qset := make(QuirksSet)
+	var qset QuirksSet
 	for _, data := range testData {
 		n := qset.matchModelName(data.model, data.pattern, 0)
 		if n != data.count {

@@ -31,7 +31,7 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 
 	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
 
-	decoder := newEsclCapsDecoder(usbinfo, ippinfo)
+	decoder := newEsclCapsDecoder(ippinfo)
 	svc := DNSSdSvcInfo{
 		Type: "_uscan._tcp",
 		Port: port,
@@ -67,6 +67,10 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 	err = decoder.decode(bytes.NewBuffer(xmlData))
 	if err != nil {
 		goto ERROR
+	}
+
+	if decoder.uuid == "" {
+		decoder.uuid = usbinfo.UUID()
 	}
 
 	// If we have no data, assume eSCL response was invalud
@@ -148,11 +152,8 @@ type esclCapsDecoder struct {
 }
 
 // newesclCapsDecoder creates new esclCapsDecoder
-func newEsclCapsDecoder(usbinfo UsbDeviceInfo,
-	ippinfo *IppPrinterInfo) *esclCapsDecoder {
-
+func newEsclCapsDecoder(ippinfo *IppPrinterInfo) *esclCapsDecoder {
 	decoder := &esclCapsDecoder{
-
 		pdl: make(map[string]struct{}),
 		cs:  make(map[string]struct{}),
 	}
@@ -161,8 +162,6 @@ func newEsclCapsDecoder(usbinfo UsbDeviceInfo,
 		decoder.uuid = ippinfo.UUID
 		decoder.adminurl = ippinfo.AdminURL
 		decoder.representation = ippinfo.IconURL
-	} else {
-		decoder.uuid = usbinfo.UUID()
 	}
 
 	return decoder
@@ -237,7 +236,10 @@ func (decoder *esclCapsDecoder) element(path string) {
 func (decoder *esclCapsDecoder) data(path, data string) {
 	switch path {
 	case "/scan:ScannerCapabilities/scan:UUID":
-		decoder.uuid = data
+		uuid := UUIDNormalize(data)
+		if uuid != "" && decoder.uuid == "" {
+			decoder.uuid = data
+		}
 	case "/scan:ScannerCapabilities/scan:AdminURI":
 		decoder.adminurl = data
 	case "/scan:ScannerCapabilities/scan:IconURI":

@@ -110,7 +110,7 @@ Logging parameters are all in the `[logging]` section:
       # Enable or disable ANSI colors on console
       console-color = enable # enable | disable
 
-### Quirts
+### Quirks
 
 Some devices, due to their firmware bugs, require special handling,
 called device-specific **quirks**. `ipp-usb` loads quirks from the

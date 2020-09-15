@@ -110,6 +110,52 @@ Logging parameters are all in the `[logging]` section:
       # Enable or disable ANSI colors on console
       console-color = enable # enable | disable
 
+### Quirts
+
+Some devices, due to their firmware bugs, require special handling,
+called device-specific **quirks**. `ipp-usb` loads quirks from the
+`/usr/share/ipp-usb/quirks/*.conf` files. These files have .INI-file
+syntax with the content that looks like this:
+
+    [HP LaserJet MFP M28-M31]
+      http-connection = keep-alive
+
+    [HP OfficeJet Pro 8730]
+      http-connection = close
+
+    [HP Inc. HP Laser MFP 135a]
+      blacklist = true
+
+    # Default configuration
+    [*]
+      http-connection = ""
+
+For each discovered device, its model name is matched against sections
+of the quirks files. Section name may contain glob-style wildcards: `*` that
+matches any sequence of characters and `?`, that matches any single
+character. If device name must contain any of these characters, use
+backslash as escape.
+
+All matching sections from all quirks files are taken in consideration,
+and applied in priority order. Priority is computed using the following
+algorithm:
+
+* When matching model name against section name, amount of non-wildcard
+matched characters is counted, and the longer match wins
+* Otherwise, section loaded first wins. Files are loaded in alphabetical
+order, sections read sequentially
+
+If some parameter exist in multiple sections, used its value from the
+most priority section
+
+The following parameters are defined:
+
+   * `blacklist = true | false`:
+     If `true`, the matching device is ignored by the `ipp-usb`
+
+   * `http-XXX = YYY`:
+     Set XXX header of the HTTP requests forwarded to device to YYY.
+     If YYY is empty string, XXX header is removed
 
 ## FILES
 
@@ -127,6 +173,8 @@ Logging parameters are all in the `[logging]` section:
 
    * `/var/ipp-usb/lock/ipp-usb.lock`:
      lock file, that helps to prevent multiple copies of daemon to run simultaneously
+
+   * `/usr/share/ipp-usb/quirks/*.conf`: device-specific quirks (see above)
 
 ## COPYRIGHT
 

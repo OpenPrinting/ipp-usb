@@ -18,6 +18,7 @@ import (
 // IniFile represents opened .INI file
 type IniFile struct {
 	file        *os.File      // Underlying file
+	line        int           // Line in that file
 	reader      *bufio.Reader // Reader on a top of file
 	buf         bytes.Buffer  // Temporary buffer to speed up things
 	rec         IniRecord     // Next record
@@ -60,10 +61,10 @@ func OpenIniFile(path string) (ini *IniFile, err error) {
 
 	ini = &IniFile{
 		file:   f,
+		line:   1,
 		reader: bufio.NewReader(f),
 		rec: IniRecord{
 			File: path,
-			Line: 1,
 		},
 	}
 
@@ -102,6 +103,7 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 		}
 
 		// Parse next record
+		ini.rec.Line = ini.line
 		var token string
 		switch c {
 		case '[':
@@ -314,7 +316,7 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 func (ini *IniFile) getc() (byte, error) {
 	c, err := ini.reader.ReadByte()
 	if c == '\n' {
-		ini.rec.Line++
+		ini.line++
 	}
 	return c, err
 }
@@ -343,7 +345,7 @@ func (ini *IniFile) getcNl() (byte, error) {
 // only one character can be unread this way
 func (ini *IniFile) ungetc(c byte) {
 	if c == '\n' {
-		ini.rec.Line--
+		ini.line--
 	}
 	ini.reader.UnreadByte()
 }

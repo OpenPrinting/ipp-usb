@@ -122,7 +122,7 @@ func (qset *QuirksSet) readFile(file string) error {
 		err = nil
 	}
 
-	return nil
+	return err
 }
 
 // Get quirks by model name

@@ -146,6 +146,17 @@ type UsbDeviceDesc struct {
 	IfDescs []UsbIfDesc   // Descriptors of all interfaces
 }
 
+// GetUsbDeviceInfo obtains UsbDeviceInfo by UsbDeviceDesc
+// It may fail, if device cannot be opened
+func (desc UsbDeviceDesc) GetUsbDeviceInfo() (UsbDeviceInfo, error) {
+	dev, err := UsbOpenDevice(desc)
+	if err == nil {
+		defer dev.Close()
+		return dev.UsbDeviceInfo()
+	}
+	return UsbDeviceInfo{}, err
+}
+
 // UsbIfDesc represents an USB interface descriptor
 type UsbIfDesc struct {
 	Config   int // Configuration

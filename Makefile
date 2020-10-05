@@ -17,7 +17,7 @@ man:	$(MANPAGE)
 $(MANPAGE): $(MANPAGE).md
 	ronn --roff --manual=$@ $<
 
-install:
+install: all
 	install -s -D -t $(PREFIX)/sbin ipp-usb
 	install -m 644 -D -t $(PREFIX)/lib/udev/rules.d systemd-udev/*.rules
 	install -m 644 -D -t $(PREFIX)/lib/systemd/system systemd-udev/*.service

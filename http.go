@@ -11,10 +11,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 )
@@ -93,22 +95,56 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Obtain our local address the request was ordered to
+	var localAddr *net.TCPAddr
+
+	if v := r.Context().Value(http.LocalAddrContextKey); v != nil {
+		if v != nil {
+			localAddr, _ = v.(*net.TCPAddr)
+		}
+	}
+
+	if localAddr == nil {
+		proxy.httpError(session, w, r, http.StatusInternalServerError,
+			errors.New("Unable to get local address for request"))
+		return
+	}
+
 	// Adjust request headers
 	httpRemoveHopByHopHeaders(r.Header)
 
 	if r.Host == "" {
-		// It's a pure black magic how to obtain Host if
-		// it is missed in request (i.e., it's HTTP/1.0)
-		v := r.Context().Value(http.LocalAddrContextKey)
-		if v != nil {
-			if addr, ok := v.(net.Addr); ok {
-				r.Host = addr.String()
-			}
+		if localAddr.IP.IsLoopback() {
+			r.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+		} else {
+			r.Host = localAddr.String()
 		}
 	}
 
 	r.URL.Scheme = "http"
 	r.URL.Host = r.Host
+
+	// If request is ordered to the loopback address, and r.Host is not
+	// "localhost" or "localhost:port", redirect request to the localhost
+	//
+	// Note, IPP over USB specification requires Host: to be always
+	// "localhost" or "localhost:port". Although most of the printers
+	// accept any syntactically correct Host: header, some of the OKI
+	// printers doesn't, and reject requests that violate this rule
+	//
+	// This redirection fixes compatibility with these printers for
+	// clients that follow redirects (i.e., web browser and sane-airscan;
+	// CUPS unfortunately doesn't follow redirects)
+	if localAddr.IP.IsLoopback() &&
+		!strings.HasPrefix(r.Host, "localhost") &&
+		r.Method == "GET" || r.Method == "HEAD" {
+
+		url := *r.URL
+		url.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+
+		proxy.httpRedirect(session, w, r, http.StatusFound, &url)
+		return
+	}
 
 	// Send request and obtain response status and header
 	resp, err := proxy.transport.RoundTripWithSession(session, r)
@@ -153,6 +189,21 @@ func (proxy *HTTPProxy) httpError(session int, w http.ResponseWriter, r *http.Re
 	} else {
 		proxy.log.HTTPDebug(' ', session, "request canceled by impatient client")
 	}
+}
+
+// Respond to request with the HTTP redirect
+func (proxy *HTTPProxy) httpRedirect(session int, w http.ResponseWriter, r *http.Request,
+	status int, location *url.URL) {
+
+	proxy.log.Begin().
+		HTTPRqParams(LogDebug, '>', session, r).
+		HTTPRequest(LogTraceHTTP, '>', session, r).
+		Commit()
+
+	w.Header().Set("Location", location.String())
+	w.WriteHeader(status)
+
+	proxy.log.HTTPDebug(' ', session, "redirected to %s", location)
 }
 
 // Set response headers to disable cacheing

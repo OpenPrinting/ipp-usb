@@ -136,7 +136,7 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// clients that follow redirects (i.e., web browser and sane-airscan;
 	// CUPS unfortunately doesn't follow redirects)
 	if localAddr.IP.IsLoopback() &&
-		!strings.HasPrefix(r.Host, "localhost") &&
+		!strings.HasPrefix(strings.ToLower(r.Host), "localhost:") &&
 		r.Method == "GET" || r.Method == "HEAD" {
 
 		url := *r.URL

@@ -5,5 +5,5 @@ After=cups.service avahi-daemon.service
 Wants=avahi-daemon.service
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/sbin/ipp-usb udev

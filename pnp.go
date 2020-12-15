@@ -25,14 +25,27 @@ const (
 	PnPTerm                      // Terminating signal received
 )
 
+// pnpRetryTime returns time of next retry of failed device initialization
+func pnpRetryTime() time.Time {
+	return time.Now().Add(DNSSdRetryInterval)
+}
+
+// pnpRetryExpired checks if device initialization retry time expired
+func pnpRetryExpired(tm time.Time) bool {
+	return !time.Now().Before(tm)
+}
+
 // PnPStart start PnP manager
 //
 // If exitWhenIdle is true, PnP manager will exit, when there is no more
 // devices to serve
 func PnPStart(exitWhenIdle bool) PnPExitReason {
 	devices := UsbAddrList{}
-	devByAddr := make(map[string]*Device)
+	devByAddr := make(map[UsbAddr]*Device)
+	retryByAddr := make(map[UsbAddr]time.Time)
 	sigChan := make(chan os.Signal, 1)
+	ticker := time.NewTicker(DNSSdRetryInterval / 4)
+	tickerRunning := true
 
 	signal.Notify(sigChan,
 		os.Signal(syscall.SIGINT),
@@ -53,33 +66,67 @@ loop:
 			added, removed := devices.Diff(newdevices)
 			devices = newdevices
 
+			// Handle added devices
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
 				dev, err := NewDevice(dev_descs[addr])
 				if err == nil {
-					devByAddr[addr.MapKey()] = dev
+					devByAddr[addr] = dev
 				} else {
 					Log.Error('!', "PNP %s: %s", addr, err)
+					retryByAddr[addr] = pnpRetryTime()
 				}
 			}
 
+			// Handle removed devices
 			for _, addr := range removed {
 				Log.Debug('-', "PNP %s: removed", addr)
-				dev, ok := devByAddr[addr.MapKey()]
+				delete(retryByAddr, addr)
+
+				dev, ok := devByAddr[addr]
 				if ok {
 					dev.Close()
-					delete(devByAddr, addr.MapKey())
+					delete(devByAddr, addr)
+				}
+			}
+
+			// Handle devices, waiting for retry
+			for addr, tm := range retryByAddr {
+				if !pnpRetryExpired(tm) {
+					continue
+				}
+
+				Log.Debug('+', "PNP %s: retry", addr)
+				dev, err := NewDevice(dev_descs[addr])
+				if err == nil {
+					devByAddr[addr] = dev
+					delete(retryByAddr, addr)
+				} else {
+					Log.Error('!', "PNP %s: %s", addr, err)
+					retryByAddr[addr] = pnpRetryTime()
 				}
 			}
 		}
 
+		// Handle exit when idle
 		if exitWhenIdle && len(devices) == 0 {
 			Log.Info(' ', "No IPP-over-USB devices present, exiting")
 			return PnPIdle
 		}
 
+		// Update ticker
+		switch {
+		case tickerRunning && len(retryByAddr) == 0:
+			ticker.Stop()
+			tickerRunning = false
+		case !tickerRunning && len(retryByAddr) != 0:
+			ticker = time.NewTicker(DNSSdRetryInterval / 4)
+			tickerRunning = true
+		}
+
 		select {
 		case <-UsbHotPlugChan:
+		case <-ticker.C:
 		case sig := <-sigChan:
 			Log.Info(' ', "%s signal received, exiting", sig)
 			break loop
@@ -87,7 +134,8 @@ loop:
 	}
 
 	// Close remaining devices
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(),
+		DevShutdownTimeout)
 	defer cancel()
 
 	var done sync.WaitGroup

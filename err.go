@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrLockIsBusy  = errors.New("Lock is busy")
-	ErrNoMemory    = errors.New("Not enough memory")
-	ErrShutdown    = errors.New("Shutdown requested")
-	ErrBlackListed = errors.New("Device is blacklisted")
+	ErrLockIsBusy   = errors.New("Lock is busy")
+	ErrNoMemory     = errors.New("Not enough memory")
+	ErrShutdown     = errors.New("Shutdown requested")
+	ErrBlackListed  = errors.New("Device is blacklisted")
+	ErrInitTimedOut = errors.New("Device initialization timed out")
 )

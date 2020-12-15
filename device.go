@@ -12,6 +12,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"time"
 )
 
 // Device object brings all parts together, namely:
@@ -69,6 +70,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Create HTTP server
+	dev.UsbTransport.SetDeadline(time.Now().Add(DevInitTimeout))
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)
 
 	// Obtain DNS-SD info for IPP
@@ -83,6 +85,11 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	log.Flush()
+
+	if dev.UsbTransport.DeadlineExpired() {
+		err = ErrInitTimedOut
+		goto ERROR
+	}
 
 	// Obtain DNS-SD name
 	if ippinfo != nil {
@@ -108,6 +115,11 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	log.Flush()
 
+	if dev.UsbTransport.DeadlineExpired() {
+		err = ErrInitTimedOut
+		goto ERROR
+	}
+
 	// Update IPP service advertising for scanner presence
 	if ippinfo != nil {
 		if ippSvc := &dnssdServices[ippinfo.IppSvcIndex]; err == nil {
@@ -119,6 +131,10 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	// Advertise Web service. Assume it always exists
 	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
+
+	// Enable handling incoming requests
+	dev.UsbTransport.SetDeadline(time.Time{})
+	dev.HTTPProxy.Enable()
 
 	// Start DNS-SD publisher
 	for _, svc := range dnssdServices {
@@ -145,7 +161,7 @@ ERROR:
 	}
 
 	if dev.UsbTransport != nil {
-		dev.UsbTransport.Close()
+		dev.UsbTransport.Close(true)
 	}
 
 	if listener != nil {
@@ -189,7 +205,7 @@ func (dev *Device) Close() {
 	}
 
 	if dev.UsbTransport != nil {
-		dev.UsbTransport.Close()
+		dev.UsbTransport.Close(false)
 		dev.UsbTransport = nil
 	}
 }

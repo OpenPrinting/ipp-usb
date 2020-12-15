@@ -261,7 +261,7 @@ func (publisher *DNSSdPublisher) goroutine() {
 		}
 
 		if fail {
-			timer.Reset(1 * time.Second)
+			timer.Reset(DNSSdRetryInterval)
 		}
 	}
 }

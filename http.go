@@ -31,6 +31,7 @@ var (
 type HTTPProxy struct {
 	log       *Logger       // Logger instance
 	server    *http.Server  // HTTP server
+	enable    bool          // Proxy can handle incoming requests
 	transport *UsbTransport // Transport for outgoing requests
 	closeWait chan struct{} // Closed at server close
 }
@@ -64,6 +65,12 @@ func (proxy *HTTPProxy) Close() {
 	<-proxy.closeWait
 }
 
+// Enable indicates that initialization is completed and
+// incoming requests can be handled
+func (proxy *HTTPProxy) Enable() {
+	proxy.enable = true
+}
+
 // Handle HTTP request
 func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Catch panics to log
@@ -77,6 +84,12 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	session := int(atomic.AddInt32(&httpSessionID, 1)-1) % 1000
 
 	// Perform sanity checking
+	if !proxy.enable {
+		proxy.httpError(session, w, r, http.StatusServiceUnavailable,
+			errors.New("ipp-usb is not ready for this device"))
+		return
+	}
+
 	if r.Method == "CONNECT" {
 		proxy.httpError(session, w, r, http.StatusMethodNotAllowed,
 			errors.New("CONNECT not allowed"))

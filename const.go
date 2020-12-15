@@ -15,7 +15,14 @@ import (
 const (
 	// DevInitTimeout specifies how much time to wait for
 	// device initialization
-	DevInitTimeout = 2500 * time.Millisecond
+	//
+	// Note, EPSON ET 4750 Series takes A LOT of time to
+	// respond for the first IPP query, and it needs to be
+	// better investigated, see logs in #17 for details:
+	//    https://github.com/OpenPrinting/ipp-usb/issues/17
+	//
+	// For now, just set timeout big enough
+	DevInitTimeout = 20 * time.Second
 
 	// DevShutdownTimeout specifies how much time to wait for
 	// device graceful shutdown

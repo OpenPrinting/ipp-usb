@@ -530,7 +530,14 @@ func (transport *UsbTransport) openUsbConn(
 	}
 
 	// Soft-reset interface
-	err = conn.iface.SoftReset()
+	//
+	// Note, disabled for now, because it causes problems
+	// with EPSON ET-4750 (see #17)
+	//
+	// May be in a future we will enable it conditionally,
+	// for some printer models (based on quirks)
+	//
+	// err = conn.iface.SoftReset()
 	if err != nil {
 		// Don't treat it too seriously
 		transport.log.Info('?', "USB[%d]: SOFT_RESET: %s", index, err)

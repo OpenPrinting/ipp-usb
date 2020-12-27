@@ -61,7 +61,7 @@ const (
 
 // String returns string representation of error code
 func (err UsbErrCode) String() string {
-	return C.GoString(C.libusb_strerror(int32(err)))
+	return C.GoString(C.libusb_strerror(C.enum_libusb_error(err)))
 }
 
 var (

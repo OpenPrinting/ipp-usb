@@ -27,6 +27,16 @@ import (
 // typedef struct libusb_interface libusb_interface_struct;
 // typedef struct libusb_interface_descriptor libusb_interface_descriptor_struct;
 // typedef struct libusb_endpoint_descriptor libusb_endpoint_descriptor_struct;
+//
+// // Note, libusb_strerror accepts enum libusb_error argument, which
+// // unfortunately behaves differently depending on target OS and compiler
+// // version (sometimes as C.int, sometimes as int32). Looks like cgo
+// // bug. Wrapping this function into this simple wrapper should
+// // fix the problem. See #18 for details
+// static inline const char*
+// libusb_strerror_wrapper (int code) {
+//     return libusb_strerror(code);
+// }
 import "C"
 
 // UsbError represents USB error
@@ -61,7 +71,7 @@ const (
 
 // String returns string representation of error code
 func (err UsbErrCode) String() string {
-	return C.GoString(C.libusb_strerror(C.enum_libusb_error(err)))
+	return C.GoString(C.libusb_strerror_wrapper(C.int(err)))
 }
 
 var (

@@ -149,14 +149,18 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// clients that follow redirects (i.e., web browser and sane-airscan;
 	// CUPS unfortunately doesn't follow redirects)
 	if localAddr.IP.IsLoopback() &&
-		!strings.HasPrefix(strings.ToLower(r.Host), "localhost:") &&
-		r.Method == "GET" || r.Method == "HEAD" {
+		(r.Method == "GET" || r.Method == "HEAD") {
 
-		url := *r.URL
-		url.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+		host := strings.ToLower(r.Host)
+		if host != "localhost" &&
+			!strings.HasPrefix(host, "localhost:") {
 
-		proxy.httpRedirect(session, w, r, http.StatusFound, &url)
-		return
+			url := *r.URL
+			url.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+
+			proxy.httpRedirect(session, w, r, http.StatusFound, &url)
+			return
+		}
 	}
 
 	// Send request and obtain response status and header

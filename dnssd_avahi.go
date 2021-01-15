@@ -210,6 +210,10 @@ ERROR:
 }
 
 // Close dnssdSysdep
+//
+// It cancel all activity related to the dnssdSysdep instance,
+// but sysdep.Chan() remains valid, though no notifications
+// will be pushed there anymore
 func (sysdep *dnssdSysdep) Close() {
 	avahiThreadLock()
 	sysdep.destroy()
@@ -229,11 +233,13 @@ func (sysdep *dnssdSysdep) destroy() {
 	if sysdep.egroup != nil {
 		C.avahi_entry_group_free(sysdep.egroup)
 		delete(avahiEgroupMap, sysdep.egroup)
+		sysdep.egroup = nil
 	}
 
 	if sysdep.client != nil {
 		C.avahi_client_free(sysdep.client)
 		delete(avahiClientMap, sysdep.client)
+		sysdep.client = nil
 	}
 
 	// Drain status channel

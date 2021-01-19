@@ -221,11 +221,31 @@ func (transport *UsbTransport) DeadlineExpired() bool {
 	return !deadline.IsZero() && time.Until(deadline) <= 0
 }
 
+// closeShutdownChan closes the transport.shutdown, which effectively
+// disables connections allocation (usbConnGet will return ErrShutdown)
+//
+// This function can be safely called multiple times (only the first
+// call closes the channel)
+//
+// Note, this function cannot be called simultaneously from
+// different threads. However, it's not a problem, because it
+// is only called from (*UsbTransport) Shutdown() and
+// (*UsbTransport) Close(), and both of these functions are
+// only called from the PnP thread context.
+func (transport *UsbTransport) closeShutdownChan() {
+	select {
+	case <-transport.shutdown:
+		// Channel already closed
+	default:
+		close(transport.shutdown)
+	}
+}
+
 // Shutdown gracefully shuts down the transport. If provided
 // context expires before shutdown completion, Shutdown
 // returns the Context's error
 func (transport *UsbTransport) Shutdown(ctx context.Context) error {
-	close(transport.shutdown)
+	transport.closeShutdownChan()
 
 	for {
 		n := transport.connInUse()
@@ -250,12 +270,17 @@ func (transport *UsbTransport) Shutdown(ctx context.Context) error {
 
 // Close the transport
 func (transport *UsbTransport) Close(reset bool) {
+	// Reset the device, if required
 	if transport.connInUse() > 0 || reset {
 		transport.log.Info('-', "%s: resetting %s",
 			transport.addr, transport.info.ProductName)
 		transport.dev.Reset()
 	}
 
+	// Wait until all connections become inactive
+	transport.Shutdown(context.Background())
+
+	// Destroy all connections and close the USB device
 	for _, conn := range transport.connList {
 		conn.destroy()
 	}

@@ -48,9 +48,18 @@ type dnssdSysdep struct {
 	statusChan chan DNSSdStatus   // Status notifications channel
 }
 
+// dnssdSysdepErr implements error interface on a top of
+// Avahi error codes
+type dnssdSysdepErr C.int
+
+// Error returns error string for the dnssdSysdepErr
+func (err dnssdSysdepErr) Error() string {
+	return "Avahi error: " + C.GoString(C.avahi_strerror(C.int(err)))
+}
+
 // newDnssdSysdep creates new dnssdSysdep instance
-func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
-	*dnssdSysdep, error) {
+func newDnssdSysdep(log *Logger, instance string,
+	services DNSSdServices) *dnssdSysdep {
 
 	log.Debug(' ', "DNS-SD: %s: trying", instance)
 
@@ -193,30 +202,34 @@ func newDnssdSysdep(log *Logger, instance string, services DNSSdServices) (
 	}
 
 	// Create and return dnssdSysdep
-	return sysdep, nil
+	return sysdep
 
+	// Error: cleanup and exit
 AVAHI_ERROR:
-	// Report name collision as event rather that error
-	if rc == C.AVAHI_ERR_COLLISION {
+	err = dnssdSysdepErr(rc)
+ERROR:
+
+	// Raise an error event
+	sysdep.log.Error(' ', "DNS-SD: %s: %s", sysdep.instance, err)
+	sysdep.haltLocked()
+
+	if err == dnssdSysdepErr(C.AVAHI_ERR_COLLISION) {
 		sysdep.notify(DNSSdCollision)
-		return sysdep, nil
+	} else {
+		sysdep.notify(DNSSdFailure)
 	}
 
-	err = errors.New(C.GoString(C.avahi_strerror(rc)))
-
-ERROR:
-	sysdep.destroy()
-	return nil, fmt.Errorf("AVAHI: %s", err)
+	return sysdep
 }
 
-// Close dnssdSysdep
+// Halt dnssdSysdep
 //
 // It cancel all activity related to the dnssdSysdep instance,
 // but sysdep.Chan() remains valid, though no notifications
 // will be pushed there anymore
-func (sysdep *dnssdSysdep) Close() {
+func (sysdep *dnssdSysdep) Halt() {
 	avahiThreadLock()
-	sysdep.destroy()
+	sysdep.haltLocked()
 	avahiThreadUnlock()
 }
 
@@ -225,10 +238,11 @@ func (sysdep *dnssdSysdep) Chan() <-chan DNSSdStatus {
 	return sysdep.statusChan
 }
 
-// destroy dnssdSysdep
+// Halt dnssdSysdep -- internal version
+//
 // Must be called under avahiThreadLock
 // Can be used with semi-constructed dnssdSysdep
-func (sysdep *dnssdSysdep) destroy() {
+func (sysdep *dnssdSysdep) haltLocked() {
 	// Free all Avahi stuff
 	if sysdep.egroup != nil {
 		C.avahi_entry_group_free(sysdep.egroup)
@@ -317,6 +331,8 @@ func avahiClientCallback(client *C.AvahiClient,
 	case C.AVAHI_CLIENT_S_RUNNING:
 		event = "AVAHI_CLIENT_S_RUNNING"
 	case C.AVAHI_CLIENT_S_COLLISION:
+		// This is host name collision. We can't recover
+		// it here, so lets consider it as DNSSdFailure
 		event = "AVAHI_CLIENT_S_COLLISION"
 		status = DNSSdFailure
 	case C.AVAHI_CLIENT_FAILURE:

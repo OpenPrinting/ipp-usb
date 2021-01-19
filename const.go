@@ -27,5 +27,5 @@ const (
 
 	// DNSSdRetryInterval specifies the retry interval in a case
 	// of failed DNS-SD operation
-	DNSSdRetryInterval = 1 * time.Second
+	DNSSdRetryInterval = 2 * time.Second
 )

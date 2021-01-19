@@ -139,15 +139,9 @@ func NewDNSSdPublisher(log *Logger,
 
 // Publish all services
 func (publisher *DNSSdPublisher) Publish() error {
-	var err error
-
 	instance := publisher.instance(0)
-	publisher.sysdep, err = newDnssdSysdep(publisher.Log,
-		instance, publisher.Services)
-
-	if err != nil {
-		return err
-	}
+	publisher.sysdep = newDnssdSysdep(publisher.Log, instance,
+		publisher.Services)
 
 	publisher.Log.Info('+', "DNS-SD: %s: publishing requested", instance)
 
@@ -162,7 +156,7 @@ func (publisher *DNSSdPublisher) Unpublish() {
 	close(publisher.fin)
 	publisher.finDone.Wait()
 
-	publisher.sysdep.Close()
+	publisher.sysdep.Halt()
 
 	publisher.Log.Info('-', "DNS-SD: %s: removed", publisher.instance(0))
 }
@@ -242,7 +236,7 @@ func (publisher *DNSSdPublisher) goroutine() {
 					instance)
 
 				fail = true
-				publisher.sysdep.Close()
+				publisher.sysdep.Halt()
 
 			default:
 				publisher.Log.Error(' ', "DNS-SD: %s: unknown event %s",
@@ -251,7 +245,7 @@ func (publisher *DNSSdPublisher) goroutine() {
 
 		case <-timer.C:
 			instance = publisher.instance(suffix)
-			publisher.sysdep, err = newDnssdSysdep(publisher.Log,
+			publisher.sysdep = newDnssdSysdep(publisher.Log,
 				instance, publisher.Services)
 
 			if err != nil {

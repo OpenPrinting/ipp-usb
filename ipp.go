@@ -260,7 +260,7 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	svc.Txt.IfNotEmpty("usb_CMD", devid["CMD"])
 	svc.Txt.IfNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
-	svc.Txt.IfNotEmpty("pdl", attrs.strJoined("document-format-supported"))
+	svc.Txt.AddPDL("pdl", attrs.strJoined("document-format-supported"))
 	svc.Txt.Add("txtvers", "1")
 	svc.Txt.URLIfNotEmpty("adminurl", ippinfo.AdminURL)
 

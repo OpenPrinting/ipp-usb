@@ -10,6 +10,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,6 +32,38 @@ func (txt *DNSSdTxtRecord) Add(key, value string) {
 // AddURL adds URL item to DNSSdTxtRecord
 func (txt *DNSSdTxtRecord) AddURL(key, value string) {
 	*txt = append(*txt, DNSSdTxtItem{key, value, true})
+}
+
+// AddPDL adds PDL list (list of supported Page Description Languages, i.e.,
+// document formats) to the DNSSdTxtRecord.
+//
+// Sometimes the PDL list that comes from device, is too large to fit
+// TXT record (key=value pair must not exceed 255 bytes). At this case
+// we take only as much as possible leading entries of the device-supplied
+// list in hope that firmware is smart enough to place most common PDLs
+// to the beginning of the list, while more exotic entries goes to the end
+func (txt *DNSSdTxtRecord) AddPDL(key, value string) {
+	// How many space we have for value? Is it enough?
+	max := 255 - len(key) - 1
+	if max >= len(value) {
+		txt.Add(key, value)
+		return
+	}
+
+	// Safety check
+	if max <= 0 {
+		return
+	}
+
+	// Truncate the value to fit available space
+	value = value[:max+1]
+	i := strings.LastIndexByte(value, ',')
+	if i < 0 {
+		return
+	}
+
+	value = value[:i]
+	txt.Add(key, value)
 }
 
 // IfNotEmpty adds item to DNSSdTxtRecord if its value is not empty

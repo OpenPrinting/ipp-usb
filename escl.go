@@ -122,7 +122,7 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 		list = append(list, p)
 	}
 	sort.Strings(list)
-	svc.Txt.IfNotEmpty("pdl", strings.Join(list, ","))
+	svc.Txt.AddPDL("pdl", strings.Join(list, ","))
 
 	svc.Txt.Add("ty", usbinfo.ProductName)
 	svc.Txt.Add("rs", "eSCL")

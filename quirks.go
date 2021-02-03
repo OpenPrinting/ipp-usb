@@ -30,6 +30,13 @@ type Quirks struct {
 	Index            int               // Incremented in order of loading
 }
 
+// empty returns true, if Quirks are actually empty
+func (q *Quirks) empty() bool {
+	return !q.Blacklist &&
+		len(q.HttpHeaders) == 0 &&
+		q.UsbMaxInterfaces == 0
+}
+
 // QuirksSet represents collection of quirks, indexed by model name
 type QuirksSet []*Quirks
 
@@ -193,7 +200,7 @@ func (qset QuirksSet) Get(model string) []Quirks {
 			}
 		}
 
-		if len(q.HttpHeaders) != 0 {
+		if !q.empty() {
 			quirks[out] = q
 			out++
 		}

@@ -258,3 +258,18 @@ func confLoadUintKey(out *uint, rec *IniRecord) error {
 	*out = uint(num)
 	return nil
 }
+
+// Load unsigned integer key within the range
+func confLoadUintKeyRange(out *uint, rec *IniRecord, min, max uint) error {
+	var val uint
+	err := confLoadUintKey(&val, rec)
+	if err == nil && (val < min || val > max) {
+		err = confBadValue(rec, "must be in range %d...%d", min, max)
+	}
+
+	if err == nil {
+		*out = val
+	}
+
+	return err
+}

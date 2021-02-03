@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -88,6 +89,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	for _, quirks := range transport.quirks {
 		log.Debug(' ', "  from [%s] (%s)", quirks.Model, quirks.Origin)
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
+		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
 		for name, value := range quirks.HttpHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}
@@ -113,6 +115,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	log.Nl(LogDebug)
 	log.Commit()
 
+	var maxconn uint
+
 	// Check for blacklisted device
 	if len(transport.quirks) > 0 && transport.quirks[0].Blacklist {
 		err = ErrBlackListed
@@ -126,6 +130,13 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 
 	// Open connections
+	maxconn = math.MaxUint32
+	for _, quirks := range transport.quirks {
+		if quirks.UsbMaxInterfaces != 0 {
+			maxconn = quirks.UsbMaxInterfaces
+		}
+	}
+
 	for i, ifaddr := range desc.IfAddrs {
 		var conn *usbConn
 		conn, err = transport.openUsbConn(i, ifaddr)
@@ -134,6 +145,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		}
 		transport.connPool <- conn
 		transport.connList = append(transport.connList, conn)
+
+		maxconn--
+		if maxconn == 0 {
+			break
+		}
 	}
 
 	return transport, nil

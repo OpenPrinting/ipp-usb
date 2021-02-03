@@ -133,8 +133,8 @@ syntax with the content that looks like this:
 For each discovered device, its model name is matched against sections
 of the quirks files. Section name may contain glob-style wildcards: `*` that
 matches any sequence of characters and `?`, that matches any single
-character. If device name must contain any of these characters, use
-backslash as escape.
+character. To match one of these characters (`*` and `?`) literally,
+use backslash as escape.
 
 All matching sections from all quirks files are taken in consideration,
 and applied in priority order. Priority is computed using the following
@@ -156,6 +156,9 @@ The following parameters are defined:
    * `http-XXX = YYY`:
      Set XXX header of the HTTP requests forwarded to device to YYY.
      If YYY is empty string, XXX header is removed
+
+   * `usb-max-interfaces = N`:
+     Don't use more that N USB interfaces, even if more is available
 
 ## FILES
 

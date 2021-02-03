@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,11 +22,12 @@ import (
 
 // Quirks represents device-specific quirks
 type Quirks struct {
-	Origin      string            // file:line of definition
-	Model       string            // Device model name
-	Blacklist   bool              // Blacklist the device
-	HttpHeaders map[string]string // HTTP header override
-	Index       int               // Incremented in order of loading
+	Origin           string            // file:line of definition
+	Model            string            // Device model name
+	Blacklist        bool              // Blacklist the device
+	HttpHeaders      map[string]string // HTTP header override
+	UsbMaxInterfaces uint              // Max number of USB interfaces
+	Index            int               // Incremented in order of loading
 }
 
 // QuirksSet represents collection of quirks, indexed by model name
@@ -115,6 +117,10 @@ func (qset *QuirksSet) readFile(file string) error {
 		case "blacklist":
 			err = confLoadBinaryKey(&q.Blacklist, rec,
 				"false", "true")
+
+		case "usb-max-interfaces":
+			err = confLoadUintKeyRange(&q.UsbMaxInterfaces, rec,
+				1, math.MaxUint32)
 		}
 	}
 

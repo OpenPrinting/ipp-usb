@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "IPP\-USB" "8" "September 2020" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "February 2021" "" "ipp-usb.8"
 .
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
@@ -157,7 +157,7 @@ Some devices, due to their firmware bugs, require special handling, called devic
 .IP "" 0
 .
 .P
-For each discovered device, its model name is matched against sections of the quirks files\. Section name may contain glob\-style wildcards: \fB*\fR that matches any sequence of characters and \fB?\fR, that matches any single character\. If device name must contain any of these characters, use backslash as escape\.
+For each discovered device, its model name is matched against sections of the quirks files\. Section name may contain glob\-style wildcards: \fB*\fR that matches any sequence of characters and \fB?\fR, that matches any single character\. To match one of these characters (\fB*\fR and \fB?\fR) literally, use backslash as escape\.
 .
 .P
 All matching sections from all quirks files are taken in consideration, and applied in priority order\. Priority is computed using the following algorithm:
@@ -183,6 +183,10 @@ If \fBtrue\fR, the matching device is ignored by the \fBipp\-usb\fR
 .TP
 \fBhttp\-XXX = YYY\fR
 Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed
+.
+.TP
+\fBusb\-max\-interfaces = N\fR
+Don\'t use more that N USB interfaces, even if more is available
 .
 .SH "FILES"
 .

@@ -52,10 +52,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		addr:         desc.UsbAddr,
 		log:          NewLogger(),
 		dev:          dev,
-		connPool:     make(chan *usbConn, len(desc.IfAddrs)),
 		connReleased: make(chan struct{}),
 		shutdown:     make(chan struct{}),
-		connstate:    newUsbConnState(len(desc.IfAddrs)),
 	}
 
 	// Obtain device info
@@ -143,13 +141,20 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		if err != nil {
 			goto ERROR
 		}
-		transport.connPool <- conn
+
 		transport.connList = append(transport.connList, conn)
 
 		maxconn--
 		if maxconn == 0 {
 			break
 		}
+	}
+
+	transport.connPool = make(chan *usbConn, len(transport.connList))
+	transport.connstate = newUsbConnState(len(desc.IfAddrs))
+
+	for _, conn := range transport.connList {
+		transport.connPool <- conn
 	}
 
 	return transport, nil

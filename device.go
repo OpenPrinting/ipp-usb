@@ -145,6 +145,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	dnssdServices.Add(DNSSdSvcInfo{
 		Instance: fmt.Sprintf("%.2X%.2x", desc.Bus, info.PortNum),
 		Type:     "_ipp-usb._tcp",
+		Port:     dev.State.HTTPPort,
 		Loopback: true,
 	})
 

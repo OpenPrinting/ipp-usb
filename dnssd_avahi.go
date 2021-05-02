@@ -74,8 +74,11 @@ func newDnssdSysdep(log *Logger, instance string,
 		statusChan: make(chan DNSSdStatus, 10),
 	}
 
-	c_instance := C.CString(instance)
-	defer C.free(unsafe.Pointer(c_instance))
+	// Obtain index of loopback interface
+	loopback, err := Loopback()
+	if err != nil {
+		goto ERROR // Very unlikely to happen
+	}
 
 	// Obtain AvahiPoll
 	poll, err = avahiGetPoll()
@@ -122,11 +125,7 @@ func newDnssdSysdep(log *Logger, instance string,
 	// Compute iface and proto, adjust fqdn
 	iface = C.AVAHI_IF_UNSPEC
 	if Conf.LoopbackOnly {
-		iface, err = Loopback()
-		if err != nil {
-			goto ERROR
-		}
-
+		iface = loopback
 		old := sysdep.fqdn
 		sysdep.fqdn = "localhost"
 		sysdep.log.Debug(' ', "DNS-SD: FQDN: %q->%q", old, sysdep.fqdn)
@@ -146,12 +145,26 @@ func newDnssdSysdep(log *Logger, instance string,
 			goto ERROR
 		}
 
-		// Register service type
+		// Prepare C strings for service instance and type
 		c_svc_type := C.CString(svc.Type)
 
+		var c_instance *C.char
+		if svc.Instance != "" {
+			c_instance = C.CString(svc.Instance)
+		} else {
+			c_instance = C.CString(instance)
+		}
+
+		// Handle loopback-only mode
+		iface_in_use := iface
+		if svc.Loopback {
+			iface_in_use = loopback
+		}
+
+		// Register service type
 		rc = C.avahi_entry_group_add_service_strlst(
 			sysdep.egroup,
-			C.AvahiIfIndex(iface),
+			C.AvahiIfIndex(iface_in_use),
 			C.AvahiProtocol(proto),
 			0,
 			c_instance,
@@ -173,7 +186,7 @@ func newDnssdSysdep(log *Logger, instance string,
 			c_subtype := C.CString(subtype)
 			rc = C.avahi_entry_group_add_service_subtype(
 				sysdep.egroup,
-				C.AvahiIfIndex(iface),
+				C.AvahiIfIndex(iface_in_use),
 				C.AvahiProtocol(proto),
 				0,
 				c_instance,
@@ -186,6 +199,7 @@ func newDnssdSysdep(log *Logger, instance string,
 		}
 
 		// Release C memory
+		C.free(unsafe.Pointer(c_instance))
 		C.free(unsafe.Pointer(c_svc_type))
 		C.avahi_string_list_free(c_txt)
 

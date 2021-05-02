@@ -102,10 +102,12 @@ func (txt DNSSdTxtRecord) export() [][]byte {
 
 // DNSSdSvcInfo represents a DNS-SD service information
 type DNSSdSvcInfo struct {
+	Instance string         // If not "", override common instance name
 	Type     string         // Service type, i.e. "_ipp._tcp"
 	SubTypes []string       // Service subtypes, if any
 	Port     int            // TCP port
 	Txt      DNSSdTxtRecord // TXT record
+	Loopback bool           // Advertise only on loopback interface
 }
 
 // DNSSdServices represents a collection of DNS-SD services

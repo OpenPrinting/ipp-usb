@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -131,6 +132,18 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	// Advertise Web service. Assume it always exists
 	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
+
+	// Advertise "_BBPP-ipp-usb._tcp" service, where BB and PP are bus and
+	// port numbers in hex, so legacy drivers can easily check if device
+	// is handled by the ipp-usb
+	//
+	// See the following for details:
+	//     https://github.com/OpenPrinting/ipp-usb/issues/28
+	dnssdServices.Add(DNSSdSvcInfo{
+		Type: fmt.Sprintf("_%.2x%.2x-ipp-usb._tcp",
+			desc.Bus,
+			info.PortNum),
+	})
 
 	// Enable handling incoming requests
 	dev.UsbTransport.SetDeadline(time.Time{})

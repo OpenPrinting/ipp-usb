@@ -176,6 +176,7 @@ type UsbDeviceInfo struct {
 	SerialNumber string // Device serial number
 	Manufacturer string // Manufacturer name
 	ProductName  string // Product name
+	PortNum      int    // USB port number
 
 	// Precomputed fields
 	MfgAndProduct string // Product with Manufacturer prefix, if needed

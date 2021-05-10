@@ -357,6 +357,12 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 			} else {
 				outreq.Header.Del(name)
 			}
+
+			// Host needs specific override
+			if name == "Host" {
+				outreq.Host = value;
+				outreq.URL.Host = value;
+			}
 		}
 	}
 

@@ -619,15 +619,17 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 
 	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW errors
 	// from libusb, input buffer size must always
-	// be aligned by 512 bytes
+	// be aligned by 1024 bytes for USB 3.0, 512 bytes
+	// for USB 2.0, so 1024 bytes alignment is safe for
+	// both
 	//
-	// However if caller requests less that 512 bytes, we
+	// However if caller requests less that 1024 bytes, we
 	// can't align here simply by shrinking the buffer,
 	// because it will result a zero-size buffer. At
-	// this case we assume caller knows what it
+	// this case we assume caller knows what it is
 	// doing (actually bufio never behaves this way)
-	if n := len(b); n >= 512 {
-		n &= ^511
+	if n := len(b); n >= 1024 {
+		n &= ^1023
 		b = b[0:n]
 	}
 

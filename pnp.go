@@ -27,7 +27,7 @@ const (
 
 // pnpRetryTime returns time of next retry of failed device initialization
 func pnpRetryTime() time.Time {
-	return time.Now().Add(DNSSdRetryInterval)
+	return time.Now().Add(DevInitRetryInterval)
 }
 
 // pnpRetryExpired checks if device initialization retry time expired
@@ -44,7 +44,7 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 	devByAddr := make(map[UsbAddr]*Device)
 	retryByAddr := make(map[UsbAddr]time.Time)
 	sigChan := make(chan os.Signal, 1)
-	ticker := time.NewTicker(DNSSdRetryInterval / 4)
+	ticker := time.NewTicker(DevInitRetryInterval / 4)
 	tickerRunning := true
 
 	signal.Notify(sigChan,
@@ -120,7 +120,7 @@ loop:
 			ticker.Stop()
 			tickerRunning = false
 		case !tickerRunning && len(retryByAddr) != 0:
-			ticker = time.NewTicker(DNSSdRetryInterval / 4)
+			ticker = time.NewTicker(DevInitRetryInterval / 4)
 			tickerRunning = true
 		}
 

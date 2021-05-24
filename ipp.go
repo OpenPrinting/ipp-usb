@@ -49,14 +49,31 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	attrs := newIppDecoder(msg)
 	ippinfo, ippScv := attrs.decode(usbinfo)
 
-	// Probe for fax support
-	uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
-	if _, err2 := ippGetPrinterAttributes(log, c, uri); err2 == nil {
-		log.Debug(' ', "IPP FaxOut service detected")
+	// Check for fax support
+	canFax := false
+	if usbinfo.BasicCaps&UsbIppBasicCapsFax != 0 {
+		// Note, as device lists Fax on its basic capabilities,
+		// this probe most likely is not needed, but as the
+		// ipp-usb version 0.9.19 and earlier used to guess
+		// for fax support based on the /ipp/faxout probe,
+		// not on device capabilities, lets leave it here
+		// for now, just in case. Firmwares in general are
+		// too buggy, I can't trust them :-(
+		uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
+		if _, err2 := ippGetPrinterAttributes(log, c, uri); err2 == nil {
+			canFax = true
+			log.Debug(' ', "IPP FaxOut service detected")
+		} else {
+			log.Error('!', "IPP FaxOut probe failed: %s", err2)
+		}
+	} else {
+		log.Debug(' ', "IPP FaxOut service not in capabilities")
+	}
+
+	if canFax {
 		ippScv.Txt.Add("Fax", "T")
 		ippScv.Txt.Add("rfo", "ipp/faxout")
 	} else {
-		log.Debug(' ', "IPP FaxOut service not present")
 		ippScv.Txt.Add("Fax", "F")
 	}
 

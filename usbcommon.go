@@ -171,15 +171,52 @@ func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
 // UsbDeviceInfo represents USB device information
 type UsbDeviceInfo struct {
 	// Fields, directly decoded from USB
-	Vendor       uint16 // Vendor ID
-	Product      uint16 // Device ID
-	SerialNumber string // Device serial number
-	Manufacturer string // Manufacturer name
-	ProductName  string // Product name
-	PortNum      int    // USB port number
+	Vendor       uint16          // Vendor ID
+	Product      uint16          // Device ID
+	SerialNumber string          // Device serial number
+	Manufacturer string          // Manufacturer name
+	ProductName  string          // Product name
+	PortNum      int             // USB port number
+	BasicCaps    UsbIppBasicCaps // Device basic capabilities
 
 	// Precomputed fields
 	MfgAndProduct string // Product with Manufacturer prefix, if needed
+}
+
+// UsbIppBasicCaps represents device basic capabilities bits,
+// according to the IPP-USB specification, section 4.3
+type UsbIppBasicCaps int
+
+// Basic capabilities bits, see IPP-USB specification, section 4.3
+const (
+	UsbIppBasicCapsPrint UsbIppBasicCaps = 1 << iota
+	UsbIppBasicCapsScan
+	UsbIppBasicCapsFax
+	UsbIppBasicCapsOther
+	UsbIppBasicCapsAnyHTTP
+)
+
+// String returns a human-readable representation of UsbAddr
+func (caps UsbIppBasicCaps) String() string {
+	s := []string{}
+
+	if caps&UsbIppBasicCapsPrint != 0 {
+		s = append(s, "primt")
+	}
+
+	if caps&UsbIppBasicCapsScan != 0 {
+		s = append(s, "scan")
+	}
+
+	if caps&UsbIppBasicCapsFax != 0 {
+		s = append(s, "fax")
+	}
+
+	if caps&UsbIppBasicCapsAnyHTTP != 0 {
+		s = append(s, "http")
+	}
+
+	return strings.Join(s, ",")
 }
 
 // Fix up precomputed fields

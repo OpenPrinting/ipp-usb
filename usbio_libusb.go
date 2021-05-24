@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -469,9 +470,16 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 		return info, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
 	}
 
+	// Obtain device capabilities
+	caps, err := devhandle.usbIppBasicCaps()
+	if err != nil {
+		return info, err
+	}
+
 	// Decode device descriptor
 	info.Vendor = uint16(c_desc.idVendor)
 	info.Product = uint16(c_desc.idProduct)
+	info.BasicCaps = caps
 
 	buf := make([]byte, 256)
 
@@ -502,6 +510,34 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	info.FixUp()
 
 	return info, nil
+}
+
+// usbIppBasicCaps reads and decodes printer's
+// Class-specific Device Info Descriptor to obtain device
+// capabilities
+//
+// See IPP USB specification, section 4.3 for details
+func (devhandle *UsbDevHandle) usbIppBasicCaps() (UsbIppBasicCaps, error) {
+	// Buffer length
+	const bufLen = 256
+
+	// Obtain class-specific Device Info Descriptor
+	// See IPP USB specification, section 4.3 for details
+	buf := make([]byte, bufLen)
+	rc := C.libusb_get_descriptor(
+		(*C.libusb_device_handle)(devhandle),
+		0x21, 0,
+		(*C.uchar)(unsafe.Pointer(&buf[0])),
+		bufLen)
+
+	if rc < 0 {
+		return 0, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
+	}
+
+	// Decode basic capabilities bits
+	bits := binary.LittleEndian.Uint16(buf[6:8])
+
+	return UsbIppBasicCaps(bits), nil
 }
 
 // OpenUsbInterface opens an interface

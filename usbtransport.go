@@ -81,6 +81,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Product:       %s", transport.info.ProductName).
 		Debug(' ', "  SerialNumber:  %s", transport.info.SerialNumber).
 		Debug(' ', "  MfgAndProduct: %s", transport.info.MfgAndProduct).
+		Debug(' ', "  BasicCaps:     %s", transport.info.BasicCaps).
 		Nl(LogDebug)
 
 	log.Debug(' ', "Device quirks:")

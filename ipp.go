@@ -115,8 +115,24 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, uri string) (
 		goipp.TagLanguage, goipp.String("en-US")))
 	msg.Operation.Add(goipp.MakeAttribute("printer-uri",
 		goipp.TagURI, goipp.String(uri)))
-	msg.Operation.Add(goipp.MakeAttribute("requested-attributes",
-		goipp.TagKeyword, goipp.String("all")))
+
+	rq := goipp.Attribute{Name: "requested-attributes"}
+	rq.Values.Add(goipp.TagKeyword, goipp.String("color-supported"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("document-format-supported"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("media-size-supported"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("mopria-certified"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-device-id"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-dns-sd-name"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-icons"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-info"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-kind"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-location"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-make-and-model"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-more-info"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("printer-uuid"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("sides-supported"))
+	rq.Values.Add(goipp.TagKeyword, goipp.String("urf-supported"))
+	msg.Operation.Add(rq)
 
 	log.Add(LogTraceIPP, '>', "IPP request:").
 		IppRequest(LogTraceIPP, '>', msg).

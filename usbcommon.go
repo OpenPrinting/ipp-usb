@@ -201,7 +201,7 @@ func (caps UsbIppBasicCaps) String() string {
 	s := []string{}
 
 	if caps&UsbIppBasicCapsPrint != 0 {
-		s = append(s, "primt")
+		s = append(s, "print")
 	}
 
 	if caps&UsbIppBasicCapsScan != 0 {

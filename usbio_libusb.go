@@ -11,6 +11,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -532,6 +533,10 @@ func (devhandle *UsbDevHandle) usbIppBasicCaps() (UsbIppBasicCaps, error) {
 
 	if rc < 0 {
 		return 0, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
+	}
+
+	if rc < 10 {
+		return 0, fmt.Errorf("Bad Device Info Descriptor: %x", buf)
 	}
 
 	// Decode basic capabilities bits

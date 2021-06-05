@@ -532,7 +532,7 @@ func (devhandle *UsbDevHandle) usbIppBasicCaps() (UsbIppBasicCaps, error) {
 		bufLen)
 
 	if rc < 0 {
-		return 0, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
+		return 0, UsbError{"libusb_get_descriptor(0x21)", UsbErrCode(rc)}
 	}
 
 	if rc < 10 {

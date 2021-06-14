@@ -11,7 +11,6 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -471,16 +470,10 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 		return info, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
 	}
 
-	// Obtain device capabilities
-	caps, err := devhandle.usbIppBasicCaps()
-	if err != nil {
-		return info, err
-	}
-
 	// Decode device descriptor
 	info.Vendor = uint16(c_desc.idVendor)
 	info.Product = uint16(c_desc.idProduct)
-	info.BasicCaps = caps
+	info.BasicCaps = devhandle.usbIppBasicCaps()
 
 	buf := make([]byte, 256)
 
@@ -518,7 +511,16 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 // capabilities
 //
 // See IPP USB specification, section 4.3 for details
-func (devhandle *UsbDevHandle) usbIppBasicCaps() (UsbIppBasicCaps, error) {
+//
+// This function never fails. In a case of errors, it fall backs
+// to the reasonable default
+func (devhandle *UsbDevHandle) usbIppBasicCaps() (caps UsbIppBasicCaps) {
+	// Safe default
+	caps = UsbIppBasicCapsPrint |
+		UsbIppBasicCapsScan |
+		UsbIppBasicCapsFax |
+		UsbIppBasicCapsAnyHTTP
+
 	// Buffer length
 	const bufLen = 256
 
@@ -532,17 +534,24 @@ func (devhandle *UsbDevHandle) usbIppBasicCaps() (UsbIppBasicCaps, error) {
 		bufLen)
 
 	if rc < 0 {
-		return 0, UsbError{"libusb_get_descriptor(0x21)", UsbErrCode(rc)}
+		// Some devices doesn't properly return class-specific
+		// device descriptor, so ignore an error
+		return
 	}
 
 	if rc < 10 {
-		return 0, fmt.Errorf("Bad Device Info Descriptor: %x", buf)
+		// Malformed response, fall back to default
+		return
 	}
 
 	// Decode basic capabilities bits
 	bits := binary.LittleEndian.Uint16(buf[6:8])
+	if bits == 0 {
+		// Paranoia. If no caps, return default
+		return
+	}
 
-	return UsbIppBasicCaps(bits), nil
+	return UsbIppBasicCaps(bits)
 }
 
 // OpenUsbInterface opens an interface

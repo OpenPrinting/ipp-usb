@@ -1,0 +1,89 @@
+name: ipp-usb
+base: core20
+version: git
+summary: IPP-over-USB - Driverless IPP printing on USB-connected printers
+description: |
+  ipp-usb is a daemon to allow driverless IPP printing on USB-connected
+  printers.It emulates an IPP network printer on the local machine, giving
+  full access to the physical printer: Printing, scanning, fax out, and
+  the admin web interface.
+
+grade: stable
+confinement: strict
+
+# Only build on the architectures supported
+architectures:
+  - build-on: amd64
+  - build-on: arm64
+  - build-on: armhf
+
+apps:
+  ipp-usb:
+    command: scripts/run-ipp-usb
+    daemon: simple
+    plugs: [avahi-control, network, network-bind, raw-usb, hardware-observe]
+
+parts:
+  goipp:
+    plugin: go
+    source: https://github.com/OpenPrinting/goipp.git
+    source-type: git
+    override-prime: ""
+
+  ipp-usb:
+    plugin: go
+    source: .
+    source-type: git
+    override-build: |
+      set -eux
+      # Correct hard-coded paths in paths.go
+      # Not only the config file ipp-usb.conf will be put into a user-editable
+      # space but also the quirks file, so that the user can add and debug
+      # quirks
+      perl -p -i -e 's:/etc/:/var/snap/ipp-usb/common/etc/:' paths.go
+      perl -p -i -e 's:/var/ipp-usb:/var/snap/ipp-usb/common/var:' paths.go
+      perl -p -i -e 's:/usr/share/ipp-usb/quirks:/var/snap/hplip-printer-app/common/quirks:' paths.go
+      perl -p -i -e 's:/var/log/ipp-usb:/var/snap/ipp-usb/common/var/log:' paths.go
+      # Build the executable
+      snapcraftctl build
+      # Place the executable in /sbin, it's a system daemon
+      mv ../install/bin ../install/sbin
+      # Install the config file and the quirk files
+      mkdir -p ../install/etc
+      cp ipp-usb.conf ../install/etc
+      mkdir -p ../install/usr/share/ipp-usb/quirks
+      cp ipp-usb-quirks/* ../install/usr/share/ipp-usb/quirks
+    build-packages:
+      - libavahi-client-dev
+      - libavahi-common-dev
+      - libusb-1.0-0-dev
+      - ronn
+      - perl-base
+    stage-packages:
+      - libavahi-client3
+      - libavahi-common3
+      - libusb-1.0-0
+      - udev
+    prime:
+      - etc
+      - -etc/init.d
+      - -etc/udev
+      - sbin
+      - -sbin/systemd-hwdb
+      - lib
+      - -lib/modprobe.d
+      - -lib/systemd
+      - -lib/udev      
+      - usr/lib
+      - -usr/lib/tmpfiles.d
+      - usr/share/ipp-usb
+    after: [goipp]
+
+  scripts:
+    plugin: dump
+    source: snap/local/
+    organize:
+      run-ipp-usb: scripts/
+    prime:
+      - scripts/
+    after: [ipp-usb]

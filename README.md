@@ -106,17 +106,6 @@ Software") or via command line:
 
     sudo snap install --edge ipp-usb
 
-It will currently need manual connection of some interfaces:
-
-    sudo snap connect ipp-usb:avahi-control
-    sudo snap connect ipp-usb:hardware-observe
-    sudo snap connect ipp-usb:raw-usb
-
-Re-start the Snap after connecting the interfaces:
-
-    sudo snap stop ipp-usb
-    sudo snap start ipp-usb
-
 Now you can connect and disconnect IPP-over-USB devices and ipp-usb
 gets started by the Snap whenever needed. Also devices which are
 already connected during boot, start, or update of the Snap are

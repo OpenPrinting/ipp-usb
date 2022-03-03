@@ -70,6 +70,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Setup quirks
 	transport.quirks = Conf.Quirks.Get(transport.info.MfgAndProduct)
 
+	// Remove blacklisted basic caps
+	for _, quirks := range transport.quirks {
+		transport.info.BasicCaps &^= quirks.BlacklistCaps
+	}
+
 	// Write device info to the log
 	log := transport.log.Begin().
 		Nl(LogDebug).
@@ -89,6 +94,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		log.Debug(' ', "  from [%s] (%s)", quirks.Model, quirks.Origin)
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
 		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
+		log.Debug(' ', "    blacklist-caps = %s", quirks.BlacklistCaps)
 		for name, value := range quirks.HttpHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}

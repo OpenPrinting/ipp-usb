@@ -28,13 +28,15 @@ type Quirks struct {
 	HttpHeaders      map[string]string // HTTP header override
 	UsbMaxInterfaces uint              // Max number of USB interfaces
 	Index            int               // Incremented in order of loading
+	BlacklistCaps    UsbIppBasicCaps   // Blacklist device capabilities using mask
 }
 
 // empty returns true, if Quirks are actually empty
 func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
 		len(q.HttpHeaders) == 0 &&
-		q.UsbMaxInterfaces == 0
+		q.UsbMaxInterfaces == 0 &&
+		q.BlacklistCaps == 0
 }
 
 // QuirksSet represents collection of quirks, indexed by model name
@@ -120,6 +122,7 @@ func (qset *QuirksSet) readFile(file string) error {
 			continue
 		}
 
+		var tmpuint uint
 		switch rec.Key {
 		case "blacklist":
 			err = confLoadBinaryKey(&q.Blacklist, rec,
@@ -128,7 +131,12 @@ func (qset *QuirksSet) readFile(file string) error {
 		case "usb-max-interfaces":
 			err = confLoadUintKeyRange(&q.UsbMaxInterfaces, rec,
 				1, math.MaxUint32)
+
+		case "blacklist-caps":
+			err = confLoadUintKeyRange(&tmpuint, rec,
+				0, math.MaxUint32)
 		}
+		q.BlacklistCaps = UsbIppBasicCaps(tmpuint)
 	}
 
 	if err == io.EOF {

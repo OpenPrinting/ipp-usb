@@ -28,13 +28,15 @@ type Quirks struct {
 	HttpHeaders      map[string]string // HTTP header override
 	UsbMaxInterfaces uint              // Max number of USB interfaces
 	Index            int               // Incremented in order of loading
+	DisableFax       bool              // Disable fax for device
 }
 
 // empty returns true, if Quirks are actually empty
 func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
 		len(q.HttpHeaders) == 0 &&
-		q.UsbMaxInterfaces == 0
+		q.UsbMaxInterfaces == 0 &&
+		!q.DisableFax
 }
 
 // QuirksSet represents collection of quirks, indexed by model name
@@ -128,6 +130,10 @@ func (qset *QuirksSet) readFile(file string) error {
 		case "usb-max-interfaces":
 			err = confLoadUintKeyRange(&q.UsbMaxInterfaces, rec,
 				1, math.MaxUint32)
+
+		case "disable-fax":
+			err = confLoadBinaryKey(&q.DisableFax, rec,
+				"false", "true")
 		}
 	}
 

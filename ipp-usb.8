@@ -1,5 +1,5 @@
-.\" generated with Ronn-NG/v0.9.1
-.\" http://github.com/apjanke/ronn-ng/tree/0.9.1
+.\" generated with Ronn-NG/v0.8.0
+.\" http://github.com/apjanke/ronn-ng/tree/0.8.0
 .TH "IPP\-USB" "8" "March 2022" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
@@ -138,6 +138,9 @@ Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty
 .TP
 \fBusb\-max\-interfaces = N\fR
 Don\'t use more that N USB interfaces, even if more is available
+.TP
+\fBdisable\-fax = true | false\fR
+If \fBtrue\fR, the matching device\'s fax capability is ignored
 .P
 In case of you found out about your device needs a quirk to work properly or it does not work with \fBipp\-usb\fR at all, although it provides IPP\-over\-USB interface, please report the isues at https://github\.com/OpenPrinting/ipp\-usb\. The possible quirk for the device can be added to the project itself and fix the situation for all device\'s owners\.
 .SH "FILES"

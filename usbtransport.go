@@ -70,6 +70,13 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Setup quirks
 	transport.quirks = Conf.Quirks.Get(transport.info.MfgAndProduct)
 
+	// Remove fax caps if disabled
+	for _, quirks := range transport.quirks {
+		if quirks.DisableFax {
+			transport.info.BasicCaps &^= UsbIppBasicCapsFax
+		}
+	}
+
 	// Write device info to the log
 	log := transport.log.Begin().
 		Nl(LogDebug).
@@ -89,6 +96,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		log.Debug(' ', "  from [%s] (%s)", quirks.Model, quirks.Origin)
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
 		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
+		log.Debug(' ', "    disable-fax = %v", quirks.DisableFax)
 		for name, value := range quirks.HttpHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}

@@ -114,8 +114,9 @@ Logging parameters are all in the `[logging]` section:
 
 Some devices, due to their firmware bugs, require special handling,
 called device-specific **quirks**. `ipp-usb` loads quirks from the
-`/usr/share/ipp-usb/quirks/*.conf` files. These files have .INI-file
-syntax with the content that looks like this:
+`/usr/share/ipp-usb/quirks/*.conf` files and from the `/etc/ipp-usb/quirks/*.conf`
+files. The `/etc/ipp-usb/quirks` directory is for system quirks overrides or
+admin changes. These files have .INI-file syntax with the content that looks like this:
 
     [HP LaserJet MFP M28-M31]
       http-connection = keep-alive
@@ -131,9 +132,10 @@ syntax with the content that looks like this:
       http-connection = ""
 
 For each discovered device, its model name is matched against sections
-of the quirks files. Section name may contain glob-style wildcards: `*` that
-matches any sequence of characters and `?`, that matches any single
-character. To match one of these characters (`*` and `?`) literally,
+of the quirks files. The section name contains an exact model name,
+which contains `iManufacturer`+`iProduct` entries from `lsusb -v` command output,
+or it may contain glob-style wildcards: `*` that matches any sequence of characters and `?`
+, that matches any single character. To match one of these characters (`*` and `?`) literally,
 use backslash as escape.
 
 All matching sections from all quirks files are taken in consideration,
@@ -160,6 +162,12 @@ The following parameters are defined:
    * `usb-max-interfaces = N`:
      Don't use more that N USB interfaces, even if more is available
 
+In case of you found out about your device needs a quirk to work properly
+or it does not work with `ipp-usb` at all, although it provides IPP-over-USB
+interface, please report the isues at https://github.com/OpenPrinting/ipp-usb.
+The possible quirk for the device can be added to the project itself
+and fix the situation for all device's owners.
+
 ## FILES
 
    * `/etc/ipp-usb/ipp-usb.conf`:
@@ -178,6 +186,8 @@ The following parameters are defined:
      lock file, that helps to prevent multiple copies of daemon to run simultaneously
 
    * `/usr/share/ipp-usb/quirks/*.conf`: device-specific quirks (see above)
+
+   * `/etc/ipp-usb/quirks/*.conf`: device-specific quirks defined by sysadmin (see above)
 
 ## COPYRIGHT
 

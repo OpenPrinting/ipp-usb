@@ -12,6 +12,9 @@ const (
 	// PathConfDir defines path to configuration directory
 	PathConfDir = "/etc/ipp-usb"
 
+	// PathConfQuirksDir defines path to quirks files in configuration directory
+	PathConfQuirksDir = "/etc/ipp-usb/quirks"
+
 	// PathQuirksDir defines path to quirks files
 	PathQuirksDir = "/usr/share/ipp-usb/quirks"
 

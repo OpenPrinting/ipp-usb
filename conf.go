@@ -82,7 +82,7 @@ func ConfLoad() error {
 	// Load quirks
 	quirksDirs := []string{
 		PathQuirksDir,
-    PathConfQuirksDir,
+		PathConfQuirksDir,
 		filepath.Join(exepath, "ipp-usb-quirks"),
 	}
 

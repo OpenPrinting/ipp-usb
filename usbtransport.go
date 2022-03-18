@@ -648,6 +648,8 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 			"USB[%d]: read: wanted %d got %d total %d",
 			conn.index, len(b), n, conn.cntRecv)
 
+		conn.transport.log.HexDump(LogTraceUSB, '<', b[:n])
+
 		if err != nil {
 			conn.transport.log.Error('!',
 				"USB[%d]: recv: %s", conn.index, err)
@@ -683,6 +685,8 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	conn.transport.log.Add(LogTraceHTTP, '>',
 		"USB[%d]: write: wanted %d sent %d total %d",
 		conn.index, len(b), n, conn.cntSent)
+
+	conn.transport.log.HexDump(LogTraceUSB, '>', b[:n])
 
 	if err != nil {
 		conn.transport.log.Error('!',

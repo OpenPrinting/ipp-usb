@@ -91,6 +91,7 @@ Logging parameters are all in the `[logging]` section:
       #   info      - informative messages
       #   debug     - debug messages
       #   trace-ipp, trace-escl, trace-http - very detailed per-protocol traces
+      #   trace-usb - hex dump of all USB traffic
       #   all       - all logs
       #   trace-all - alias to all
       #

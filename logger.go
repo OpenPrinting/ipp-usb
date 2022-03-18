@@ -58,9 +58,10 @@ const (
 	LogTraceIPP
 	LogTraceESCL
 	LogTraceHTTP
+	LogTraceUSB
 
 	LogAll      = LogError | LogInfo | LogDebug | LogTraceAll
-	LogTraceAll = LogTraceIPP | LogTraceESCL | LogTraceHTTP
+	LogTraceAll = LogTraceIPP | LogTraceESCL | LogTraceHTTP | LogTraceUSB
 )
 
 // Adjust LogLevel mask, so more detailed log levels
@@ -433,7 +434,9 @@ func (msg *LogMessage) Check(err error) {
 }
 
 // HexDump appends a HEX dump to the log message
-func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
+func (msg *LogMessage) HexDump(level LogLevel, prefix byte,
+	data []byte) *LogMessage {
+
 	if (msg.logger.levels|msg.logger.ccLevels)&level == 0 {
 		return msg
 	}
@@ -476,7 +479,7 @@ func (msg *LogMessage) HexDump(level LogLevel, data []byte) *LogMessage {
 			hex.WriteString("   ")
 		}
 
-		msg.Add(level, ' ', "%4.4x: %s %s", off, hex, chr)
+		msg.Add(level, prefix, "%4.4x: %s %s", off, hex, chr)
 
 		off += sz
 		data = data[sz:]

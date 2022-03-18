@@ -195,7 +195,10 @@ func confLoadBinaryKey(out *bool, rec *IniRecord, vFalse, vTrue string) error {
 func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
 	var mask LogLevel
 	for _, s := range strings.Split(rec.Value, ",") {
+		s = strings.TrimSpace(s)
+		println(s)
 		switch s {
+		case "":
 		case "error":
 			mask |= LogError
 		case "info":
@@ -208,12 +211,16 @@ func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
 			mask |= LogTraceESCL | LogDebug | LogInfo | LogError
 		case "trace-http":
 			mask |= LogTraceHTTP | LogDebug | LogInfo | LogError
+		case "trace-usb":
+			mask |= LogTraceUSB | LogDebug | LogInfo | LogError
 		case "all", "trace-all":
-			mask |= LogAll
+			mask |= LogAll & ^LogTraceUSB
 		default:
 			return confBadValue(rec, "invalid log level %q", s)
 		}
 	}
+
+	println(">>>", mask)
 
 	*out = mask
 	return nil

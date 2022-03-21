@@ -79,7 +79,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	defer log.Commit()
 
 	ippinfo, err = IppService(log, &dnssdServices,
-		dev.State.HTTPPort, info, dev.HTTPClient)
+		dev.State.HTTPPort, info, dev.UsbTransport.Quirks(),
+		dev.HTTPClient)
 
 	if err != nil {
 		dev.Log.Error('!', "IPP: %s", err)

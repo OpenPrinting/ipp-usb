@@ -35,7 +35,7 @@ type IppPrinterInfo struct {
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo,
+	port int, usbinfo UsbDeviceInfo, quirks QuirksSet,
 	c *http.Client) (ippinfo *IppPrinterInfo, err error) {
 
 	// Query printer attributes
@@ -51,7 +51,8 @@ func IppService(log *LogMessage, services *DNSSdServices,
 
 	// Check for fax support
 	canFax := false
-	if usbinfo.BasicCaps&UsbIppBasicCapsFax != 0 {
+	if usbinfo.BasicCaps&UsbIppBasicCapsFax != 0 &&
+		!quirks.GetDisableFax() {
 		// Note, as device lists Fax on its basic capabilities,
 		// this probe most likely is not needed, but as the
 		// ipp-usb version 0.9.19 and earlier used to guess

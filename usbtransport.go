@@ -70,11 +70,6 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Setup quirks
 	transport.quirks = Conf.Quirks.ByModelName(transport.info.MfgAndProduct)
 
-	// Remove fax caps if disabled
-	if transport.quirks.GetDisableFax() {
-		transport.info.BasicCaps &^= UsbIppBasicCapsFax
-	}
-
 	// Write device info to the log
 	log := transport.log.Begin().
 		Nl(LogDebug).
@@ -325,6 +320,11 @@ func (transport *UsbTransport) Log() *Logger {
 // behind the transport
 func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 	return transport.info
+}
+
+// Quirks returns device's quirks
+func (transport *UsbTransport) Quirks() QuirksSet {
+	return transport.quirks
 }
 
 // RoundTrip implements http.RoundTripper interface

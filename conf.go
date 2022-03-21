@@ -196,7 +196,6 @@ func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
 	var mask LogLevel
 	for _, s := range strings.Split(rec.Value, ",") {
 		s = strings.TrimSpace(s)
-		println(s)
 		switch s {
 		case "":
 		case "error":
@@ -219,8 +218,6 @@ func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
 			return confBadValue(rec, "invalid log level %q", s)
 		}
 	}
-
-	println(">>>", mask)
 
 	*out = mask
 	return nil

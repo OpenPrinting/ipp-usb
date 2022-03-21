@@ -163,6 +163,9 @@ The following parameters are defined:
    * `usb-max-interfaces = N`:
      Don't use more that N USB interfaces, even if more is available
 
+   * `disable-fax = true | false`:
+     If `true`, the matching device's fax capability is ignored
+
 In case of you found out about your device needs a quirk to work properly
 or it does not work with `ipp-usb` at all, although it provides IPP-over-USB
 interface, please report the isues at https://github.com/OpenPrinting/ipp-usb.

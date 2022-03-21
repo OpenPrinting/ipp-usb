@@ -27,8 +27,8 @@ type Quirks struct {
 	Blacklist        bool              // Blacklist the device
 	HttpHeaders      map[string]string // HTTP header override
 	UsbMaxInterfaces uint              // Max number of USB interfaces
-	Index            int               // Incremented in order of loading
 	DisableFax       bool              // Disable fax for device
+	Index            int               // Incremented in order of loading
 }
 
 // empty returns true, if Quirks are actually empty
@@ -39,7 +39,7 @@ func (q *Quirks) empty() bool {
 		!q.DisableFax
 }
 
-// QuirksSet represents collection of quirks, indexed by model name
+// QuirksSet represents collection of quirks
 type QuirksSet []*Quirks
 
 // LoadQuirksSet creates new QuirksSet and loads its content from a directory
@@ -106,7 +106,7 @@ func (qset *QuirksSet) readFile(file string) error {
 				HttpHeaders: make(map[string]string),
 				Index:       len(*qset),
 			}
-			*qset = append(*qset, q)
+			qset.Add(q)
 
 			continue
 		} else if q == nil {
@@ -144,7 +144,13 @@ func (qset *QuirksSet) readFile(file string) error {
 	return err
 }
 
-// Get quirks by model name
+// Add appends Quirks to QuirksSet
+func (qset *QuirksSet) Add(q *Quirks) {
+	*qset = append(*qset, q)
+}
+
+// ByModelName returns a subset of quirks, applicable for
+// specific device, matched by model name
 //
 // In a case of multiple match, quirks are returned in
 // the from most prioritized to least prioritized order
@@ -153,7 +159,7 @@ func (qset *QuirksSet) readFile(file string) error {
 // more prioritized entry, it is removed from the less
 // prioritized entries. Entries, that in result become
 // empty, are removed at all
-func (qset QuirksSet) Get(model string) []Quirks {
+func (qset QuirksSet) ByModelName(model string) QuirksSet {
 	type item struct {
 		q        *Quirks
 		matchlen int
@@ -177,37 +183,33 @@ func (qset QuirksSet) Get(model string) []Quirks {
 	})
 
 	// Rebuild it into the slice of *Quirks
-	quirks := make([]Quirks, len(list))
+	quirks := make(QuirksSet, len(list))
 	for i := range list {
-		quirks[i] = *list[i].q
-	}
-
-	// If at least one Quirks contains Blacklist == true,
-	// it overrides everything else.
-	//
-	// Note, we check it after building and sorting the entire
-	// list for more accurate logging
-	for _, q := range quirks {
-		if q.Blacklist {
-			return []Quirks{q}
-		}
+		quirks[i] = list[i].q
 	}
 
 	// Remove duplicates and empty entries
 	httpHeaderSeen := make(map[string]struct{})
 	out := 0
 	for in, q := range quirks {
-		q.HttpHeaders = make(map[string]string)
+		// Note, here we avoid modification of the HttpHeaders
+		// map in the original Quirks structure
+		//
+		// Unfortunately, Golang misses immutable types,
+		// so we must be very careful here
+		q2 := &Quirks{}
+		*q2 = *q
+		q2.HttpHeaders = make(map[string]string)
 
 		for name, value := range quirks[in].HttpHeaders {
 			if _, seen := httpHeaderSeen[name]; !seen {
 				httpHeaderSeen[name] = struct{}{}
-				q.HttpHeaders[name] = value
+				q2.HttpHeaders[name] = value
 			}
 		}
 
-		if !q.empty() {
-			quirks[out] = q
+		if !q2.empty() {
+			quirks[out] = q2
 			out++
 		}
 	}
@@ -215,4 +217,40 @@ func (qset QuirksSet) Get(model string) []Quirks {
 	quirks = quirks[:out]
 
 	return quirks
+}
+
+// GetBlacklist returns effective Blacklist parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetBlacklist() bool {
+	for _, q := range qset {
+		if q.Blacklist {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetUsbMaxInterfaces returns effective UsbMaxInterfaces parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetUsbMaxInterfaces() uint {
+	for _, q := range qset {
+		if q.UsbMaxInterfaces != 0 {
+			return q.UsbMaxInterfaces
+		}
+	}
+
+	return 0
+}
+
+// GetDisableFax returns effective DisableFax parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetDisableFax() bool {
+	for _, q := range qset {
+		if q.DisableFax {
+			return true
+		}
+	}
+
+	return false
 }

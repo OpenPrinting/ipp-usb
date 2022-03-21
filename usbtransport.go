@@ -35,7 +35,7 @@ type UsbTransport struct {
 	connReleased chan struct{} // Signalled when connection released
 	shutdown     chan struct{} // Closed by Shutdown()
 	connstate    *usbConnState // Connections state tracker
-	quirks       []Quirks      // Device quirks
+	quirks       QuirksSet     // Device quirks
 	deadline     time.Time     // Deadline for requests
 }
 
@@ -68,13 +68,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.SetLevels(Conf.LogDevice)
 
 	// Setup quirks
-	transport.quirks = Conf.Quirks.Get(transport.info.MfgAndProduct)
+	transport.quirks = Conf.Quirks.ByModelName(transport.info.MfgAndProduct)
 
 	// Remove fax caps if disabled
-	for _, quirks := range transport.quirks {
-		if quirks.DisableFax {
-			transport.info.BasicCaps &^= UsbIppBasicCapsFax
-		}
+	if transport.quirks.GetDisableFax() {
+		transport.info.BasicCaps &^= UsbIppBasicCapsFax
 	}
 
 	// Write device info to the log
@@ -125,7 +123,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	var maxconn uint
 
 	// Check for blacklisted device
-	if len(transport.quirks) > 0 && transport.quirks[0].Blacklist {
+	if transport.quirks.GetBlacklist() {
 		err = ErrBlackListed
 		goto ERROR
 	}
@@ -137,11 +135,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 
 	// Open connections
-	maxconn = math.MaxUint32
-	for _, quirks := range transport.quirks {
-		if quirks.UsbMaxInterfaces != 0 {
-			maxconn = quirks.UsbMaxInterfaces
-		}
+	maxconn = transport.quirks.GetUsbMaxInterfaces()
+	if maxconn == 0 {
+		maxconn = math.MaxUint32
 	}
 
 	for i, ifaddr := range desc.IfAddrs {

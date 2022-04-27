@@ -21,7 +21,8 @@ prioritized section is taken
 
 The following parameters are recognized:
 
-  http-xxx  = yyy   - set HTTP header Xxx: yyy
-  http-xxx  = ""    - drop HTTP header Xxx
-  blacklist = true  - blacklist the matching devices
-  blacklist = false - don't blacklist the matching devices
+  http-xxx  = yyy                 - set HTTP header Xxx: yyy
+  http-xxx  = ""                  - drop HTTP header Xxx
+  blacklist = true | false        - blacklist or not the matching devices
+  disable-fax = true | false      - disable fax capability, even if present
+  init-reset = none | soft | hard - should USB reset be performed on start

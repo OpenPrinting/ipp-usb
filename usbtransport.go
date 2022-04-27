@@ -90,6 +90,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
 		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
 		log.Debug(' ', "    disable-fax = %v", quirks.DisableFax)
+		if quirks.ResetMethod != QuirksResetUnset {
+			log.Debug(' ', "    init-reset = %s", quirks.ResetMethod)
+		}
 		for name, value := range quirks.HttpHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}
@@ -123,6 +126,12 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		goto ERROR
 	}
 
+	// Hard-reset the device, if needed
+	if transport.quirks.GetResetMethod() == QuirksResetHard {
+		transport.log.Debug(' ', "Doing USB HARD RESET")
+		dev.Reset()
+	}
+
 	// Configure the device
 	err = dev.Configure(desc)
 	if err != nil {
@@ -137,7 +146,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 
 	for i, ifaddr := range desc.IfAddrs {
 		var conn *usbConn
-		conn, err = transport.openUsbConn(i, ifaddr)
+		conn, err = transport.openUsbConn(i, ifaddr, transport.quirks)
 		if err != nil {
 			goto ERROR
 		}
@@ -559,7 +568,7 @@ type usbConn struct {
 
 // Open usbConn
 func (transport *UsbTransport) openUsbConn(
-	index int, ifaddr UsbIfAddr) (*usbConn, error) {
+	index int, ifaddr UsbIfAddr, quirks QuirksSet) (*usbConn, error) {
 
 	dev := transport.dev
 
@@ -580,18 +589,14 @@ func (transport *UsbTransport) openUsbConn(
 		goto ERROR
 	}
 
-	// Soft-reset interface
-	//
-	// Note, disabled for now, because it causes problems
-	// with EPSON ET-4750 (see #17)
-	//
-	// May be in a future we will enable it conditionally,
-	// for some printer models (based on quirks)
-	//
-	// err = conn.iface.SoftReset()
-	if err != nil {
-		// Don't treat it too seriously
-		transport.log.Info('?', "USB[%d]: SOFT_RESET: %s", index, err)
+	// Soft-reset interface, if needed
+	if quirks.GetResetMethod() == QuirksResetSoft {
+		transport.log.Debug(' ', "USB[%d]: doing SOFT_RESET", index)
+		err = conn.iface.SoftReset()
+		if err != nil {
+			// Don't treat it too seriously
+			transport.log.Info('?', "USB[%d]: SOFT_RESET: %s", index, err)
+		}
 	}
 
 	return conn, nil

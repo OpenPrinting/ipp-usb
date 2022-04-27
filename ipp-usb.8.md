@@ -233,18 +233,21 @@ most priority section
 
 The following parameters are defined:
 
-   * `blacklist = true | false`:
+   * `blacklist = true | false`<br>
      If `true`, the matching device is ignored by the `ipp-usb`
 
-   * `http-XXX = YYY`:
+   * `http-XXX = YYY`<br>
      Set XXX header of the HTTP requests forwarded to device to YYY.
      If YYY is empty string, XXX header is removed
 
-   * `usb-max-interfaces = N`:
+   * `usb-max-interfaces = N`<br>
      Don't use more that N USB interfaces, even if more is available
 
-   * `disable-fax = true | false`:
+   * `disable-fax = true | false`<br>
      If `true`, the matching device's fax capability is ignored
+
+   * init-reset = none | soft | hard<br>
+     How to reset device during initialization.
 
 In case of you found out about your device needs a quirk to work properly
 or it does not work with `ipp-usb` at all, although it provides IPP-over-USB

@@ -180,18 +180,27 @@ Otherwise, section loaded first wins\. Files are loaded in alphabetical order, s
 If some parameter exist in multiple sections, used its value from the most priority section
 .P
 The following parameters are defined:
-.TP
+.IP "\[ci]" 4
 \fBblacklist = true | false\fR
+.br
 If \fBtrue\fR, the matching device is ignored by the \fBipp\-usb\fR
-.TP
+.IP "\[ci]" 4
 \fBhttp\-XXX = YYY\fR
+.br
 Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed
-.TP
+.IP "\[ci]" 4
 \fBusb\-max\-interfaces = N\fR
+.br
 Don\'t use more that N USB interfaces, even if more is available
-.TP
+.IP "\[ci]" 4
 \fBdisable\-fax = true | false\fR
+.br
 If \fBtrue\fR, the matching device\'s fax capability is ignored
+.IP "\[ci]" 4
+init\-reset = none | soft | hard
+.br
+How to reset device during initialization\.
+.IP "" 0
 .P
 In case of you found out about your device needs a quirk to work properly or it does not work with \fBipp\-usb\fR at all, although it provides IPP\-over\-USB interface, please report the isues at https://github\.com/OpenPrinting/ipp\-usb\. The possible quirk for the device can be added to the project itself and fix the situation for all device\'s owners\.
 .SH "FILES"

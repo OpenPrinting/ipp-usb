@@ -28,7 +28,39 @@ type Quirks struct {
 	HttpHeaders      map[string]string // HTTP header override
 	UsbMaxInterfaces uint              // Max number of USB interfaces
 	DisableFax       bool              // Disable fax for device
+	ResetMethod      QuirksResetMethod // Device reset method
 	Index            int               // Incremented in order of loading
+}
+
+// QuirksResetMethod represents how to reset a device
+// during initialization
+type QuirksResetMethod int
+
+// QuirksResetUnset - reset method not specified
+// QuirksResetNone  - don't reset device at all
+// QuirksResetSoft  - use class-specific soft reset
+// QuirksResetHard  - use USB hard reset
+const (
+	QuirksResetUnset QuirksResetMethod = iota
+	QuirksResetNone
+	QuirksResetSoft
+	QuirksResetHard
+)
+
+// String returns textual representation of QuirksResetMethod
+func (m QuirksResetMethod) String() string {
+	switch m {
+	case QuirksResetUnset:
+		return "unset"
+	case QuirksResetNone:
+		return "none"
+	case QuirksResetSoft:
+		return "soft"
+	case QuirksResetHard:
+		return "hard"
+	}
+
+	return fmt.Sprintf("unknown (%d)", int(m))
 }
 
 // empty returns true, if Quirks are actually empty
@@ -36,7 +68,8 @@ func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
 		len(q.HttpHeaders) == 0 &&
 		q.UsbMaxInterfaces == 0 &&
-		!q.DisableFax
+		!q.DisableFax &&
+		q.ResetMethod == QuirksResetUnset
 }
 
 // QuirksSet represents collection of quirks
@@ -134,6 +167,9 @@ func (qset *QuirksSet) readFile(file string) error {
 		case "disable-fax":
 			err = confLoadBinaryKey(&q.DisableFax, rec,
 				"false", "true")
+
+		case "init-reset":
+			err = confLoadQuirksResetMethodKey(&q.ResetMethod, rec)
 		}
 	}
 
@@ -253,4 +289,15 @@ func (qset QuirksSet) GetDisableFax() bool {
 	}
 
 	return false
+}
+
+// GetResetMethod returns effective ResetMethod parameter
+func (qset QuirksSet) GetResetMethod() QuirksResetMethod {
+	for _, q := range qset {
+		if q.ResetMethod != QuirksResetUnset {
+			return q.ResetMethod
+		}
+	}
+
+	return QuirksResetNone
 }

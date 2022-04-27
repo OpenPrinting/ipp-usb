@@ -612,7 +612,7 @@ func (iface *UsbInterface) Close() {
 //    does never happen that the USB addressing and configuration changes. What
 //    is actually done is that all buffers get flushed and the bulk IN and OUT
 //    pipes get reset to their default states. This clears all stall conditions.
-//    See http://cholla.mmto.org/computers/linux/usb/usbprint11.pdf
+//    See http://cholla.mmto.org/computers/linux/usb/usbprint11.
 func (iface *UsbInterface) SoftReset() error {
 	rc := C.libusb_control_transfer(
 		(*C.libusb_device_handle)(iface.devhandle),

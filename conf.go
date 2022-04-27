@@ -223,6 +223,23 @@ func confLoadLogLevelKey(out *LogLevel, rec *IniRecord) error {
 	return nil
 }
 
+// Load QuirksResetMethod key
+func confLoadQuirksResetMethodKey(out *QuirksResetMethod, rec *IniRecord) error {
+	switch rec.Value {
+	case "none":
+		*out = QuirksResetNone
+		return nil
+	case "soft":
+		*out = QuirksResetSoft
+		return nil
+	case "hard":
+		*out = QuirksResetHard
+		return nil
+	default:
+		return confBadValue(rec, "must be none, soft or hard")
+	}
+}
+
 // Load size key
 func confLoadSizeKey(out *int64, rec *IniRecord) error {
 	units := uint64(1)

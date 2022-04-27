@@ -30,7 +30,7 @@ func TestQuirksSetLoadAndLookup(t *testing.T) {
 	}
 
 	// Test default quirks
-	quirks := qset.Get("unknown device")
+	quirks := qset.ByModelName("unknown device")
 	if quirks == nil {
 		t.Fatalf("default quirls: missed")
 	}
@@ -41,7 +41,7 @@ func TestQuirksSetLoadAndLookup(t *testing.T) {
 
 	// Test quirks for some known device
 	device := "HP LaserJet MFP M28-M31"
-	quirks = qset.Get(device)
+	quirks = qset.ByModelName(device)
 	if quirks == nil {
 		t.Fatalf("%q quirls: missed", device)
 	}

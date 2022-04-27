@@ -39,11 +39,91 @@ IPP printing, eSCL scanning and web console are fully supported.
    * `-bg`:
      run in background (ignored in debug mode)
 
+## NETWORKING
+
+Essentially, `ipp-usb` makes printer or scanner accessible from the
+network, converting network-side HTTP operations to the USB operations.
+
+By default, `ipp-usb` exposes device only to the loopback interface,
+using the `localhost` address (both `127.0.0.1` and `::1`, for IPv4
+and IPv6, respectively). TCP ports are allocated automatically, and
+allocation is associated with the particular device, so the next time
+the device is plugged on, it will get the same port. The default port
+range for TCP ports allocation is `60000-65535`.
+
+This default behavior can be changed, using configuration file. See
+`CONFIGURATION` section below for details.
+
+If you decide to publish your device to the real network, the following
+things should be taken into consideration:
+
+   1. Your **private** device will become **public** and it will become
+      accessible by other computers from the network
+   2. Firewall rules needs to be updated appropriately. The `ipp-usb`
+      daemon will not do it automatically by itself
+   3. IPP over USB specification explicitly require that the
+      `Host` field in the HTTP request is set to `localhost`
+      or `localhost:port`. If device is accessed from the real
+      network, `Host` header will reflect the real network address.
+      Most of devices allow it, but some are more restrictive
+      and will not work in this configuration.
+
+## DNS-SD (AVAHI INTEGRATION)
+
+IPP over USB is intended to be used with the automatic device discovery,
+and for this purpose `ipp-usb` advertises all devices it handles, using
+DNS-SD protocol. On Linux, DNS-SD is handled with a help of Avahi daemon.
+
+DNS-SD advertising can be disabled via configuration file. Also, if Avahi
+is not installed or not running, `ipp-usb` will still work correctly,
+although DNS-SD advertising will not work.
+
+For every device the following services will be advertised:
+
+   | Instance    | Type          | Subtypes                  |
+   | ----------- | ------------- | ------------------------- |
+   | Device name | _ipp._tcp     | _universal._sub._ipp._tcp |
+   | Device name | _printer._tcp |                           |
+   | Device name | _uscan._tcp   |                           |
+   | BBPP        | _ipp-usb._tcp |                           |
+
+
+Notes:
+
+   * `Device name` is the name under which device appears in
+     the list of available devices, for example, in the printing
+     dialog (it is DNS-SD device name, in another words), and for
+     most of devices will match the device's model name. It
+     is appended with the `" (USB)"` suffix, so if device is
+     connected via network and via USB simultaneously, these
+     two connections can be easily distinguished. If there
+     are two devices with the same name connected simultaneously,
+     the suffix becomes `" (USB NNN)"`, with NNN number unique for
+     each device, for disambiguation. In another words, the single
+     `"Kyocera ECOSYS M2040dn"` device will be listed as
+     `"Kyocera ECOSYS M2040dn (USB)"`, and two such a devices will
+     be listed as `"Kyocera ECOSYS M2040dn (USB 1)"` and
+     `"Kyocera ECOSYS M2040dn (USB 2)"`
+   * `_ipp._tcp` and `_printer._tcp` are only advertises for
+     printer devices and MFPs
+   * `_uscan._tcp` is only advertised for scanner devices and MFPs
+   * for the `_ipp._tcp` service, the `_universal._sub._ipp._tcp`
+     subtype is also advertised for iOS compatibility
+   * `_printer._tcp` is advertised with TCP port set to 0. Other
+     services are advertised with the actual port number
+   * `BBPP`, used for the `_ipp-usb._tcp` service, is the
+     USB bus (BB) and port (PP) numbers in hex. The purpose
+     of this advertising is to help CUPS and other possible
+     "clients" to guess which devices are handled by the
+     `ipp-usb` service, to avoid possible conflicts with the
+     legacy USB drivers.
+
 ## CONFIGURATION
 
 `ipp-usb` searched for its configuration file in two places:
-1. `/etc/ipp-usb/ipp-usb.conf`
-2. `ipp-usb.conf` in the directory where executable file is located
+
+   1. `/etc/ipp-usb/ipp-usb.conf`
+   2. `ipp-usb.conf` in the directory where executable file is located
 
 Configuration file syntax is very similar to .INI files syntax.
 It consist of named sections, and each section contains a set of
@@ -195,7 +275,7 @@ and fix the situation for all device's owners.
 
 ## COPYRIGHT
 
-Copyright (c) by Alexander Pevzner (pzz@apevzner.com)<br/>
+Copyright (c) by Alexander Pevzner (pzz@apevzner.com, pzz@pzz.msk.ru)<br/>
 All rights reserved.
 
 This program is licensed under 2-Clause BSD license. See LICENSE file for details.

@@ -11,6 +11,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -129,6 +130,7 @@ func libusbContext() (*C.libusb_context, error) {
 
 	// Start libusb thread (required for hotplug)
 	go func() {
+		runtime.LockOSThread()
 		for {
 			C.libusb_handle_events(libusbContextPtr)
 		}

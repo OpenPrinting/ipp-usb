@@ -32,7 +32,8 @@ IPP printing, eSCL scanning and web console are fully supported.
      logs duplicated on console, -bg option is ignored
 
    * `check`:
-     check configuration and exit
+     check configuration and exit. It also prints a list
+     of all connected devices
 
 ### Options are
 
@@ -212,12 +213,14 @@ admin changes. These files have .INI-file syntax with the content that looks lik
     [*]
       http-connection = ""
 
-For each discovered device, its model name is matched against sections
-of the quirks files. The section name contains an exact model name,
-which contains `iManufacturer`+`iProduct` entries from `lsusb -v` command output,
-or it may contain glob-style wildcards: `*` that matches any sequence of characters and `?`
-, that matches any single character. To match one of these characters (`*` and `?`) literally,
-use backslash as escape.
+For each discovered device, its model name is matched against sections of the
+quirks files. Section names may contain glob-style wildcards: `*` that matches
+any sequence of characters and `?` , that matches any single character. To
+match one of these characters (`*` and `?`) literally, use backslash as escape.
+
+Note, the simplest way to guess the exact model name for the particular
+device is to use `ipp-usb check` command, which prints a list of all
+connected devices.
 
 All matching sections from all quirks files are taken in consideration,
 and applied in priority order. Priority is computed using the following
@@ -246,14 +249,14 @@ The following parameters are defined:
    * `disable-fax = true | false`<br>
      If `true`, the matching device's fax capability is ignored
 
-   * init-reset = none | soft | hard<br>
-     How to reset device during initialization.
+   * `init-reset = none | soft | hard`<br>
+     How to reset device during initialization. Default is `none`
 
-In case of you found out about your device needs a quirk to work properly
-or it does not work with `ipp-usb` at all, although it provides IPP-over-USB
-interface, please report the isues at https://github.com/OpenPrinting/ipp-usb.
-The possible quirk for the device can be added to the project itself
-and fix the situation for all device's owners.
+If you found out about your device that it needs a quirk to work properly or it
+does not work with `ipp-usb` at all, although it provides IPP-over-USB
+interface, please report the issue at https://github.com/OpenPrinting/ipp-usb.
+It will let us to update our collection of quirks, so helping other owners
+of such a device.
 
 ## FILES
 

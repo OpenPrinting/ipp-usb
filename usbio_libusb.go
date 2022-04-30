@@ -93,14 +93,14 @@ var (
 )
 
 // Initialize low-level USB I/O
-func UsbInit() error {
-	_, err := libusbContext()
+func UsbInit(nopnp bool) error {
+	_, err := libusbContext(nopnp)
 	return err
 }
 
 // libusbContext returns libusb_context. It
 // initializes context on demand.
-func libusbContext() (*C.libusb_context, error) {
+func libusbContext(nopnp bool) (*C.libusb_context, error) {
 	if atomic.LoadInt32(&libusbContextOk) != 0 {
 		return libusbContextPtr, nil
 	}
@@ -115,18 +115,20 @@ func libusbContext() (*C.libusb_context, error) {
 	}
 
 	// Subscribe to hotplug events
-	C.libusb_hotplug_register_callback(
-		libusbContextPtr, // libusb_context
-		C.LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED| // events mask
-			C.LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
-		C.LIBUSB_HOTPLUG_NO_FLAGS,  // flags
-		C.LIBUSB_HOTPLUG_MATCH_ANY, // vendor_id
-		C.LIBUSB_HOTPLUG_MATCH_ANY, // product_id
-		C.LIBUSB_HOTPLUG_MATCH_ANY, // dev_class
-		C.libusb_hotplug_callback_fn(unsafe.Pointer(C.libusbHotplugCallback)),
-		nil, // callback's data
-		nil, // deregister handle
-	)
+	if !nopnp {
+		C.libusb_hotplug_register_callback(
+			libusbContextPtr, // libusb_context
+			C.LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED| // events mask
+				C.LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT,
+			C.LIBUSB_HOTPLUG_NO_FLAGS,  // flags
+			C.LIBUSB_HOTPLUG_MATCH_ANY, // vendor_id
+			C.LIBUSB_HOTPLUG_MATCH_ANY, // product_id
+			C.LIBUSB_HOTPLUG_MATCH_ANY, // dev_class
+			C.libusb_hotplug_callback_fn(unsafe.Pointer(C.libusbHotplugCallback)),
+			nil, // callback's data
+			nil, // deregister handle
+		)
+	}
 
 	// Start libusb thread (required for hotplug)
 	go func() {
@@ -176,7 +178,7 @@ func UsbCheckIppOverUsbDevices() bool {
 // device descriptors
 func UsbGetIppOverUsbDeviceDescs() (map[UsbAddr]UsbDeviceDesc, error) {
 	// Obtain libusb context
-	ctx, err := libusbContext()
+	ctx, err := libusbContext(false)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +309,7 @@ type UsbDevHandle C.libusb_device_handle
 // UsbOpenDevice opens device by device descriptor
 func UsbOpenDevice(desc UsbDeviceDesc) (*UsbDevHandle, error) {
 	// Obtain libusb context
-	ctx, err := libusbContext()
+	ctx, err := libusbContext(false)
 	if err != nil {
 		return nil, err
 	}

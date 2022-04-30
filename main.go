@@ -155,8 +155,18 @@ func main() {
 
 	// In RunCheck mode, list IPP-over-USB devices
 	if params.Mode == RunCheck {
-		descs, _ := UsbGetIppOverUsbDeviceDescs()
-		if descs == nil || len(descs) == 0 {
+		// If we are here, configuration is OK
+		InitLog.Info(0, "Configuration files: OK")
+
+		var descs map[UsbAddr]UsbDeviceDesc
+		err = UsbInit(true)
+		if err == nil {
+			descs, err = UsbGetIppOverUsbDeviceDescs()
+		}
+
+		if err != nil {
+			InitLog.Info(0, "Can't read list of USB devices: %s", err)
+		} else if descs == nil || len(descs) == 0 {
 			InitLog.Info(0, "No IPP over USB devices found")
 		} else {
 			// Repack into the sorted list
@@ -230,7 +240,7 @@ func main() {
 	}
 
 	// Initialize USB
-	err = UsbInit()
+	err = UsbInit(false)
 	InitLog.Check(err)
 
 	// Close stdin/stdout/stderr, unless running in debug mode

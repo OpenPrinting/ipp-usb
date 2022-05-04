@@ -90,6 +90,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
 		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
 		log.Debug(' ', "    disable-fax = %v", quirks.DisableFax)
+		log.Debug(' ', "    init-delay = %s", quirks.InitDelay)
+		log.Debug(' ', "    request-delay = %s", quirks.RequestDelay)
 		if quirks.ResetMethod != QuirksResetUnset {
 			log.Debug(' ', "    init-reset = %s", quirks.ResetMethod)
 		}
@@ -436,6 +438,12 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 
 	transport.log.HTTPDebug(' ', session, "connection %d allocated", conn.index)
 
+	// Make an inter-request (or initial) delay, if needed
+	if delay := conn.delayUntil.Sub(time.Now()); delay > 0 {
+		transport.log.HTTPDebug(' ', session, "Pausing for %s", delay)
+		time.Sleep(delay)
+	}
+
 	// Send request and receive a response
 	err = outreq.Write(conn)
 	if err != nil {
@@ -558,12 +566,14 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 
 // usbConn implements an USB connection
 type usbConn struct {
-	transport *UsbTransport // Transport that owns the connection
-	index     int           // Connection index (for logging)
-	iface     *UsbInterface // Underlying interface
-	reader    *bufio.Reader // For http.ReadResponse
-	cntRecv   int           // Total bytes received
-	cntSent   int           // Total bytes sent
+	transport     *UsbTransport // Transport that owns the connection
+	index         int           // Connection index (for logging)
+	iface         *UsbInterface // Underlying interface
+	reader        *bufio.Reader // For http.ReadResponse
+	delayUntil    time.Time     // Delay till this time before next request
+	delayInterval time.Duration // Pause between requests
+	cntRecv       int           // Total bytes received
+	cntSent       int           // Total bytes sent
 }
 
 // Open usbConn
@@ -576,8 +586,10 @@ func (transport *UsbTransport) openUsbConn(
 
 	// Initialize connection structure
 	conn := &usbConn{
-		transport: transport,
-		index:     index,
+		transport:     transport,
+		index:         index,
+		delayUntil:    time.Now().Add(quirks.GetInitDelay()),
+		delayInterval: quirks.GetRequestDelay(),
 	}
 
 	conn.reader = bufio.NewReader(conn)
@@ -726,6 +738,7 @@ func (conn *usbConn) put() {
 	transport := conn.transport
 
 	conn.reader.Reset(conn)
+	conn.delayUntil = time.Now().Add(conn.delayInterval)
 	conn.cntRecv = 0
 	conn.cntSent = 0
 

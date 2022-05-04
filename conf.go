@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -238,6 +239,16 @@ func confLoadQuirksResetMethodKey(out *QuirksResetMethod, rec *IniRecord) error 
 	default:
 		return confBadValue(rec, "must be none, soft or hard")
 	}
+}
+
+// Load time.Duration key
+func confLoadDurationKey(out *time.Duration, rec *IniRecord) error {
+	var ms uint
+	err := confLoadUintKey(&ms, rec)
+	if err == nil {
+		*out = time.Millisecond * time.Duration(ms)
+	}
+	return err
 }
 
 // Load size key

@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Quirks represents device-specific quirks
@@ -29,6 +30,8 @@ type Quirks struct {
 	UsbMaxInterfaces uint              // Max number of USB interfaces
 	DisableFax       bool              // Disable fax for device
 	ResetMethod      QuirksResetMethod // Device reset method
+	InitDelay        time.Duration     // Delay before 1st IPP-USB request
+	RequestDelay     time.Duration     // Delay between IPP-USB requests
 	Index            int               // Incremented in order of loading
 }
 
@@ -69,7 +72,9 @@ func (q *Quirks) empty() bool {
 		len(q.HttpHeaders) == 0 &&
 		q.UsbMaxInterfaces == 0 &&
 		!q.DisableFax &&
-		q.ResetMethod == QuirksResetUnset
+		q.ResetMethod == QuirksResetUnset &&
+		q.InitDelay == 0 &&
+		q.RequestDelay == 0
 }
 
 // QuirksSet represents collection of quirks
@@ -170,6 +175,12 @@ func (qset *QuirksSet) readFile(file string) error {
 
 		case "init-reset":
 			err = confLoadQuirksResetMethodKey(&q.ResetMethod, rec)
+
+		case "init-delay":
+			err = confLoadDurationKey(&q.InitDelay, rec)
+
+		case "request-delay":
+			err = confLoadDurationKey(&q.RequestDelay, rec)
 		}
 	}
 
@@ -300,4 +311,26 @@ func (qset QuirksSet) GetResetMethod() QuirksResetMethod {
 	}
 
 	return QuirksResetNone
+}
+
+// GetInitDelay returns effective InitDelay parameter
+func (qset QuirksSet) GetInitDelay() time.Duration {
+	for _, q := range qset {
+		if q.InitDelay != 0 {
+			return q.InitDelay
+		}
+	}
+
+	return 0
+}
+
+// GetRequestDelay returns effective RequestDelay parameter
+func (qset QuirksSet) GetRequestDelay() time.Duration {
+	for _, q := range qset {
+		if q.RequestDelay != 0 {
+			return q.RequestDelay
+		}
+	}
+
+	return 0
 }

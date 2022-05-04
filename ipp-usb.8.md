@@ -252,6 +252,13 @@ The following parameters are defined:
    * `init-reset = none | soft | hard`<br>
      How to reset device during initialization. Default is `none`
 
+   * `init-delay = NNN`<br>
+     Delay, in milliseconds, between device is opened and, optionally,
+     reset, and the first request is sent to device
+
+   * `request-delay` = NNN<br>
+     Delay, in milliseconds, between subsequent requests
+
 If you found out about your device that it needs a quirk to work properly or it
 does not work with `ipp-usb` at all, although it provides IPP-over-USB
 interface, please report the issue at https://github.com/OpenPrinting/ipp-usb.

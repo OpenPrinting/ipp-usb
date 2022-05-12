@@ -57,6 +57,7 @@ Instance	Type	Subtypes
 Device name	_ipp\._tcp	_universal\._sub\._ipp\._tcp
 Device name	_printer\._tcp	\~
 Device name	_uscan\._tcp	\~
+Device name	_http\._tcp	\~
 BBPP	_ipp\-usb\._tcp	\~
 .TE
 .P
@@ -71,6 +72,8 @@ Notes:
 for the \fB_ipp\._tcp\fR service, the \fB_universal\._sub\._ipp\._tcp\fR subtype is also advertised for iOS compatibility
 .IP "\[ci]" 4
 \fB_printer\._tcp\fR is advertised with TCP port set to 0\. Other services are advertised with the actual port number
+.IP "\[ci]" 4
+\fB_http\._tcp\fR is device web\-console\. It is always advertises in assumption it is always exist
 .IP "\[ci]" 4
 \fBBBPP\fR, used for the \fB_ipp\-usb\._tcp\fR service, is the USB bus (BB) and port (PP) numbers in hex\. The purpose of this advertising is to help CUPS and other possible "clients" to guess which devices are handled by the \fBipp\-usb\fR service, to avoid possible conflicts with the legacy USB drivers\.
 .IP "" 0

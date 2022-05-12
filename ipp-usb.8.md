@@ -86,6 +86,7 @@ For every device the following services will be advertised:
    | Device name | _ipp._tcp     | _universal._sub._ipp._tcp |
    | Device name | _printer._tcp |                           |
    | Device name | _uscan._tcp   |                           |
+   | Device name | _http._tcp    |                           |
    | BBPP        | _ipp-usb._tcp |                           |
 
 
@@ -112,6 +113,8 @@ Notes:
      subtype is also advertised for iOS compatibility
    * `_printer._tcp` is advertised with TCP port set to 0. Other
      services are advertised with the actual port number
+   * `_http._tcp` is device web-console. It is always advertises
+     in assumption it is always exist
    * `BBPP`, used for the `_ipp-usb._tcp` service, is the
      USB bus (BB) and port (PP) numbers in hex. The purpose
      of this advertising is to help CUPS and other possible

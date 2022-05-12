@@ -131,6 +131,21 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		}
 	}
 
+	// Skip the device, if it cannot do something useful
+	//
+	// Some devices (so far, only HP-rebranded Samsung devices
+	// known to have such a defect) offer 7/1/4 interfaces, but
+	// actually provide no functionality behind these interfaces
+	// and respond with `HTTP 404 Not found` to all the HTTP
+	// requests sent to USB
+	//
+	// ipp-usb ignores such devices to let a chance for
+	// legacy/proprietary drivers to work with them
+	if len(dnssdServices) == 0 {
+		err = ErrUnusable
+		goto ERROR
+	}
+
 	// Advertise Web service. Assume it always exists
 	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
 

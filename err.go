@@ -18,4 +18,5 @@ var (
 	ErrShutdown     = errors.New("Shutdown requested")
 	ErrBlackListed  = errors.New("Device is blacklisted")
 	ErrInitTimedOut = errors.New("Device initialization timed out")
+	ErrUnusable     = errors.New("Device doesn't implement print or scan service")
 )

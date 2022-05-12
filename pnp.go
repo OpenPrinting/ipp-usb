@@ -26,7 +26,13 @@ const (
 )
 
 // pnpRetryTime returns time of next retry of failed device initialization
-func pnpRetryTime() time.Time {
+func pnpRetryTime(err error) time.Time {
+	if err == ErrBlackListed || err == ErrUnusable {
+		// These errors are unrecoverable.
+		// Forget about device for the next million hours :-)
+		return time.Now().Add(time.Hour * 1e6)
+	}
+
 	return time.Now().Add(DevInitRetryInterval)
 }
 
@@ -74,7 +80,7 @@ loop:
 					devByAddr[addr] = dev
 				} else {
 					Log.Error('!', "PNP %s: %s", addr, err)
-					retryByAddr[addr] = pnpRetryTime()
+					retryByAddr[addr] = pnpRetryTime(err)
 				}
 			}
 
@@ -103,7 +109,7 @@ loop:
 					delete(retryByAddr, addr)
 				} else {
 					Log.Error('!', "PNP %s: %s", addr, err)
-					retryByAddr[addr] = pnpRetryTime()
+					retryByAddr[addr] = pnpRetryTime(err)
 				}
 			}
 		}

@@ -10,27 +10,55 @@
 
 package main
 
+/*
+#include <errno.h>
+#include <unistd.h>
+
+static inline int do_lockf (int fd, int cmd, off_t len) {
+    int rc = lockf(fd, cmd, len);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}
+*/
+import "C"
+
 import (
 	"os"
 	"syscall"
 )
 
-// FileLock acquires file lock
-func FileLock(file *os.File, exclusive, wait bool) error {
-	var how int
+// FileLockCmd represents set of possible values for the
+// FileLock argument
+type FileLockCmd C.int
 
-	if exclusive {
-		how = syscall.LOCK_EX
-	} else {
-		how = syscall.LOCK_SH
+const (
+	// Lock the file; wait if it is busy
+	FileLockWait = C.F_LOCK
+
+	// Lock the file; fail with ErrLockIsBusy if it is busy
+	FileLockNoWait = C.F_TLOCK
+
+	// Test the lock. Return immediately with ErrLockIsBusy
+	// if file is busy or with the nil error, if file is not
+	// busy. File locking state is not affected in both cases
+	FileLockTest = C.F_TEST
+
+	// Unlock the file
+	FileLockUnlock = C.F_ULOCK
+)
+
+// FileLock manages file lock
+func FileLock(file *os.File, cmd FileLockCmd) error {
+	rc := C.do_lockf(C.int(file.Fd()), C.int(cmd), 0)
+	if rc == 0 {
+		return nil
 	}
 
-	if !wait {
-		how |= syscall.LOCK_NB
-	}
-
-	err := syscall.Flock(int(file.Fd()), how)
-	if err == syscall.Errno(syscall.EWOULDBLOCK) {
+	var err error = syscall.Errno(-rc)
+	switch err {
+	case syscall.EACCES, syscall.EAGAIN:
 		err = ErrLockIsBusy
 	}
 
@@ -39,5 +67,5 @@ func FileLock(file *os.File, exclusive, wait bool) error {
 
 // FileUnlock releases file lock
 func FileUnlock(file *os.File) error {
-	return syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	return FileLock(file, FileLockUnlock)
 }

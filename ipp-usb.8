@@ -25,6 +25,9 @@ logs duplicated on console, \-bg option is ignored
 .TP
 \fBcheck\fR
 check configuration and exit\. It also prints a list of all connected devices
+.TP
+\fBstatus\fR
+print \fBipp\-usb\fR status
 .SS "Options are"
 .TP
 \fB\-bg\fR
@@ -228,6 +231,8 @@ If you found out about your device that it needs a quirk to work properly or it 
 .IP "\[ci]" 4
 \fB/var/ipp\-usb/lock/ipp\-usb\.lock\fR: lock file, that helps to prevent multiple copies of daemon to run simultaneously
 .IP "\[ci]" 4
+\fB/var/ipp\-usb/status\fR: per\-device status in a form of a text file (printed by \fBipp\-usb status\fR)
+.IP "\[ci]" 4
 \fB/usr/share/ipp\-usb/quirks/*\.conf\fR: device\-specific quirks (see above)
 .IP "\[ci]" 4
 \fB/etc/ipp\-usb/quirks/*\.conf\fR: device\-specific quirks defined by sysadmin (see above)
@@ -239,4 +244,4 @@ All rights reserved\.
 .P
 This program is licensed under 2\-Clause BSD license\. See LICENSE file for details\.
 .SH "SEE ALSO"
-cups(1)
+\fBcups(1)\fR

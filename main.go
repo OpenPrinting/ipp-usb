@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 )
@@ -26,6 +27,7 @@ Modes are:
     debug       - logs duplicated on console, -bg option is
                   ignored
     check       - check configuration and exit
+    status      - print ipp-usb status and exit
 
 Options are
     -bg         - run in background (ignored in debug mode)
@@ -40,6 +42,7 @@ const (
 	RunUdev
 	RunDebug
 	RunCheck
+	RunStatus
 )
 
 // String returns RunMode name
@@ -55,6 +58,8 @@ func (m RunMode) String() string {
 		return "debug"
 	case RunCheck:
 		return "check"
+	case RunStatus:
+		return "status"
 	}
 
 	return fmt.Sprintf("unknown (%d)", int(m))
@@ -113,6 +118,9 @@ func parseArgv() (params RunParameters) {
 		case "check":
 			params.Mode = RunCheck
 			modes++
+		case "status":
+			params.Mode = RunStatus
+			modes++
 		case "-bg":
 			params.Background = true
 		default:
@@ -131,6 +139,65 @@ func parseArgv() (params RunParameters) {
 	return
 }
 
+// printStatus prints status of running ipp-usb daemon, if any
+func printStatus() {
+	running := false
+
+	// Check if ipp-usb is running
+	lock, err := os.OpenFile(PathLockFile,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err == nil {
+		err = FileLock(lock, FileLockTest)
+		lock.Close()
+	}
+
+	switch err {
+	case nil:
+		InitLog.Info(0, "ipp-usb is not running")
+	case ErrLockIsBusy:
+		InitLog.Info(0, "ipp-usb is running")
+		running = true
+	default:
+		InitLog.Info(0, "%s", err)
+	}
+
+	// Dump ipp-usb status file, if ipp-usb is running
+	if running {
+		var text []byte
+
+		status, err := os.OpenFile(PathStatusFile,
+			os.O_RDWR, 0600)
+		if err == nil {
+			defer status.Close()
+			err = FileLock(status, FileLockWait)
+		}
+		if err == nil {
+			err = FileLock(status, FileLockWait)
+			text, err = ioutil.ReadAll(status)
+		}
+
+		if err == nil {
+			text = bytes.Trim(text, "\n")
+			lines := bytes.Split(text, []byte("\n"))
+
+			for len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
+				lines = lines[0 : len(lines)-1]
+			}
+
+			if len(lines) == 0 {
+				InitLog.Info(0, "per-device status: empty")
+			} else {
+				InitLog.Info(0, "per-device status:")
+				for _, line := range lines {
+					InitLog.Info(0, "%s", line)
+				}
+			}
+		} else {
+			InitLog.Info(0, "per-device status: %s", err)
+		}
+	}
+}
+
 // The main function
 func main() {
 	var err error
@@ -143,7 +210,9 @@ func main() {
 	InitLog.Check(err)
 
 	// Setup logging
-	if params.Mode != RunDebug && params.Mode != RunCheck {
+	if params.Mode != RunDebug &&
+		params.Mode != RunCheck &&
+		params.Mode != RunStatus {
 		Console.ToNowhere()
 	} else if Conf.ColorConsole {
 		Console.ToColorConsole()
@@ -200,8 +269,13 @@ func main() {
 		InitLog.Exit(0, "This program requires root privileges")
 	}
 
-	// If mode is "check", we are done
-	if params.Mode == RunCheck {
+	// In RunStatus mode, print ipp-usb status
+	if params.Mode == RunStatus {
+		printStatus()
+	}
+
+	// If mode is "check" or "status", we are done
+	if params.Mode == RunCheck || params.Mode == RunStatus {
 		os.Exit(0)
 	}
 
@@ -220,7 +294,7 @@ func main() {
 	InitLog.Check(err)
 	defer lock.Close()
 
-	err = FileLock(lock, true, false)
+	err = FileLock(lock, FileLockNoWait)
 	if err == ErrLockIsBusy {
 		if params.Mode == RunUdev {
 			// It's not an error in udev mode
@@ -232,7 +306,7 @@ func main() {
 	InitLog.Check(err)
 
 	// Write to log that we are here
-	if params.Mode != RunCheck {
+	if params.Mode != RunCheck && params.Mode != RunStatus {
 		Log.Info(' ', "===============================")
 		Log.Info(' ', "ipp-usb started in %q mode, pid=%d",
 			params.Mode, os.Getpid())
@@ -269,7 +343,7 @@ func main() {
 			Log.Check(err)
 
 			if UsbCheckIppOverUsbDevices() &&
-				FileLock(lock, true, false) == nil {
+				FileLock(lock, FileLockNoWait) == nil {
 				Log.Info(' ', "New IPP-over-USB device found")
 				continue
 			}

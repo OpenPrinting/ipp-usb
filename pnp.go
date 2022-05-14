@@ -10,8 +10,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -41,6 +43,71 @@ func pnpRetryExpired(tm time.Time) bool {
 	return !time.Now().Before(tm)
 }
 
+// pnpUpdateStatusFile updates ipp-usb status file
+func pnpUpdateStatusFile(content map[UsbAddr]error,
+	dev_descs map[UsbAddr]UsbDeviceDesc) {
+	// Sort output by address
+	devs := make([]struct {
+		addr UsbAddr
+		err  error
+	}, len(content))
+
+	i := 0
+	for addr, err := range content {
+		devs[i].addr = addr
+		devs[i].err = err
+	}
+
+	sort.Slice(devs, func(i, j int) bool {
+		return devs[i].addr.Less(devs[j].addr)
+	})
+
+	// Open and lock the status file
+	os.MkdirAll(PathLockDir, 0755)
+	file, err := os.OpenFile(PathStatusFile,
+		os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return
+	}
+
+	defer file.Close()
+
+	err = FileLock(file, FileLockWait)
+	if err != nil {
+		return
+	}
+
+	defer FileUnlock(file)
+
+	err = file.Truncate(0)
+	if err != nil {
+		return
+	}
+
+	// Dump to file
+	if len(devs) == 0 {
+		return
+	}
+
+	fmt.Fprintf(file, " Num  Device              Vndr:Prod  Model\n")
+	for i = range devs {
+		addr := devs[i].addr
+		desc := dev_descs[addr]
+		info, _ := desc.GetUsbDeviceInfo()
+
+		fmt.Fprintf(file, " %3d. %s  %4.4x:%.4x  %q\n",
+			i+1, addr,
+			info.Vendor, info.Product, info.MfgAndProduct)
+
+		status := "OK"
+		if devs[i].err != nil {
+			status = devs[i].err.Error()
+		}
+
+		fmt.Fprintf(file, "      status: %s", status)
+	}
+}
+
 // PnPStart start PnP manager
 //
 // If exitWhenIdle is true, PnP manager will exit, when there is no more
@@ -49,6 +116,7 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 	devices := UsbAddrList{}
 	devByAddr := make(map[UsbAddr]*Device)
 	retryByAddr := make(map[UsbAddr]time.Time)
+	statusByAddr := make(map[UsbAddr]error)
 	sigChan := make(chan os.Signal, 1)
 	ticker := time.NewTicker(DevInitRetryInterval / 4)
 	tickerRunning := true
@@ -76,6 +144,8 @@ loop:
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
 				dev, err := NewDevice(dev_descs[addr])
+				statusByAddr[addr] = err
+
 				if err == nil {
 					devByAddr[addr] = dev
 				} else {
@@ -88,6 +158,7 @@ loop:
 			for _, addr := range removed {
 				Log.Debug('-', "PNP %s: removed", addr)
 				delete(retryByAddr, addr)
+				delete(statusByAddr, addr)
 
 				dev, ok := devByAddr[addr]
 				if ok {
@@ -104,6 +175,8 @@ loop:
 
 				Log.Debug('+', "PNP %s: retry", addr)
 				dev, err := NewDevice(dev_descs[addr])
+				statusByAddr[addr] = err
+
 				if err == nil {
 					devByAddr[addr] = dev
 					delete(retryByAddr, addr)
@@ -129,6 +202,9 @@ loop:
 			ticker = time.NewTicker(DevInitRetryInterval / 4)
 			tickerRunning = true
 		}
+
+		// Update status file
+		pnpUpdateStatusFile(statusByAddr, dev_descs)
 
 		select {
 		case <-UsbHotPlugChan:

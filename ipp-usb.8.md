@@ -35,6 +35,9 @@ IPP printing, eSCL scanning and web console are fully supported.
      check configuration and exit. It also prints a list
      of all connected devices
 
+   * `status`:
+     print `ipp-usb` status
+
 ### Options are
 
    * `-bg`:
@@ -285,6 +288,9 @@ of such a device.
    * `/var/ipp-usb/lock/ipp-usb.lock`:
      lock file, that helps to prevent multiple copies of daemon to run simultaneously
 
+   * `/var/ipp-usb/status`:
+     per-device status in a form of a text file (printed by `ipp-usb status`)
+
    * `/usr/share/ipp-usb/quirks/*.conf`: device-specific quirks (see above)
 
    * `/etc/ipp-usb/quirks/*.conf`: device-specific quirks defined by sysadmin (see above)
@@ -298,6 +304,6 @@ This program is licensed under 2-Clause BSD license. See LICENSE file for detail
 
 ## SEE ALSO
 
-cups(1)
+**cups(1)**
 
 # vim:ts=8:sw=4:et

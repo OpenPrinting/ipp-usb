@@ -27,6 +27,9 @@ const (
 	// PathLockFile defines path to lock file
 	PathLockFile = PathLockDir + "/ipp-usb.lock"
 
+	// PathStatusFile defines path to the status file
+	PathStatusFile = PathProgState + "/status"
+
 	// PathProgStateDev defines path to directory where per-device state
 	// files are saved to
 	PathProgStateDev = PathProgState + "/dev"

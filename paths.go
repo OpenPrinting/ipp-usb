@@ -27,6 +27,9 @@ const (
 	// PathLockFile defines path to lock file
 	PathLockFile = PathLockDir + "/ipp-usb.lock"
 
+	// PathControlSocket defines path to the control socket
+	PathControlSocket = PathProgState + "/ctrl"
+
 	// PathStatusFile defines path to the status file
 	PathStatusFile = PathProgState + "/status"
 

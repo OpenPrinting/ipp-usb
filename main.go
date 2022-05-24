@@ -11,7 +11,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 )
@@ -141,60 +140,26 @@ func parseArgv() (params RunParameters) {
 
 // printStatus prints status of running ipp-usb daemon, if any
 func printStatus() {
-	running := false
+	// Fetch status
+	text, err := StatusRetrieve()
 
-	// Check if ipp-usb is running
-	lock, err := os.OpenFile(PathLockFile,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err == nil {
-		err = FileLock(lock, FileLockTest)
-		lock.Close()
-	}
-
-	switch err {
-	case nil:
-		InitLog.Info(0, "ipp-usb is not running")
-	case ErrLockIsBusy:
-		InitLog.Info(0, "ipp-usb is running")
-		running = true
-	default:
+	if err != nil {
 		InitLog.Info(0, "%s", err)
+		return
 	}
 
-	// Dump ipp-usb status file, if ipp-usb is running
-	if running {
-		var text []byte
+	// Split into lines
+	text = bytes.Trim(text, "\n")
+	lines := bytes.Split(text, []byte("\n"))
 
-		status, err := os.OpenFile(PathStatusFile,
-			os.O_RDWR, 0600)
-		if err == nil {
-			defer status.Close()
-			err = FileLock(status, FileLockWait)
-		}
-		if err == nil {
-			err = FileLock(status, FileLockWait)
-			text, err = ioutil.ReadAll(status)
-		}
+	// Strip empty lines at the end
+	for len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
+		lines = lines[0 : len(lines)-1]
+	}
 
-		if err == nil {
-			text = bytes.Trim(text, "\n")
-			lines := bytes.Split(text, []byte("\n"))
-
-			for len(lines) > 0 && len(lines[len(lines)-1]) == 0 {
-				lines = lines[0 : len(lines)-1]
-			}
-
-			if len(lines) == 0 {
-				InitLog.Info(0, "per-device status: empty")
-			} else {
-				InitLog.Info(0, "per-device status:")
-				for _, line := range lines {
-					InitLog.Info(0, "%s", line)
-				}
-			}
-		} else {
-			InitLog.Info(0, "per-device status: %s", err)
-		}
+	// Write to log, line by line
+	for _, line := range lines {
+		InitLog.Info(0, "%s", line)
 	}
 }
 
@@ -264,18 +229,19 @@ func main() {
 		}
 	}
 
+	// In RunStatus mode, print ipp-usb status, and we are done
+	if params.Mode == RunStatus {
+		printStatus()
+		os.Exit(0)
+	}
+
 	// Check user privileges
 	if os.Geteuid() != 0 {
 		InitLog.Exit(0, "This program requires root privileges")
 	}
 
-	// In RunStatus mode, print ipp-usb status
-	if params.Mode == RunStatus {
-		printStatus()
-	}
-
-	// If mode is "check" or "status", we are done
-	if params.Mode == RunCheck || params.Mode == RunStatus {
+	// If mode is "check", we are done
+	if params.Mode == RunCheck {
 		os.Exit(0)
 	}
 

@@ -19,4 +19,6 @@ var (
 	ErrBlackListed  = errors.New("Device is blacklisted")
 	ErrInitTimedOut = errors.New("Device initialization timed out")
 	ErrUnusable     = errors.New("Device doesn't implement print or scan service")
+	ErrNoIppUsb     = errors.New("ipp-usb daemon not running")
+	ErrAccess       = errors.New("Access denied")
 )

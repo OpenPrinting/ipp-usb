@@ -147,7 +147,8 @@ continues until end of line:
 Network parameters are all in the `[network]` section:
 
     [network]
-      # TCP ports for HTTP will be automatically allocated in the following range
+      # TCP ports for HTTP will be automatically allocated in the
+      # following range
       http-min-port = 60000
       http-max-port = 65535
 
@@ -156,8 +157,8 @@ Network parameters are all in the `[network]` section:
 
       # Network interface to use. Set to `all` if you want to expose you
       # printer to the local network. This way you can share your printer
-      # with other computers in the network, as well as with iOS and Android
-      # devices.
+      # with other computers in the network, as well as with iOS and
+      # Android devices.
       interface = loopback # all | loopback
 
       # Enable or disable IPv6
@@ -177,20 +178,23 @@ Logging parameters are all in the `[logging]` section:
       #   error     - error messages
       #   info      - informative messages
       #   debug     - debug messages
-      #   trace-ipp, trace-escl, trace-http - very detailed per-protocol traces
+      #   trace-ipp, trace-escl, trace-http - very detailed
+      #               per-protocol traces
       #   trace-usb - hex dump of all USB traffic
       #   all       - all logs
       #   trace-all - alias to all
       #
-      # Note, trace-* implies debug, debug implies info, info implies error
+      # Note, trace-* implies debug, debug implies info, info implies
+      # error
       device-log    = all
       main-log      = debug
       console-log   = debug
 
       # Log rotation parameters:
-      #   log-file-size    - max log file before rotation. Use suffix M
-      #                      for megabytes or K for kilobytes
-      #   log-backup-files - how many backup files to preserve during rotation
+      #   log-file-size    - max log file before rotation. Use suffix
+      #                      M for megabytes or K for kilobytes
+      #   log-backup-files - how many backup files to preserve during
+      #                      rotation
       #
       max-file-size    = 256K
       max-backup-files = 5

@@ -235,7 +235,7 @@ If you found out about your device that it needs a quirk to work properly or it 
 .IP "\[ci]" 4
 \fB/var/ipp\-usb/lock/ipp\-usb\.lock\fR: lock file, that helps to prevent multiple copies of daemon to run simultaneously
 .IP "\[ci]" 4
-\fB/var/ipp\-usb/status\fR: per\-device status in a form of a text file (printed by \fBipp\-usb status\fR)
+\fB/var/ipp\-usb/ctrl\fR: \fBipp\-usb\fR control socket\. Currently only used to obtain the per\-device status (printed by \fBipp\-usb status\fR), but its functionality may be extended in a future
 .IP "\[ci]" 4
 \fB/usr/share/ipp\-usb/quirks/*\.conf\fR: device\-specific quirks (see above)
 .IP "\[ci]" 4

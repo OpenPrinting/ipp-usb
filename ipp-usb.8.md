@@ -292,8 +292,10 @@ of such a device.
    * `/var/ipp-usb/lock/ipp-usb.lock`:
      lock file, that helps to prevent multiple copies of daemon to run simultaneously
 
-   * `/var/ipp-usb/status`:
-     per-device status in a form of a text file (printed by `ipp-usb status`)
+   * `/var/ipp-usb/ctrl`:
+     `ipp-usb` control socket. Currently only used to obtain the
+     per-device status (printed by `ipp-usb status`), but its
+     functionality may be extended in a future
 
    * `/usr/share/ipp-usb/quirks/*.conf`: device-specific quirks (see above)
 

@@ -30,9 +30,6 @@ const (
 	// PathControlSocket defines path to the control socket
 	PathControlSocket = PathProgState + "/ctrl"
 
-	// PathStatusFile defines path to the status file
-	PathStatusFile = PathProgState + "/status"
-
 	// PathProgStateDev defines path to directory where per-device state
 	// files are saved to
 	PathProgStateDev = PathProgState + "/dev"

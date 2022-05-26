@@ -27,7 +27,7 @@ logs duplicated on console, \-bg option is ignored
 check configuration and exit\. It also prints a list of all connected devices
 .TP
 \fBstatus\fR
-print \fBipp\-usb\fR status
+print status of the running \fBipp\-usb\fR daemon, including information of all connected devices
 .SS "Options are"
 .TP
 \fB\-bg\fR
@@ -35,7 +35,7 @@ run in background (ignored in debug mode)
 .SH "NETWORKING"
 Essentially, \fBipp\-usb\fR makes printer or scanner accessible from the network, converting network\-side HTTP operations to the USB operations\.
 .P
-By default, \fBipp\-usb\fR exposes device only to the loopback interface, using the \fBlocalhost\fR address (both \fB127\.0\.0\.1\fR and \fB::1\fR, for IPv4 and IPv6, respectively)\. TCP ports are allocated automatically, and allocation is associated with the particular device, so the next time the device is plugged on, it will get the same port\. The default port range for TCP ports allocation is \fB60000\-65535\fR\.
+By default, \fBipp\-usb\fR exposes device only to the loopback interface, using the \fBlocalhost\fR address (both \fB127\.0\.0\.1\fR and \fB::1\fR, for IPv4 and IPv6, respectively)\. TCP ports are allocated automatically, and allocation is persisted in the association with the particular device, so the next time the device is plugged on, it will get the same port\. The default port range for TCP ports allocation is \fB60000\-65535\fR\.
 .P
 This default behavior can be changed, using configuration file\. See \fBCONFIGURATION\fR section below for details\.
 .P

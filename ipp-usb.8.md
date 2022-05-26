@@ -36,7 +36,8 @@ IPP printing, eSCL scanning and web console are fully supported.
      of all connected devices
 
    * `status`:
-     print `ipp-usb` status
+     print status of the running `ipp-usb` daemon, including information
+     of all connected devices
 
 ### Options are
 
@@ -51,9 +52,9 @@ network, converting network-side HTTP operations to the USB operations.
 By default, `ipp-usb` exposes device only to the loopback interface,
 using the `localhost` address (both `127.0.0.1` and `::1`, for IPv4
 and IPv6, respectively). TCP ports are allocated automatically, and
-allocation is associated with the particular device, so the next time
-the device is plugged on, it will get the same port. The default port
-range for TCP ports allocation is `60000-65535`.
+allocation is persisted in the association with the particular device,
+so the next time the device is plugged on, it will get the same port.
+The default port range for TCP ports allocation is `60000-65535`.
 
 This default behavior can be changed, using configuration file. See
 `CONFIGURATION` section below for details.

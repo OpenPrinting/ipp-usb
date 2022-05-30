@@ -8,7 +8,7 @@
 
 package main
 
-// globMatch matches string against glob-style pattern.
+// GlobMatch matches string against glob-style pattern.
 // Pattern  may contain wildcards and has a following syntax:
 //   *   - matches any sequence of characters
 //   ?   - matches exactly one character

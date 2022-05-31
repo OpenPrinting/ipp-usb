@@ -3,51 +3,22 @@
 #set -e -x
 
 # Create needed directories
-mkdir -p $SNAP_COMMON/etc
-mkdir -p $SNAP_COMMON/var/log
-mkdir -p $SNAP_COMMON/var/lock
-mkdir -p $SNAP_COMMON/var/dev
-mkdir -p $SNAP_COMMON/quirks
+# Ignore errors
+mkdir -p $SNAP_COMMON/etc || :
+mkdir -p $SNAP_COMMON/var/log || :
+mkdir -p $SNAP_COMMON/var/lock || :
+mkdir -p $SNAP_COMMON/var/dev || :
+mkdir -p $SNAP_COMMON/quirks || :
 
 # Put config files in place
-cp $SNAP/usr/share/ipp-usb/quirks/* $SNAP_COMMON/quirks
+#
+# Do not overwrite files and ignore errors, to not reset user configuration
+# when running as root and to not have ugly error messages when running as
+# non-root.
+yes no | cp -i $SNAP/usr/share/ipp-usb/quirks/* $SNAP_COMMON/quirks >/dev/null 2>&1 || :
 if [ ! -f $SNAP_COMMON/etc/ipp-usb.conf ]; then
-    cp $SNAP/etc/ipp-usb.conf $SNAP_COMMON/etc/
+    cp $SNAP/etc/ipp-usb.conf $SNAP_COMMON/etc/ >/dev/null 2>&1 || :
 fi
 
-# Monitor appearing/disappearing of USB devices
-udevadm monitor -k -s usb | while read START OP DEV REST; do
-    START_IPP_USB=0
-    if test "$START" = "KERNEL"; then
-        # First lines of "udevadm monitor" output, check for already plugged
-	# devices. Consider only IPP-over-USB devices (interface 7/1/4)
-        if [ `udevadm trigger -v -n --subsystem-match=usb --property-match=ID_USB_INTERFACES='*:070104:*' | wc -l` -gt 0 ]; then
-	    # IPP-over-USB device already connected
-	    START_IPP_USB=1
-	fi
-    elif test "$OP" = "add"; then
-        # New device got added
-        if [ -z $DEV ]; then
-	    # Missing device path
-	    continue
-	else
-	    # Does the device support IPP-over-USB (interface 7/1/4)?
-	    # Retry 5 times as sometimes the ID_USB_INTERFACES property is not
-	    # immediately set
-            for i in 1 2 3 4 5; do
-	        # Give some time for ID_USB_INTERFACES property to appear
-	        sleep 0.02
-		# Check ID_USB_INTERFACE for 7/1/4 interface
-                if udevadm info -q property -p $DEV | grep -q ID_USB_INTERFACES=.*:070104:.*; then
-		    # IPP-over-USB device got connected now
-       	            START_IPP_USB=1
-	            break
-                fi
-            done
-	fi
-    fi
-    if [ $START_IPP_USB = 1 ]; then
-        # Start ipp-usb
-        $SNAP/sbin/ipp-usb udev
-    fi
-done
+# Run ipp-usb with the command line arguments with which we were called
+exec $SNAP/sbin/ipp-usb "$@"

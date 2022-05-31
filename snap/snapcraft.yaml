@@ -18,10 +18,13 @@ architectures:
   - build-on: armhf
 
 apps:
-  ipp-usb:
-    command: scripts/run-ipp-usb
+  ipp-usb-server:
+    command: scripts/run-ipp-usb-server
     daemon: simple
     plugs: [avahi-control, network, network-bind, raw-usb, hardware-observe]
+  ipp-usb:
+    command: scripts/run-ipp-usb
+    plugs: [raw-usb, hardware-observe]
 
 parts:
   goipp:
@@ -83,7 +86,7 @@ parts:
     plugin: dump
     source: snap/local/
     organize:
-      run-ipp-usb: scripts/
+      run-ipp-usb*: scripts/
     prime:
       - scripts/
     after: [ipp-usb]

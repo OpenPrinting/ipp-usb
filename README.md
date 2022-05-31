@@ -111,8 +111,22 @@ gets started by the Snap whenever needed. Also devices which are
 already connected during boot, start, or update of the Snap are
 considered.
 
-The Snap is also automatically updated when further development on
-ipp-usb happens.
+You can also use
+
+    ipp-usb status
+
+to check the status of the running ipp-usb daemon (supported device
+must be connected for the ipp-usb daemon to be running, accesses only
+the ipp-usb daemon of the Snap) and
+
+    ipp-usb check
+
+to scan the USB for the presence of potentially supported USB devices
+(7/1/4 interface protocol). This command requires access to the raw
+USB and therefore on many systems root privileges are required.
+
+The Snap is automatically updated when further development on ipp-usb
+happens.
 
 The configuration file is here:
 

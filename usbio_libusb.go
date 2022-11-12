@@ -243,12 +243,12 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 			ifaces := (*[256]C.libusb_interface_struct)(
 				unsafe.Pointer(conf._interface))[:ifcnt:ifcnt]
 
-			for ifnum, iface := range ifaces {
+			for _, iface := range ifaces {
 				altcnt := iface.num_altsetting
 				alts := (*[256]C.libusb_interface_descriptor_struct)(
 					unsafe.Pointer(iface.altsetting))[:altcnt:altcnt]
 
-				for altnum, alt := range alts {
+				for _, alt := range alts {
 					// Build and append UsbIfDesc
 					ifdesc := UsbIfDesc{
 						Config:   int(conf.bConfigurationValue),
@@ -290,8 +290,8 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 							desc.Config = int(conf.bConfigurationValue)
 							addr := UsbIfAddr{
 								UsbAddr: desc.UsbAddr,
-								Num:     ifnum,
-								Alt:     altnum,
+								Num:     int(alt.bInterfaceNumber),
+								Alt:     int(alt.bAlternateSetting),
 								In:      in,
 								Out:     out,
 							}

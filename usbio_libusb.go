@@ -200,6 +200,11 @@ func UsbGetIppOverUsbDeviceDescs() (map[UsbAddr]UsbDeviceDesc, error) {
 
 	for _, dev := range devs {
 		desc, err := libusbBuildUsbDeviceDesc(dev)
+
+		// Note, ignore devices, if we don't have
+		// at least 2 IPP over USB interfaces
+		// (which should not happen in real life,
+		// but just in case...
 		if err == nil && len(desc.IfAddrs) >= 2 {
 			descs[desc.UsbAddr] = desc
 		}

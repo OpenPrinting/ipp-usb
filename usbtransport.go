@@ -52,7 +52,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		addr:         desc.UsbAddr,
 		log:          NewLogger(),
 		dev:          dev,
-		connReleased: make(chan struct{}),
+		connReleased: make(chan struct{}, 1),
 		shutdown:     make(chan struct{}),
 	}
 

@@ -89,7 +89,7 @@ var (
 	libusbContextOk int32
 
 	// UsbHotPlugChan receives USB hotplug event notifications
-	UsbHotPlugChan = make(chan struct{})
+	UsbHotPlugChan = make(chan struct{}, 1)
 )
 
 // Initialize low-level USB I/O

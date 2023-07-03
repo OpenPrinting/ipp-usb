@@ -94,6 +94,14 @@ Binary packages available for the following Linux distros:
 
 Follow this link for downloads: https://download.opensuse.org/repositories/home:/pzz/
 
+## Not only Linux
+
+We are glad to announce that `ipp-usb` was recently included into the
+FreeBSD ports: https://www.freshports.org/print/ipp-usb/
+
+Hope, NetBSD/OpenBSD support will be added as well, so technology
+becomes not Linux-only, but UNIX-wide.
+
 ## The ipp-usb Snap
 
 ipp-usb is also available as a Snap in the Snap Store: https://snapcraft.io/ipp-usb

@@ -26,7 +26,7 @@ type Quirks struct {
 	Origin           string            // file:line of definition
 	Model            string            // Device model name
 	Blacklist        bool              // Blacklist the device
-	HttpHeaders      map[string]string // HTTP header override
+	HTTPHeaders      map[string]string // HTTP header override
 	UsbMaxInterfaces uint              // Max number of USB interfaces
 	DisableFax       bool              // Disable fax for device
 	ResetMethod      QuirksResetMethod // Device reset method
@@ -69,7 +69,7 @@ func (m QuirksResetMethod) String() string {
 // empty returns true, if Quirks are actually empty
 func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
-		len(q.HttpHeaders) == 0 &&
+		len(q.HTTPHeaders) == 0 &&
 		q.UsbMaxInterfaces == 0 &&
 		!q.DisableFax &&
 		q.ResetMethod == QuirksResetUnset &&
@@ -141,7 +141,7 @@ func (qset *QuirksSet) readFile(file string) error {
 			q = &Quirks{
 				Origin:      fmt.Sprintf("%s:%d", rec.File, rec.Line),
 				Model:       rec.Section,
-				HttpHeaders: make(map[string]string),
+				HTTPHeaders: make(map[string]string),
 				Index:       len(*qset),
 			}
 			qset.Add(q)
@@ -156,7 +156,7 @@ func (qset *QuirksSet) readFile(file string) error {
 		// Update Quirks data
 		if strings.HasPrefix(rec.Key, "http-") {
 			key := http.CanonicalHeaderKey(rec.Key[5:])
-			q.HttpHeaders[key] = rec.Value
+			q.HTTPHeaders[key] = rec.Value
 			continue
 		}
 
@@ -239,19 +239,19 @@ func (qset QuirksSet) ByModelName(model string) QuirksSet {
 	httpHeaderSeen := make(map[string]struct{})
 	out := 0
 	for in, q := range quirks {
-		// Note, here we avoid modification of the HttpHeaders
+		// Note, here we avoid modification of the HTTPHeaders
 		// map in the original Quirks structure
 		//
 		// Unfortunately, Golang misses immutable types,
 		// so we must be very careful here
 		q2 := &Quirks{}
 		*q2 = *q
-		q2.HttpHeaders = make(map[string]string)
+		q2.HTTPHeaders = make(map[string]string)
 
-		for name, value := range quirks[in].HttpHeaders {
+		for name, value := range quirks[in].HTTPHeaders {
 			if _, seen := httpHeaderSeen[name]; !seen {
 				httpHeaderSeen[name] = struct{}{}
-				q2.HttpHeaders[name] = value
+				q2.HTTPHeaders[name] = value
 			}
 		}
 

@@ -352,53 +352,53 @@ func (attrs ippAttrs) getPaperMax() string {
 		return ""
 	}
 
-	var x_dim_max, y_dim_max int
+	var xDimMax, yDimMax int
 
 	for _, collection := range vals {
-		var x_dim_attr, y_dim_attr goipp.Attribute
+		var xDimAttr, yDimAttr goipp.Attribute
 		attrs := collection.(goipp.Collection)
 		for i := len(attrs) - 1; i >= 0; i-- {
 			switch attrs[i].Name {
 			case "x-dimension":
-				x_dim_attr = attrs[i]
+				xDimAttr = attrs[i]
 			case "y-dimension":
-				y_dim_attr = attrs[i]
+				yDimAttr = attrs[i]
 			}
 		}
 
-		if len(x_dim_attr.Values) > 0 {
-			switch dim := x_dim_attr.Values[0].V.(type) {
+		if len(xDimAttr.Values) > 0 {
+			switch dim := xDimAttr.Values[0].V.(type) {
 			case goipp.Integer:
-				if int(dim) > x_dim_max {
-					x_dim_max = int(dim)
+				if int(dim) > xDimMax {
+					xDimMax = int(dim)
 				}
 			case goipp.Range:
-				if int(dim.Upper) > x_dim_max {
-					x_dim_max = int(dim.Upper)
+				if int(dim.Upper) > xDimMax {
+					xDimMax = int(dim.Upper)
 				}
 			}
 		}
 
-		if len(y_dim_attr.Values) > 0 {
-			switch dim := y_dim_attr.Values[0].V.(type) {
+		if len(yDimAttr.Values) > 0 {
+			switch dim := yDimAttr.Values[0].V.(type) {
 			case goipp.Integer:
-				if int(dim) > y_dim_max {
-					y_dim_max = int(dim)
+				if int(dim) > yDimMax {
+					yDimMax = int(dim)
 				}
 			case goipp.Range:
-				if int(dim.Upper) > y_dim_max {
-					y_dim_max = int(dim.Upper)
+				if int(dim.Upper) > yDimMax {
+					yDimMax = int(dim.Upper)
 				}
 			}
 		}
 	}
 
-	if x_dim_max == 0 || y_dim_max == 0 {
+	if xDimMax == 0 || yDimMax == 0 {
 		return ""
 	}
 
 	// Now classify by paper size
-	return PaperSize{x_dim_max, y_dim_max}.Classify()
+	return PaperSize{xDimMax, yDimMax}.Classify()
 }
 
 // Get a single-string attribute.

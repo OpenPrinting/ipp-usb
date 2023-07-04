@@ -34,18 +34,21 @@ import (
 type FileLockCmd C.int
 
 const (
-	// Lock the file; wait if it is busy
+	// FileLockWait command used to lock the file; wait if it is busy
 	FileLockWait = C.F_LOCK
 
-	// Lock the file; fail with ErrLockIsBusy if it is busy
+	// FileLockNoWait command used to lock the file without wait.
+	// If file is busy it fails with ErrLockIsBusy error
 	FileLockNoWait = C.F_TLOCK
 
-	// Test the lock. Return immediately with ErrLockIsBusy
-	// if file is busy or with the nil error, if file is not
-	// busy. File locking state is not affected in both cases
+	// FileLockTest command used to test the lock.
+	// It returns immediately, with ErrLockIsBusy if file
+	// is busy or without an error if not
+	//
+	// File locking state is not affected in both cases
 	FileLockTest = C.F_TEST
 
-	// Unlock the file
+	// FileLockUnlock command used to unlock the file
 	FileLockUnlock = C.F_ULOCK
 )
 

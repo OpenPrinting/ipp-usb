@@ -73,9 +73,9 @@ func TCPClientUID(server, client *net.TCPAddr) (int, error) {
 		server.IP.To16())
 
 	// Send request
-	rq_data := (*[unsafe.Sizeof(rq)]byte)(unsafe.Pointer(&rq))
-	rq_addr := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK}
-	err = syscall.Sendto(sock, rq_data[:], 0, rq_addr)
+	rqData := (*[unsafe.Sizeof(rq)]byte)(unsafe.Pointer(&rq))
+	rqAddr := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK}
+	err = syscall.Sendto(sock, rqData[:], 0, rqAddr)
 	if err != nil {
 		return -1, fmt.Errorf("sock_diag: sendto(): %s", err)
 	}

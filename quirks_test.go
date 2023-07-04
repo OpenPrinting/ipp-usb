@@ -15,12 +15,12 @@ import (
 // Test quirls loading and lookup
 func TestQuirksSetLoadAndLookup(t *testing.T) {
 	const path = "testdata/quirks"
-	const bad_path = path + "-not-exist"
+	const badPath = path + "-not-exist"
 
 	// Try non-existent directory
-	_, err := LoadQuirksSet(bad_path)
+	_, err := LoadQuirksSet(badPath)
 	if err != nil {
-		t.Fatalf("LoadQuirksSet(%q): %s", bad_path, err)
+		t.Fatalf("LoadQuirksSet(%q): %s", badPath, err)
 	}
 
 	// Try test data

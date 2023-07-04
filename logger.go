@@ -51,6 +51,7 @@ var (
 // LogLevel enumerates possible log levels
 type LogLevel int
 
+// LogLevel constants
 const (
 	LogError LogLevel = 1 << iota
 	LogInfo

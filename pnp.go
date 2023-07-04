@@ -20,6 +20,7 @@ import (
 // PnPExitReason explains why PnP manager has exited
 type PnPExitReason int
 
+// PnPExitReason constants
 const (
 	PnPIdle PnPExitReason = iota // No more connected devices
 	PnPTerm                      // Terminating signal received
@@ -67,11 +68,11 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 	// Serve PnP events until terminated
 loop:
 	for {
-		dev_descs, err := UsbGetIppOverUsbDeviceDescs()
+		devDescs, err := UsbGetIppOverUsbDeviceDescs()
 
 		if err == nil {
 			newdevices := UsbAddrList{}
-			for _, desc := range dev_descs {
+			for _, desc := range devDescs {
 				newdevices.Add(desc.UsbAddr)
 			}
 
@@ -81,8 +82,8 @@ loop:
 			// Handle added devices
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
-				dev, err := NewDevice(dev_descs[addr])
-				StatusSet(addr, dev_descs[addr], err)
+				dev, err := NewDevice(devDescs[addr])
+				StatusSet(addr, devDescs[addr], err)
 
 				if err == nil {
 					devByAddr[addr] = dev
@@ -112,8 +113,8 @@ loop:
 				}
 
 				Log.Debug('+', "PNP %s: retry", addr)
-				dev, err := NewDevice(dev_descs[addr])
-				StatusSet(addr, dev_descs[addr], err)
+				dev, err := NewDevice(devDescs[addr])
+				StatusSet(addr, devDescs[addr], err)
 
 				if err == nil {
 					devByAddr[addr] = dev

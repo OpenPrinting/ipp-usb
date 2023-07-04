@@ -35,6 +35,14 @@ Options are
 // RunMode represents the program run mode
 type RunMode int
 
+// Run modes:
+//   RunStandalone - run forever, automatically discover IPP-over-USB
+//                   devices and serve them all
+//   RunUdev       - like RunStandalone, but exit when last IPP-over-USB
+//                   device is disconnected
+//   RunDebug      - logs duplicated on console, -bg option is ignored
+//   RunCheck      - check configuration and exit
+//   RunStatus     - print ipp-usb status and exit
 const (
 	RunDefault RunMode = iota
 	RunStandalone

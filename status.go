@@ -56,7 +56,7 @@ func StatusRetrieve() ([]byte, error) {
 	return ioutil.ReadAll(rsp.Body)
 }
 
-// Status format formats ipp-usb status as a text
+// StatusFormat formats ipp-usb status as a text
 func StatusFormat() []byte {
 	buf := &bytes.Buffer{}
 

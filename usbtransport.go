@@ -95,7 +95,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		if quirks.ResetMethod != QuirksResetUnset {
 			log.Debug(' ', "    init-reset = %s", quirks.ResetMethod)
 		}
-		for name, value := range quirks.HttpHeaders {
+		for name, value := range quirks.HTTPHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}
 	}
@@ -367,7 +367,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 
 	// Apply quirks
 	for _, quirks := range transport.quirks {
-		for name, value := range quirks.HttpHeaders {
+		for name, value := range quirks.HTTPHeaders {
 			if value != "" {
 				outreq.Header.Set(name, value)
 			} else {

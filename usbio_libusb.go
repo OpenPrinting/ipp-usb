@@ -55,6 +55,7 @@ func (err UsbError) Error() string {
 // UsbErrCode represents USB I/O error code
 type UsbErrCode int
 
+// UsbErrCode constants
 const (
 	UsbIO            UsbErrCode = C.LIBUSB_ERROR_IO
 	UsbEInval                   = C.LIBUSB_ERROR_INVALID_PARAM
@@ -92,7 +93,7 @@ var (
 	UsbHotPlugChan = make(chan struct{}, 1)
 )
 
-// Initialize low-level USB I/O
+// UsbInit initializes low-level USB I/O
 func UsbInit(nopnp bool) error {
 	_, err := libusbContext(nopnp)
 	return err
@@ -215,11 +216,11 @@ func UsbGetIppOverUsbDeviceDescs() (map[UsbAddr]UsbDeviceDesc, error) {
 
 // libusbBuildUsbDeviceDesc builds device descriptor
 func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
-	var c_desc C.libusb_device_descriptor_struct
+	var cDesc C.libusb_device_descriptor_struct
 	var desc UsbDeviceDesc
 
 	// Obtain device descriptor
-	rc := C.libusb_get_device_descriptor(dev, &c_desc)
+	rc := C.libusb_get_device_descriptor(dev, &cDesc)
 	if rc < 0 {
 		return desc, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
 	}
@@ -230,7 +231,7 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 	desc.Config = -1
 
 	// Roll over configs/interfaces/alt settings/endpoins
-	for cfgNum := 0; cfgNum < int(c_desc.bNumConfigurations); cfgNum++ {
+	for cfgNum := 0; cfgNum < int(cDesc.bNumConfigurations); cfgNum++ {
 		var conf *C.libusb_config_descriptor_struct
 		rc = C.libusb_get_config_descriptor(dev, C.uint8_t(cfgNum), &conf)
 		if rc == 0 {
@@ -405,8 +406,8 @@ func (devhandle *UsbDevHandle) currentInterfaces() ([]int, error) {
 	dev := C.libusb_get_device((*C.libusb_device_handle)(devhandle))
 
 	// Obtain device descriptor
-	var c_desc C.libusb_device_descriptor_struct
-	rc := C.libusb_get_device_descriptor(dev, &c_desc)
+	var cDesc C.libusb_device_descriptor_struct
+	rc := C.libusb_get_device_descriptor(dev, &cDesc)
 	if rc < 0 {
 		return nil, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
 	}
@@ -421,7 +422,7 @@ func (devhandle *UsbDevHandle) currentInterfaces() ([]int, error) {
 	// Get configuration descriptor
 	var conf *C.libusb_config_descriptor_struct
 
-	for cfgNum := 0; cfgNum < int(c_desc.bNumConfigurations); cfgNum++ {
+	for cfgNum := 0; cfgNum < int(cDesc.bNumConfigurations); cfgNum++ {
 		rc = C.libusb_get_config_descriptor(dev, C.uint8_t(cfgNum), &conf)
 		if rc < 0 {
 			return nil, UsbError{"libusb_get_configuration", UsbErrCode(rc)}
@@ -470,18 +471,18 @@ func (devhandle *UsbDevHandle) Reset() {
 func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	dev := C.libusb_get_device((*C.libusb_device_handle)(devhandle))
 
-	var c_desc C.libusb_device_descriptor_struct
+	var cDesc C.libusb_device_descriptor_struct
 	var info UsbDeviceInfo
 
 	// Obtain device descriptor
-	rc := C.libusb_get_device_descriptor(dev, &c_desc)
+	rc := C.libusb_get_device_descriptor(dev, &cDesc)
 	if rc < 0 {
 		return info, UsbError{"libusb_get_device_descriptor", UsbErrCode(rc)}
 	}
 
 	// Decode device descriptor
-	info.Vendor = uint16(c_desc.idVendor)
-	info.Product = uint16(c_desc.idProduct)
+	info.Vendor = uint16(cDesc.idVendor)
+	info.Product = uint16(cDesc.idProduct)
 	info.BasicCaps = devhandle.usbIppBasicCaps()
 
 	buf := make([]byte, 256)
@@ -490,9 +491,9 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 		idx C.uint8_t
 		str *string
 	}{
-		{c_desc.iManufacturer, &info.Manufacturer},
-		{c_desc.iProduct, &info.ProductName},
-		{c_desc.iSerialNumber, &info.SerialNumber},
+		{cDesc.iManufacturer, &info.Manufacturer},
+		{cDesc.iProduct, &info.ProductName},
+		{cDesc.iSerialNumber, &info.SerialNumber},
 	}
 
 	for _, s := range strings {
@@ -686,9 +687,9 @@ func (iface *UsbInterface) Recv(data []byte,
 	//
 	// This mechanism seems not to work very reliable on Raspberry Pi
 	// (see #3 for details). So just limit bulk reads to 16kb
-	const MAX_BULK_READ = 16384
-	if len(data) > MAX_BULK_READ {
-		data = data[0:MAX_BULK_READ]
+	const MaxBulkRead = 16384
+	if len(data) > MaxBulkRead {
+		data = data[0:MaxBulkRead]
 	}
 
 	rc := C.libusb_bulk_transfer(
@@ -712,7 +713,7 @@ func (iface *UsbInterface) Recv(data []byte,
 	return
 }
 
-// Clear "halted" condition of either input or output  endpoint
+// ClearHalt clears "halted" condition of either input or output endpoint
 func (iface *UsbInterface) ClearHalt(in bool) error {
 	var ep C.uint8_t
 

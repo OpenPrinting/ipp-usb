@@ -134,10 +134,19 @@ type DNSSdPublisher struct {
 type DNSSdStatus int
 
 const (
-	DNSSdNoStatus  DNSSdStatus = iota // Invalid status
-	DNSSdCollision                    // Service instance name collision
-	DNSSdFailure                      // Publisher failed
-	DNSSdSuccess                      // Services successfully published
+	// DNSSdNoStatus is used to indicate that status is
+	// not known (yet)
+	DNSSdNoStatus DNSSdStatus = iota
+
+	// DNSSdCollision indicates instance name collision
+	DNSSdCollision
+
+	// DNSSdFailure indicates publisher failure with any
+	// other reason that listed before
+	DNSSdFailure
+
+	// DNSSdSuccess indicates successful status
+	DNSSdSuccess
 )
 
 // String returns human-readable representation of DNSSdStatus
@@ -216,9 +225,9 @@ func (publisher *DNSSdPublisher) instance(suffix int) string {
 		name = publisher.DevState.DNSSdOverride
 	}
 
-	const MAX_DNSSD_NAME = 63
-	if len(name)+len(strSuffix) > MAX_DNSSD_NAME {
-		name = name[:MAX_DNSSD_NAME-len(strSuffix)]
+	const MaxDNSSDName = 63
+	if len(name)+len(strSuffix) > MaxDNSSDName {
+		name = name[:MaxDNSSDName-len(strSuffix)]
 	}
 
 	return name + strSuffix

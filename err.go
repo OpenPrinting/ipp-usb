@@ -12,6 +12,7 @@ import (
 	"errors"
 )
 
+// Error values for ipp-usb
 var (
 	ErrLockIsBusy   = errors.New("Lock is busy")
 	ErrNoMemory     = errors.New("Not enough memory")

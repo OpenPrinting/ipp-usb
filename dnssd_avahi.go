@@ -139,40 +139,40 @@ func newDnssdSysdep(log *Logger, instance string,
 	// Populate entry group
 	for _, svc := range services {
 		// Prepare TXT record
-		var c_txt *C.AvahiStringList
-		c_txt, err = sysdep.avahiTxtRecord(svc.Port, svc.Txt)
+		var cTxt *C.AvahiStringList
+		cTxt, err = sysdep.avahiTxtRecord(svc.Port, svc.Txt)
 		if err != nil {
 			goto ERROR
 		}
 
 		// Prepare C strings for service instance and type
-		c_svc_type := C.CString(svc.Type)
+		cSvcType := C.CString(svc.Type)
 
-		var c_instance *C.char
+		var cInstance *C.char
 		if svc.Instance != "" {
-			c_instance = C.CString(svc.Instance)
+			cInstance = C.CString(svc.Instance)
 		} else {
-			c_instance = C.CString(instance)
+			cInstance = C.CString(instance)
 		}
 
 		// Handle loopback-only mode
-		iface_in_use := iface
+		ifaceInUse := iface
 		if svc.Loopback {
-			iface_in_use = loopback
+			ifaceInUse = loopback
 		}
 
 		// Register service type
 		rc = C.avahi_entry_group_add_service_strlst(
 			sysdep.egroup,
-			C.AvahiIfIndex(iface_in_use),
+			C.AvahiIfIndex(ifaceInUse),
 			C.AvahiProtocol(proto),
 			0,
-			c_instance,
-			c_svc_type,
+			cInstance,
+			cSvcType,
 			nil, // Domain
 			nil, // Host
 			C.uint16_t(svc.Port),
-			c_txt,
+			cTxt,
 		)
 
 		// Register subtypes, if any
@@ -183,25 +183,25 @@ func newDnssdSysdep(log *Logger, instance string,
 
 			sysdep.log.Debug(' ', "DNS-SD: +subtype: %q", subtype)
 
-			c_subtype := C.CString(subtype)
+			cSubtype := C.CString(subtype)
 			rc = C.avahi_entry_group_add_service_subtype(
 				sysdep.egroup,
-				C.AvahiIfIndex(iface_in_use),
+				C.AvahiIfIndex(ifaceInUse),
 				C.AvahiProtocol(proto),
 				0,
-				c_instance,
-				c_svc_type,
+				cInstance,
+				cSvcType,
 				nil,
-				c_subtype,
+				cSubtype,
 			)
-			C.free(unsafe.Pointer(c_subtype))
+			C.free(unsafe.Pointer(cSubtype))
 
 		}
 
 		// Release C memory
-		C.free(unsafe.Pointer(c_instance))
-		C.free(unsafe.Pointer(c_svc_type))
-		C.avahi_string_list_free(c_txt)
+		C.free(unsafe.Pointer(cInstance))
+		C.free(unsafe.Pointer(cSvcType))
+		C.avahi_string_list_free(cTxt)
 
 		// Check for Avahi error
 		if rc != C.AVAHI_OK {

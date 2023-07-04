@@ -161,7 +161,7 @@ type UsbIfDesc struct {
 	Proto    int // Protocol
 }
 
-// UsbIfDesc check if interface is IPP over USB
+// IsIppOverUsb check if interface is IPP over USB
 func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
 	return ifdesc.Class == 7 &&
 		ifdesc.SubClass == 1 &&
@@ -219,7 +219,7 @@ func (caps UsbIppBasicCaps) String() string {
 	return strings.Join(s, ",")
 }
 
-// Fix up precomputed fields
+// FixUp fixes up precomputed fields
 func (info *UsbDeviceInfo) FixUp() {
 	mfg := strings.TrimSpace(info.Manufacturer)
 	prod := strings.TrimSpace(info.ProductName)

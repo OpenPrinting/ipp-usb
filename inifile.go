@@ -37,6 +37,9 @@ type IniRecord struct {
 // IniRecordType represents IniRecord type
 type IniRecordType int
 
+// Record types:
+//   [section]       <- IniRecordSection
+//     key - value   <- IniRecordKeyVal
 const (
 	IniRecordSection IniRecordType = iota
 	IniRecordKeyVal

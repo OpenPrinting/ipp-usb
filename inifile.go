@@ -12,7 +12,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"math"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // IniFile represents opened .INI file
@@ -399,6 +403,176 @@ func (ini *IniFile) errorf(format string, args ...interface{}) *IniError {
 		Line:    ini.rec.Line,
 		Message: fmt.Sprintf(format, args...),
 	}
+}
+
+// LoadIPPort loads IP port value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadIPPort(out *int) error {
+	port, err := strconv.Atoi(rec.Value)
+	if err == nil && (port < 1 || port > 65535) {
+		err = rec.errBadValue("must be in range 1...65535")
+	}
+	if err != nil {
+		return err
+	}
+
+	*out = port
+	return nil
+}
+
+// LoadBool loads boolean value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadBool(out *bool) error {
+	return rec.LoadNamedBool(out, "false", "true")
+}
+
+// LoadNamedBool loads boolean value
+// Names for "true" and "false" values are specified explicitly
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadNamedBool(out *bool, vFalse, vTrue string) error {
+	switch rec.Value {
+	case vFalse:
+		*out = false
+		return nil
+	case vTrue:
+		*out = true
+		return nil
+	default:
+		return rec.errBadValue("must be %s or %s", vFalse, vTrue)
+	}
+}
+
+// LoadLogLevel loads LogLevel value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadLogLevel(out *LogLevel) error {
+	var mask LogLevel
+
+	for _, s := range strings.Split(rec.Value, ",") {
+		s = strings.TrimSpace(s)
+		switch s {
+		case "":
+		case "error":
+			mask |= LogError
+		case "info":
+			mask |= LogInfo | LogError
+		case "debug":
+			mask |= LogDebug | LogInfo | LogError
+		case "trace-ipp":
+			mask |= LogTraceIPP | LogDebug | LogInfo | LogError
+		case "trace-escl":
+			mask |= LogTraceESCL | LogDebug | LogInfo | LogError
+		case "trace-http":
+			mask |= LogTraceHTTP | LogDebug | LogInfo | LogError
+		case "trace-usb":
+			mask |= LogTraceUSB | LogDebug | LogInfo | LogError
+		case "all", "trace-all":
+			mask |= LogAll & ^LogTraceUSB
+		default:
+			return rec.errBadValue("invalid log level %q", s)
+		}
+	}
+
+	*out = mask
+	return nil
+}
+
+// LoadDuration loads time.Duration value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadDuration(out *time.Duration) error {
+	var ms uint
+	err := rec.LoadUint(&ms)
+	if err == nil {
+		*out = time.Millisecond * time.Duration(ms)
+	}
+	return err
+}
+
+// LoadSize loads size value (returned as int64)
+// The syntax is following:
+//   123  - size in bytes
+//   123K - size in kilobytes, 1K == 1024
+//   123M - size in megabytes, 1M == 1024K
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadSize(out *int64) error {
+	var units uint64 = 1
+
+	if l := len(rec.Value); l > 0 {
+		switch rec.Value[l-1] {
+		case 'k', 'K':
+			units = 1024
+		case 'm', 'M':
+			units = 1024 * 1024
+		}
+
+		if units != 1 {
+			rec.Value = rec.Value[:l-1]
+		}
+	}
+
+	sz, err := strconv.ParseUint(rec.Value, 10, 64)
+	if err != nil {
+		return rec.errBadValue("%q: invalid size", rec.Value)
+	}
+
+	if sz > uint64(math.MaxInt64/units) {
+		return rec.errBadValue("size too large")
+	}
+
+	*out = int64(sz * units)
+	return nil
+}
+
+// LoadUint loads unsigned integer value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadUint(out *uint) error {
+	num, err := strconv.ParseUint(rec.Value, 10, 0)
+	if err != nil {
+		return rec.errBadValue("%q: invalid number", rec.Value)
+	}
+
+	*out = uint(num)
+	return nil
+}
+
+// LoadUintRange loads unsigned integer value within the range
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadUintRange(out *uint, min, max uint) error {
+	var val uint
+
+	err := rec.LoadUint(&val)
+	if err == nil && (val < min || val > max) {
+		err = rec.errBadValue("must be in range %d...%d", min, max)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	*out = val
+	return nil
+}
+
+// LoadQuirksResetMethod loads QuirksResetMethod value
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadQuirksResetMethod(out *QuirksResetMethod) error {
+	switch rec.Value {
+	case "none":
+		*out = QuirksResetNone
+		return nil
+	case "soft":
+		*out = QuirksResetSoft
+		return nil
+	case "hard":
+		*out = QuirksResetHard
+		return nil
+	default:
+		return rec.errBadValue("must be none, soft or hard")
+	}
+}
+
+// errBadValue creates a "bad value" error related to the INI record
+func (rec *IniRecord) errBadValue(format string, args ...interface{}) error {
+	return fmt.Errorf(rec.Key+": "+format, args...)
 }
 
 // Error implements error interface for the IniError

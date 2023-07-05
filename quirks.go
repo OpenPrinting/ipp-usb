@@ -162,25 +162,23 @@ func (qset *QuirksSet) readFile(file string) error {
 
 		switch rec.Key {
 		case "blacklist":
-			err = confLoadBinaryKey(&q.Blacklist, rec,
-				"false", "true")
+			err = rec.LoadBool(&q.Blacklist)
 
 		case "usb-max-interfaces":
-			err = confLoadUintKeyRange(&q.UsbMaxInterfaces, rec,
+			err = rec.LoadUintRange(&q.UsbMaxInterfaces,
 				1, math.MaxUint32)
 
 		case "disable-fax":
-			err = confLoadBinaryKey(&q.DisableFax, rec,
-				"false", "true")
+			err = rec.LoadBool(&q.DisableFax)
 
 		case "init-reset":
-			err = confLoadQuirksResetMethodKey(&q.ResetMethod, rec)
+			err = rec.LoadQuirksResetMethod(&q.ResetMethod)
 
 		case "init-delay":
-			err = confLoadDurationKey(&q.InitDelay, rec)
+			err = rec.LoadDuration(&q.InitDelay)
 
 		case "request-delay":
-			err = confLoadDurationKey(&q.RequestDelay, rec)
+			err = rec.LoadDuration(&q.RequestDelay)
 		}
 	}
 

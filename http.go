@@ -108,18 +108,31 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Obtain our local address the request was ordered to
-	var localAddr *net.TCPAddr
+	// Obtain request's client and server addresses
+	var clientAddr, serverAddr *net.TCPAddr
+
+	clientAddr, err := net.ResolveTCPAddr("tcp", r.RemoteAddr)
+	if err != nil {
+		proxy.httpError(session, w, r, http.StatusInternalServerError,
+			errors.New("Unable to get client address for request"))
+		return
+	}
 
 	if v := r.Context().Value(http.LocalAddrContextKey); v != nil {
 		if v != nil {
-			localAddr, _ = v.(*net.TCPAddr)
+			serverAddr, _ = v.(*net.TCPAddr)
 		}
 	}
 
-	if localAddr == nil {
+	if serverAddr == nil {
 		proxy.httpError(session, w, r, http.StatusInternalServerError,
-			errors.New("Unable to get local address for request"))
+			errors.New("Unable to get server address for request"))
+		return
+	}
+
+	// Authenticate
+	if status, err := AuthHTTPRequest(clientAddr, serverAddr, r); err != nil {
+		proxy.httpError(session, w, r, status, err)
 		return
 	}
 
@@ -127,10 +140,10 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpRemoveHopByHopHeaders(r.Header)
 
 	if r.Host == "" {
-		if localAddr.IP.IsLoopback() {
-			r.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+		if serverAddr.IP.IsLoopback() {
+			r.Host = fmt.Sprintf("localhost:%d", serverAddr.Port)
 		} else {
-			r.Host = localAddr.String()
+			r.Host = serverAddr.String()
 		}
 	}
 
@@ -148,7 +161,7 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// This redirection fixes compatibility with these printers for
 	// clients that follow redirects (i.e., web browser and sane-airscan;
 	// CUPS unfortunately doesn't follow redirects)
-	if localAddr.IP.IsLoopback() &&
+	if serverAddr.IP.IsLoopback() &&
 		(r.Method == "GET" || r.Method == "HEAD") {
 
 		host := strings.ToLower(r.Host)
@@ -156,7 +169,7 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			!strings.HasPrefix(host, "localhost:") {
 
 			url := *r.URL
-			url.Host = fmt.Sprintf("localhost:%d", localAddr.Port)
+			url.Host = fmt.Sprintf("localhost:%d", serverAddr.Port)
 
 			proxy.httpRedirect(session, w, r, http.StatusFound, &url)
 			return
@@ -182,7 +195,6 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp.Body.Close()
-
 }
 
 // Reject request with a error

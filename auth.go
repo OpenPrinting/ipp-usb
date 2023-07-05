@@ -9,6 +9,9 @@
 package main
 
 import (
+	"errors"
+	"net"
+	"net/http"
 	"os/user"
 	"strconv"
 	"strings"
@@ -51,7 +54,7 @@ func (rule *AuthUIDRule) MatchGroup(name string) AuthOps {
 		return 0
 	}
 
-	ruleName := rule.Name[:1] // Strip leading '@'
+	ruleName := rule.Name[1:] // Strip leading '@'
 	if ruleName == "*" || ruleName == name {
 		return rule.Allowed
 	}
@@ -103,7 +106,7 @@ func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
 	if usr, err := user.LookupId(usrNames[0]); err != nil {
 		return nil, err
 	} else {
-		usrNames = append(usrNames, usr.Name)
+		usrNames = append(usrNames, usr.Username)
 		grpIDs = append(grpIDs, usr.Gid)
 
 		grpids, err := usr.GroupIds()
@@ -139,6 +142,8 @@ func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
 }
 
 // AuthUID returns operations allowed to client with given UID
+// uid == -1 indicates that UID is not available (i.e., external
+// connection)
 func AuthUID(uid int) (AuthOps, error) {
 	// Everything is allowed if authentication is not configured
 	if Conf.ConfAuthUID == nil {
@@ -167,4 +172,78 @@ func AuthUID(uid int) (AuthOps, error) {
 	}
 
 	return allowed, nil
+}
+
+// AuthHTTPRequest performs authentication for the incoming
+// HTTP request
+//
+// On success, status is http.StatusOK and err is nil.
+// Otherwise, status is appropriate for HTTP error response,
+// and err explains the reason
+func AuthHTTPRequest(client, server *net.TCPAddr, rq *http.Request) (
+	status int, err error) {
+
+	// Quess the operation by URL
+	post := rq.Method == "POST"
+	ops := AuthOpsConfig // The default
+	switch {
+	case post && strings.HasPrefix(rq.URL.Path, "/ipp/print"):
+		ops = AuthOpsPrint
+	case post && strings.HasPrefix(rq.URL.Path, "/ipp/faxout"):
+		ops = AuthOpsFax
+	case strings.HasPrefix(rq.URL.Path, "/eSCL"):
+		ops = AuthOpsScan
+	}
+
+	// Check if client and server addresses are both local
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	clientIsLocal := client.IP.IsLoopback()
+	serverIsLocal := server.IP.IsLoopback()
+
+	for _, addr := range addrs {
+		if clientIsLocal && serverIsLocal {
+			// Both addresses known to be local,
+			// we don't need to continue
+			break
+		}
+
+		if ip, ok := addr.(*net.IPNet); ok {
+			if client.IP.Equal(ip.IP) {
+				clientIsLocal = true
+			}
+
+			if server.IP.Equal(ip.IP) {
+				serverIsLocal = true
+			}
+		}
+	}
+
+	// Obtain UID
+	uid := -1
+	if clientIsLocal && serverIsLocal {
+		if TCPClientUIDSupported() {
+			uid, err = TCPClientUID(client, server)
+			if err != nil {
+				return http.StatusInternalServerError, err
+			}
+		}
+	}
+
+	// Authenticate
+	allowed, err := AuthUID(uid)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	if ops&allowed != AuthOpsNone {
+		return http.StatusOK, nil
+	}
+
+	err = errors.New("Operation not allowed. See ipp-usb.conf for details")
+
+	return http.StatusForbidden, err
 }

@@ -27,7 +27,7 @@ func TCPClientUIDSupported() bool {
 
 // TCPClientUID obtains UID of client process that created
 // TCP connection over the loopback interface
-func TCPClientUID(server, client *net.TCPAddr) (int, error) {
+func TCPClientUID(client, server *net.TCPAddr) (int, error) {
 	// Note, TCPClientUID should never be called, if
 	// TCPClientUIDSupported returns false
 	panic("TCPClientUID not supported")

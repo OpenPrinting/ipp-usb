@@ -165,6 +165,57 @@ Network parameters are all in the `[network]` section:
       # Enable or disable IPv6
       ipv6 = enable        # enable | disable
 
+### Authentication
+
+By default, `ipp-usb` exposes locally connected USB printer to all users
+of the system.
+
+Though this is reasonable behavior in most cases, when computer and printer
+are both in personal use, for bigger installation this approach can be too
+simple and primitive.
+
+`ipp-usb` provides a mechanism, which allows to control local clients
+access based on UID the client program runs under.
+
+Please note, this mechanism will not work for remote connections (disabled
+by default but supported). Authentication of remote users requires some
+different mechanism, which is under consideration but is not yet implemented.
+
+Authentication parameters are all in the [auth uid] section:
+
+    # Local user authentication by UID/GID
+    [auth uid]
+      # Syntax:
+      #     operations = users
+      #
+      # Operations are comma-separated list of following operations:
+      #     all    - all operations
+      #     config - configuration web-console
+      #     fax    - faxing
+      #     print  - printing
+      #     scan   - scanning
+      #
+      # Users have the following suntax:
+      #     user   - user name
+      #     @group - all users that belongs to the group
+      #
+      # Users and groups may be specified either by names or by
+      # numbers. * means any
+      #
+      # Note, if user/group is not known in the context of request
+      # (for example, in the case of non-local network connection),
+      # "_" used for matching
+      #
+      # User/group names are resolved at the moment of request
+      # processing (and cached for a couple of seconds), so running
+      # daemon will see changes to the /etc/passwd and /etc/group
+      #
+      # Examples:
+      #     fax, print = lp, @lp   # Allow CUPS to do its work
+      #     scan       = *         # Allow any user to scan
+      #     config     = @wheel    # Only wheel group members can do that
+      all = *
+
 ### Logging configuration
 
 Logging parameters are all in the `[logging]` section:

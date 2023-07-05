@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.9.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.9.1
-.TH "IPP\-USB" "8" "May 2022" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "July 2023" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -118,6 +118,52 @@ Network parameters are all in the \fB[network]\fR section:
 
   # Enable or disable IPv6
   ipv6 = enable        # enable | disable
+.fi
+.IP "" 0
+.SS "Authentication"
+By default, \fBipp\-usb\fR exposes locally connected USB printer to all users of the system\.
+.P
+Though this is reasonable behavior in most cases, when computer and printer are both in personal use, for bigger installation this approach can be too simple and primitive\.
+.P
+\fBipp\-usb\fR provides a mechanism, which allows to control local clients access based on UID the client program runs under\.
+.P
+Please note, this mechanism will not work for remote connections (disabled by default but supported)\. Authentication of remote users requires some different mechanism, which is under consideration but is not yet implemented\.
+.P
+Authentication parameters are all in the [auth uid] section:
+.IP "" 4
+.nf
+# Local user authentication by UID/GID
+[auth uid]
+  # Syntax:
+  #     operations = users
+  #
+  # Operations are comma\-separated list of following operations:
+  #     all    \- all operations
+  #     config \- configuration web\-console
+  #     fax    \- faxing
+  #     print  \- printing
+  #     scan   \- scanning
+  #
+  # Users have the following suntax:
+  #     user   \- user name
+  #     @group \- all users that belongs to the group
+  #
+  # Users and groups may be specified either by names or by
+  # numbers\. * means any
+  #
+  # Note, if user/group is not known in the context of request
+  # (for example, in the case of non\-local network connection),
+  # "_" used for matching
+  #
+  # User/group names are resolved at the moment of request
+  # processing (and cached for a couple of seconds), so running
+  # daemon will see changes to the /etc/passwd and /etc/group
+  #
+  # Examples:
+  #     fax, print = lp, @lp   # Allow CUPS to do its work
+  #     scan       = *         # Allow any user to scan
+  #     config     = @wheel    # Only wheel group members can do that
+  all = *
 .fi
 .IP "" 0
 .SS "Logging configuration"

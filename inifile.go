@@ -552,6 +552,68 @@ func (rec *IniRecord) LoadUintRange(out *uint, min, max uint) error {
 	return nil
 }
 
+// LoadAuthUIDRules loads AuthUIDRule-s value and appends them
+// to the destination
+//
+// The destination remains untouched in a case of an error
+func (rec *IniRecord) LoadAuthUIDRules(out *[]*AuthUIDRule) error {
+	// Parse rec.Key -- it contains list of operations
+	allowed := AuthOpsNone
+	for _, s := range strings.Split(rec.Key, ",") {
+		s = strings.TrimSpace(s)
+		switch s {
+		case "all":
+			allowed |= AuthOpsAll
+		case "config":
+			allowed |= AuthOpsConfig
+		case "fax":
+			allowed |= AuthOpsFax
+		case "print":
+			allowed |= AuthOpsPrint
+		case "scan":
+			allowed |= AuthOpsScan
+		default:
+			return rec.errBadValue("invalid operation: %q", s)
+		}
+	}
+
+	// Parse rec.Value -- it contains list of users
+	rules := []*AuthUIDRule{}
+	users := make(map[string]struct{})
+	for _, s := range strings.Split(rec.Value, ",") {
+		s = strings.TrimSpace(s)
+
+		// Silently ignore empty users and groups
+		if s == "" || s == "@" {
+			continue
+		}
+
+		// Check for duplicates
+		if _, dup := users[s]; dup {
+			continue
+		}
+
+		users[s] = struct{}{}
+
+		// Skip rules that allows nothing
+		if allowed == AuthOpsNone {
+			continue
+		}
+
+		// Build rules, preserving the order (just in case for now)
+		rule := &AuthUIDRule{
+			Name:    s,
+			Allowed: allowed,
+		}
+
+		rules = append(rules, rule)
+	}
+
+	// Save results
+	*out = append(*out, rules...)
+	return nil
+}
+
 // LoadQuirksResetMethod loads QuirksResetMethod value
 // The destination remains untouched in a case of an error
 func (rec *IniRecord) LoadQuirksResetMethod(out *QuirksResetMethod) error {

@@ -25,18 +25,19 @@ const (
 
 // Configuration represents a program configuration
 type Configuration struct {
-	HTTPMinPort       int       // Starting port number for HTTP to bind to
-	HTTPMaxPort       int       // Ending port number for HTTP to bind to
-	DNSSdEnable       bool      // Enable DNS-SD advertising
-	LoopbackOnly      bool      // Use only loopback interface
-	IPV6Enable        bool      // Enable IPv6 advertising
-	LogDevice         LogLevel  // Per-device LogLevel mask
-	LogMain           LogLevel  // Main log LogLevel mask
-	LogConsole        LogLevel  // Console  LogLevel mask
-	LogMaxFileSize    int64     // Maximum log file size
-	LogMaxBackupFiles uint      // Count of files preserved during rotation
-	ColorConsole      bool      // Enable ANSI colors on console
-	Quirks            QuirksSet // Device quirks
+	HTTPMinPort       int            // Starting port number for HTTP to bind to
+	HTTPMaxPort       int            // Ending port number for HTTP to bind to
+	DNSSdEnable       bool           // Enable DNS-SD advertising
+	LoopbackOnly      bool           // Use only loopback interface
+	IPV6Enable        bool           // Enable IPv6 advertising
+	ConfAuthUID       []*AuthUIDRule // [auth uid], parsed
+	LogDevice         LogLevel       // Per-device LogLevel mask
+	LogMain           LogLevel       // Main log LogLevel mask
+	LogConsole        LogLevel       // Console  LogLevel mask
+	LogMaxFileSize    int64          // Maximum log file size
+	LogMaxBackupFiles uint           // Count of files preserved during rotation
+	ColorConsole      bool           // Enable ANSI colors on console
+	Quirks            QuirksSet      // Device quirks
 }
 
 // Conf contains a global instance of program configuration
@@ -46,6 +47,7 @@ var Conf = Configuration{
 	DNSSdEnable:       true,
 	LoopbackOnly:      true,
 	IPV6Enable:        true,
+	ConfAuthUID:       nil,
 	LogDevice:         LogDebug,
 	LogMain:           LogDebug,
 	LogConsole:        LogDebug,
@@ -127,6 +129,9 @@ func confLoadInternal(path string) error {
 			case confMatchName(rec.Key, "ipv6"):
 				err = rec.LoadNamedBool(&Conf.IPV6Enable, "disable", "enable")
 			}
+
+		case confMatchName(rec.Section, "auth uid"):
+			err = rec.LoadAuthUIDRules(&Conf.ConfAuthUID)
 
 		case confMatchName(rec.Section, "logging"):
 			switch {

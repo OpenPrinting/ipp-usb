@@ -25,7 +25,7 @@ type AuthUIDRule struct {
 	Allowed AuthOps // Allowed operations
 }
 
-// IsGroup tells if rule is a user rule
+// IsUser tells if rule is a user rule
 func (rule *AuthUIDRule) IsUser() bool {
 	return !rule.IsGroup()
 }

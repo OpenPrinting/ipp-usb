@@ -399,6 +399,8 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	switch {
 	case outreq.ContentLength <= 0:
 		// Nothing to do
+		transport.log.HTTPDebug('>', session,
+			"body is chunked, sending as is")
 
 	case outreq.ContentLength < 16384:
 		// Body is small, prefetch it before sending to USB

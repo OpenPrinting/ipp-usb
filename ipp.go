@@ -176,7 +176,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, uri string) (
 		Flush()
 
 	// Check response status
-	if msg.Code >= 100 {
+	if msg.Code >= 0x100 {
 		err = fmt.Errorf("IPP: %s", goipp.Status(msg.Code))
 		return
 	}

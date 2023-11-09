@@ -78,7 +78,7 @@ func ConfLoad() error {
 	for _, file := range files {
 		err = confLoadInternal(file)
 		if err != nil {
-			return fmt.Errorf("conf: %s", err)
+			return err
 		}
 	}
 

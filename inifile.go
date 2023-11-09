@@ -634,7 +634,11 @@ func (rec *IniRecord) LoadQuirksResetMethod(out *QuirksResetMethod) error {
 
 // errBadValue creates a "bad value" error related to the INI record
 func (rec *IniRecord) errBadValue(format string, args ...interface{}) error {
-	return fmt.Errorf(rec.Key+": "+format, args...)
+	return &IniError{
+		File:    rec.File,
+		Line:    rec.Line,
+		Message: fmt.Sprintf(rec.Key+": "+format, args...),
+	}
 }
 
 // Error implements error interface for the IniError

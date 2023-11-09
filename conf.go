@@ -25,35 +25,37 @@ const (
 
 // Configuration represents a program configuration
 type Configuration struct {
-	HTTPMinPort       int            // Starting port number for HTTP to bind to
-	HTTPMaxPort       int            // Ending port number for HTTP to bind to
-	DNSSdEnable       bool           // Enable DNS-SD advertising
-	LoopbackOnly      bool           // Use only loopback interface
-	IPV6Enable        bool           // Enable IPv6 advertising
-	ConfAuthUID       []*AuthUIDRule // [auth uid], parsed
-	LogDevice         LogLevel       // Per-device LogLevel mask
-	LogMain           LogLevel       // Main log LogLevel mask
-	LogConsole        LogLevel       // Console  LogLevel mask
-	LogMaxFileSize    int64          // Maximum log file size
-	LogMaxBackupFiles uint           // Count of files preserved during rotation
-	ColorConsole      bool           // Enable ANSI colors on console
-	Quirks            QuirksSet      // Device quirks
+	HTTPMinPort        int            // Starting port number for HTTP to bind to
+	HTTPMaxPort        int            // Ending port number for HTTP to bind to
+	DNSSdEnable        bool           // Enable DNS-SD advertising
+	LoopbackOnly       bool           // Use only loopback interface
+	IPV6Enable         bool           // Enable IPv6 advertising
+	ConfAuthUID        []*AuthUIDRule // [auth uid], parsed
+	LogDevice          LogLevel       // Per-device LogLevel mask
+	LogMain            LogLevel       // Main log LogLevel mask
+	LogConsole         LogLevel       // Console  LogLevel mask
+	LogMaxFileSize     int64          // Maximum log file size
+	LogMaxBackupFiles  uint           // Count of files preserved during rotation
+	LogAllPrinterAttrs bool           // Get *all* printer attrs, for logging
+	ColorConsole       bool           // Enable ANSI colors on console
+	Quirks             QuirksSet      // Device quirks
 }
 
 // Conf contains a global instance of program configuration
 var Conf = Configuration{
-	HTTPMinPort:       60000,
-	HTTPMaxPort:       65535,
-	DNSSdEnable:       true,
-	LoopbackOnly:      true,
-	IPV6Enable:        true,
-	ConfAuthUID:       nil,
-	LogDevice:         LogDebug,
-	LogMain:           LogDebug,
-	LogConsole:        LogDebug,
-	LogMaxFileSize:    256 * 1024,
-	LogMaxBackupFiles: 5,
-	ColorConsole:      true,
+	HTTPMinPort:        60000,
+	HTTPMaxPort:        65535,
+	DNSSdEnable:        true,
+	LoopbackOnly:       true,
+	IPV6Enable:         true,
+	ConfAuthUID:        nil,
+	LogDevice:          LogDebug,
+	LogMain:            LogDebug,
+	LogConsole:         LogDebug,
+	LogMaxFileSize:     256 * 1024,
+	LogMaxBackupFiles:  5,
+	LogAllPrinterAttrs: false,
+	ColorConsole:       true,
 }
 
 // ConfLoad loads the program configuration
@@ -147,6 +149,8 @@ func confLoadInternal(path string) error {
 				err = rec.LoadSize(&Conf.LogMaxFileSize)
 			case confMatchName(rec.Key, "max-backup-files"):
 				err = rec.LoadUint(&Conf.LogMaxBackupFiles)
+			case confMatchName(rec.Key, "get-all-printer-attrs"):
+				err = rec.LoadBool(&Conf.LogAllPrinterAttrs)
 			}
 		}
 	}

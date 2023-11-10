@@ -40,7 +40,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 
 	// Query printer attributes
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
-	msg, err := ippGetPrinterAttributes(log, c, uri)
+	msg, err := ippGetPrinterAttributes(log, c, quirks, uri)
 	if err != nil {
 		return
 	}
@@ -61,7 +61,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 		// for now, just in case. Firmwares in general are
 		// too buggy, I can't trust them :-(
 		uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
-		if _, err2 := ippGetPrinterAttributes(log, c, uri); err2 == nil {
+		if _, err2 := ippGetPrinterAttributes(log, c, quirks, uri); err2 == nil {
 			canFax = true
 			log.Debug(' ', "IPP FaxOut service detected")
 		} else {
@@ -105,8 +105,8 @@ func IppService(log *LogMessage, services *DNSSdServices,
 //   3) It is not an IPP error response
 //
 // Otherwise, the appropriate error is generated and returned
-func ippGetPrinterAttributes(log *LogMessage, c *http.Client, uri string) (
-	msg *goipp.Message, err error) {
+func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
+	quirks QuirksSet, uri string) (msg *goipp.Message, err error) {
 
 	// Query printer attributes
 	msg = goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)
@@ -182,7 +182,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, uri string) (
 		Flush()
 
 	// Check response status
-	if msg.Code >= 0x100 {
+	if msg.Code >= 0x100 && !quirks.GetIgnoreIppStatus() {
 		err = fmt.Errorf("IPP: %s", goipp.Status(msg.Code))
 		return
 	}

@@ -95,6 +95,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		if quirks.ResetMethod != QuirksResetUnset {
 			log.Debug(' ', "    init-reset = %s", quirks.ResetMethod)
 		}
+		log.Debug(' ', "    ignore-ipp-status= %v", quirks.IgnoreIppStatus)
+
 		for name, value := range quirks.HTTPHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)
 		}

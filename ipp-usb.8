@@ -277,6 +277,10 @@ Delay, in milliseconds, between device is opened and, optionally, reset, and the
 \fBrequest\-delay\fR = NNN
 .br
 Delay, in milliseconds, between subsequent requests
+.IP "\[ci]" 4
+\fBignore\-ipp\-status = true | false\fR
+.br
+If \fBtrue\fR, IPP status of IPP requests sent by the \fBipp\-usb\fR by itself will be ignored\. This quirk is useful, when device correctly handles IPP request but returned status is not reliable\. Affects only \fBipp\-usb\fR initialization\.
 .IP "" 0
 .P
 If you found out about your device that it needs a quirk to work properly or it does not work with \fBipp\-usb\fR at all, although it provides IPP\-over\-USB interface, please report the issue at https://github\.com/OpenPrinting/ipp\-usb\. It will let us to update our collection of quirks, so helping other owners of such a device\.

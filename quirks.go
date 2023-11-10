@@ -32,6 +32,7 @@ type Quirks struct {
 	ResetMethod      QuirksResetMethod // Device reset method
 	InitDelay        time.Duration     // Delay before 1st IPP-USB request
 	RequestDelay     time.Duration     // Delay between IPP-USB requests
+	IgnoreIppStatus  bool              // Ignore IPP status
 	Index            int               // Incremented in order of loading
 }
 
@@ -74,7 +75,8 @@ func (q *Quirks) empty() bool {
 		!q.DisableFax &&
 		q.ResetMethod == QuirksResetUnset &&
 		q.InitDelay == 0 &&
-		q.RequestDelay == 0
+		q.RequestDelay == 0 &&
+		!q.IgnoreIppStatus
 }
 
 // QuirksSet represents collection of quirks
@@ -179,6 +181,9 @@ func (qset *QuirksSet) readFile(file string) error {
 
 		case "request-delay":
 			err = rec.LoadDuration(&q.RequestDelay)
+
+		case "ignore-ipp-status":
+			err = rec.LoadBool(&q.IgnoreIppStatus)
 		}
 	}
 
@@ -331,4 +336,16 @@ func (qset QuirksSet) GetRequestDelay() time.Duration {
 	}
 
 	return 0
+}
+
+// GetIgnoreIppStatus returns effective IgnoreIppStatus parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetIgnoreIppStatus() bool {
+	for _, q := range qset {
+		if q.IgnoreIppStatus {
+			return true
+		}
+	}
+
+	return false
 }

@@ -332,6 +332,12 @@ The following parameters are defined:
    * `request-delay` = NNN<br>
      Delay, in milliseconds, between subsequent requests
 
+   * `ignore-ipp-status = true | false`<br>
+     If `true`, IPP status of IPP requests sent by the `ipp-usb` by
+     itself will be ignored. This quirk is useful, when device correctly
+     handles IPP request but returned status is not reliable. Affects
+     only `ipp-usb` initialization.
+
 If you found out about your device that it needs a quirk to work properly or it
 does not work with `ipp-usb` at all, although it provides IPP-over-USB
 interface, please report the issue at https://github.com/OpenPrinting/ipp-usb.

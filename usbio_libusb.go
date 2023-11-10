@@ -252,6 +252,8 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 				for _, alt := range alts {
 					// Build and append UsbIfDesc
 					ifdesc := UsbIfDesc{
+						Vendor:   uint16(cDesc.idVendor),
+						Product:  uint16(cDesc.idProduct),
 						Config:   int(conf.bConfigurationValue),
 						IfNum:    int(alt.bInterfaceNumber),
 						Alt:      int(alt.bAlternateSetting),

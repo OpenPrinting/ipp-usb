@@ -153,12 +153,14 @@ func (desc UsbDeviceDesc) GetUsbDeviceInfo() (UsbDeviceInfo, error) {
 
 // UsbIfDesc represents an USB interface descriptor
 type UsbIfDesc struct {
-	Config   int // Configuration
-	IfNum    int // Interface number
-	Alt      int // Alternate setting
-	Class    int // Class
-	SubClass int // Subclass
-	Proto    int // Protocol
+	Vendor   uint16 // USB Vendor ID
+	Product  uint16 // USB Device ID
+	Config   int    // Configuration
+	IfNum    int    // Interface number
+	Alt      int    // Alternate setting
+	Class    int    // Class
+	SubClass int    // Subclass
+	Proto    int    // Protocol
 }
 
 // IsIppOverUsb check if interface is IPP over USB

@@ -165,7 +165,7 @@ type UsbIfDesc struct {
 
 // IsIppOverUsb check if interface is IPP over USB
 //
-// FIXME. The matching rules must be cobfigurable
+// FIXME. The matching rules must be configurable
 func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
 	switch {
 	// The classical combination, 7/1/4

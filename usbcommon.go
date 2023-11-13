@@ -176,7 +176,7 @@ func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
 	//
 	// This is valid at least with the following devices:
 	//   HP LaserJet MFP M426fdn
-	//   HP LaserJet MFP M436
+	//   HP ColorLaserJet MFP M278-M281
 	case ifdesc.Vendor == 0x03f0 &&
 		ifdesc.Class == 255 && ifdesc.SubClass == 9 && ifdesc.Proto == 1:
 		return true

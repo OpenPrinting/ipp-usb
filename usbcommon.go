@@ -164,10 +164,25 @@ type UsbIfDesc struct {
 }
 
 // IsIppOverUsb check if interface is IPP over USB
+//
+// FIXME. The matching rules must be cobfigurable
 func (ifdesc UsbIfDesc) IsIppOverUsb() bool {
-	return ifdesc.Class == 7 &&
-		ifdesc.SubClass == 1 &&
-		ifdesc.Proto == 4
+	switch {
+	// The classical combination, 7/1/4
+	case ifdesc.Class == 7 && ifdesc.SubClass == 1 && ifdesc.Proto == 4:
+		return true
+
+	// Some HP devices use non-standard combination, 255/9/1
+	//
+	// This is valid at least with the following devices:
+	//   HP LaserJet MFP M426fdn
+	//   HP LaserJet MFP M436
+	case ifdesc.Vendor == 0x03f0 &&
+		ifdesc.Class == 255 && ifdesc.SubClass == 9 && ifdesc.Proto == 1:
+		return true
+	}
+
+	return false
 }
 
 // UsbDeviceInfo represents USB device information

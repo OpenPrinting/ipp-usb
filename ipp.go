@@ -168,7 +168,9 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
 		return
 	}
 
-	err = msg.DecodeBytes(respData)
+	err = msg.DecodeBytesEx(respData,
+		goipp.DecoderOptions{EnableWorkarounds: true})
+
 	if err != nil {
 		log.Debug(' ', "Failed to decode IPP message: %s", err)
 		log.HexDump(LogTraceIPP, ' ', respData)

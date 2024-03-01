@@ -166,24 +166,24 @@ func (qset *QuirksSet) readFile(file string) error {
 		case "blacklist":
 			err = rec.LoadBool(&q.Blacklist)
 
-		case "usb-max-interfaces":
-			err = rec.LoadUintRange(&q.UsbMaxInterfaces,
-				1, math.MaxUint32)
-
 		case "disable-fax":
 			err = rec.LoadBool(&q.DisableFax)
 
-		case "init-reset":
-			err = rec.LoadQuirksResetMethod(&q.ResetMethod)
+		case "ignore-ipp-status":
+			err = rec.LoadBool(&q.IgnoreIppStatus)
 
 		case "init-delay":
 			err = rec.LoadDuration(&q.InitDelay)
 
+		case "init-reset":
+			err = rec.LoadQuirksResetMethod(&q.ResetMethod)
+
 		case "request-delay":
 			err = rec.LoadDuration(&q.RequestDelay)
 
-		case "ignore-ipp-status":
-			err = rec.LoadBool(&q.IgnoreIppStatus)
+		case "usb-max-interfaces":
+			err = rec.LoadUintRange(&q.UsbMaxInterfaces,
+				1, math.MaxUint32)
 		}
 	}
 

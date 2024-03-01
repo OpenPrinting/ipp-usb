@@ -21,19 +21,19 @@ prioritized section is taken
 
 The following parameters are recognized:
 
-  http-xxx  = yyy                 - set HTTP header Xxx: yyy
-  http-xxx  = ""                  - drop HTTP header Xxx
   blacklist = true | false        - blacklist or not the matching devices
   disable-fax = true | false      - disable fax capability, even if present
-  init-reset = none | soft | hard - should USB reset be performed on start
-  usb-max-interfaces = N          - use no more that N first USB interfaces
-  init-reset = none | soft | hard - how to reset device during initialization,
-                                    default is none
-  init-delay = NNN                - delay, in milliseconds, between device
-                                    is opened and, optionally, reset and
-                                    the first request is sent to device
-  request-delay = NNN             - delay, in milliseconds, between
-                                    subsequent requests
+  http-xxx  = yyy                 - set HTTP header Xxx: yyy
+  http-xxx  = ""                  - drop HTTP header Xxx
   ignore-ipp-status = true|false  - If enabled, ignore IPP status of requests
                                     that ipp-usb has sent by itself. It
                                     affects only ipp-usb initialization
+  init-reset = none | soft | hard - should USB reset be performed on start
+  init-delay = NNN                - delay, in milliseconds, between device
+                                    is opened and, optionally, reset and
+                                    the first request is sent to device
+  init-reset = none | soft | hard - how to reset device during initialization,
+                                    default is none
+  request-delay = NNN             - delay, in milliseconds, between
+                                    subsequent requests
+  usb-max-interfaces = N          - use no more that N first USB interfaces

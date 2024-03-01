@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.9.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.9.1
-.TH "IPP\-USB" "8" "November 2023" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "March 2024" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -254,33 +254,33 @@ The following parameters are defined:
 .br
 If \fBtrue\fR, the matching device is ignored by the \fBipp\-usb\fR
 .IP "\[ci]" 4
-\fBhttp\-XXX = YYY\fR
-.br
-Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed
-.IP "\[ci]" 4
-\fBusb\-max\-interfaces = N\fR
-.br
-Don\'t use more that N USB interfaces, even if more is available
-.IP "\[ci]" 4
 \fBdisable\-fax = true | false\fR
 .br
 If \fBtrue\fR, the matching device\'s fax capability is ignored
 .IP "\[ci]" 4
-\fBinit\-reset = none | soft | hard\fR
+\fBhttp\-XXX = YYY\fR
 .br
-How to reset device during initialization\. Default is \fBnone\fR
+Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed
+.IP "\[ci]" 4
+\fBignore\-ipp\-status = true | false\fR
+.br
+If \fBtrue\fR, IPP status of IPP requests sent by the \fBipp\-usb\fR by itself will be ignored\. This quirk is useful, when device correctly handles IPP request but returned status is not reliable\. Affects only \fBipp\-usb\fR initialization\.
 .IP "\[ci]" 4
 \fBinit\-delay = NNN\fR
 .br
 Delay, in milliseconds, between device is opened and, optionally, reset, and the first request is sent to device
 .IP "\[ci]" 4
+\fBinit\-reset = none | soft | hard\fR
+.br
+How to reset device during initialization\. Default is \fBnone\fR
+.IP "\[ci]" 4
 \fBrequest\-delay\fR = NNN
 .br
 Delay, in milliseconds, between subsequent requests
 .IP "\[ci]" 4
-\fBignore\-ipp\-status = true | false\fR
+\fBusb\-max\-interfaces = N\fR
 .br
-If \fBtrue\fR, IPP status of IPP requests sent by the \fBipp\-usb\fR by itself will be ignored\. This quirk is useful, when device correctly handles IPP request but returned status is not reliable\. Affects only \fBipp\-usb\fR initialization\.
+Don\'t use more that N USB interfaces, even if more is available
 .IP "" 0
 .P
 If you found out about your device that it needs a quirk to work properly or it does not work with \fBipp\-usb\fR at all, although it provides IPP\-over\-USB interface, please report the issue at https://github\.com/OpenPrinting/ipp\-usb\. It will let us to update our collection of quirks, so helping other owners of such a device\.

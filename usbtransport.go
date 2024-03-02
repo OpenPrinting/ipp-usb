@@ -540,7 +540,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// Optionally sanitize IPP response
 	if transport.quirks.GetBuggyIppRsp() == QuirksBuggyIppRspSanitize &&
 		resp.Header.Get("Content-Type") == "application/ipp" {
-		transport.sanitizeIppResponse(resp)
+		transport.sanitizeIppResponse(session, resp)
 	}
 
 	// Log the response
@@ -555,7 +555,8 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 }
 
 // sanitizeIppResponse attempts to sanitize IPP response from device
-func (transport *UsbTransport) sanitizeIppResponse(resp *http.Response) {
+func (transport *UsbTransport) sanitizeIppResponse(session int,
+	resp *http.Response) {
 	// Try to prefetch IPP part of message
 	buf := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
@@ -564,22 +565,36 @@ func (transport *UsbTransport) sanitizeIppResponse(resp *http.Response) {
 	msg := goipp.Message{}
 	err := msg.DecodeEx(tee, goipp.DecoderOptions{EnableWorkarounds: true})
 	if err != nil {
+		transport.log.HTTPDebug(' ', session,
+			"IPP sanitize: decode: %s", err)
+		goto REPLACE
+	}
+
+	// If backup copy decodes without any options, no need to sanitize
+	if msg2 := (goipp.Message{}); msg2.DecodeBytes(buf.Bytes()) == nil {
+		transport.log.HTTPDebug(' ', session,
+			"IPP sanitize: not needed")
 		goto REPLACE
 	}
 
 	// Re-encode the message correctly
 	err = msg.Encode(buf2)
 	if err != nil {
+		transport.log.HTTPDebug(' ', session,
+			"IPP sanitize: encode: %s", err)
 		goto REPLACE
 	}
 
-	// Replace buffers, adjust resp.ContentLength
+	// Replace buffer, adjust resp.ContentLength
 	if resp.ContentLength != -1 {
-		resp.ContentLength += int64(buf2.Len())
-		resp.ContentLength -= int64(buf.Len())
+		resp.ContentLength += int64(buf2.Len() - buf.Len())
 
 		resp.Header.Set("Content-Length",
 			strconv.FormatInt(resp.ContentLength, 10))
+
+		transport.log.HTTPDebug(' ', session,
+			"IPP sanitize: %d bytes replaced with %d",
+			buf.Len(), buf2.Len())
 	}
 
 	buf = buf2

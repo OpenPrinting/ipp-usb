@@ -168,8 +168,12 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
 		return
 	}
 
-	err = msg.DecodeBytesEx(respData,
-		goipp.DecoderOptions{EnableWorkarounds: true})
+	opts := goipp.DecoderOptions{}
+	if quirks.GetBuggyIppRsp() == QuirksBuggyIppRspAllow {
+		opts.EnableWorkarounds = true
+	}
+
+	err = msg.DecodeBytesEx(respData, opts)
 
 	if err != nil {
 		log.Debug(' ', "Failed to decode IPP message: %s", err)

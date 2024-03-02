@@ -19,9 +19,12 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/OpenPrinting/goipp"
 )
 
 // UsbTransport implements HTTP transport functionality over USB
@@ -478,6 +481,12 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 		conn:    conn,
 	}
 
+	// Optionally sanitize IPP response
+	if transport.quirks.GetBuggyIppRsp() == QuirksBuggyIppRspSanitize &&
+		resp.Header.Get("Content-Type") == "application/ipp" {
+		transport.sanitizeIppResponse(resp)
+	}
+
 	// Log the response
 	if resp != nil {
 		transport.log.Begin().
@@ -487,6 +496,43 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	}
 
 	return resp, nil
+}
+
+// sanitizeIppResponse attempts to sanitize IPP response from device
+func (transport *UsbTransport) sanitizeIppResponse(resp *http.Response) {
+	// Try to prefetch IPP part of message
+	buf := &bytes.Buffer{}
+	buf2 := &bytes.Buffer{}
+
+	tee := io.TeeReader(resp.Body, buf)
+	msg := goipp.Message{}
+	err := msg.DecodeEx(tee, goipp.DecoderOptions{EnableWorkarounds: true})
+	if err != nil {
+		goto REPLACE
+	}
+
+	// Re-encode the message correctly
+	err = msg.Encode(buf2)
+	if err != nil {
+		goto REPLACE
+	}
+
+	// Replace buffers, adjust resp.ContentLength
+	if resp.ContentLength != -1 {
+		resp.ContentLength += int64(buf2.Len())
+		resp.ContentLength -= int64(buf.Len())
+
+		resp.Header.Set("Content-Length",
+			strconv.FormatInt(resp.ContentLength, 10))
+	}
+
+	buf = buf2
+
+	// Replace consumed part of message with re-coded or
+	// saved backup copy
+REPLACE:
+	wrap := resp.Body.(*usbResponseBodyWrapper)
+	wrap.preBody = buf
 }
 
 // usbRequestBodyWrapper wraps http.Request.Body, adding
@@ -529,6 +575,7 @@ func (wrap *usbRequestBodyWrapper) Close() error {
 type usbResponseBodyWrapper struct {
 	log     *Logger       // Device's logger
 	session int           // HTTP session, for logging
+	preBody *bytes.Buffer // Data inserted before body, if not nil
 	body    io.ReadCloser // Response.body
 	conn    *usbConn      // Underlying USB connection
 	count   int           // Total count of received bytes
@@ -537,6 +584,10 @@ type usbResponseBodyWrapper struct {
 
 // Read from usbResponseBodyWrapper
 func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
+	if wrap.preBody != nil && wrap.preBody.Len() > 0 {
+		return wrap.preBody.Read(buf)
+	}
+
 	n, err := wrap.body.Read(buf)
 	wrap.count += n
 

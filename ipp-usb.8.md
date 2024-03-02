@@ -312,6 +312,13 @@ The following parameters are defined:
    * `blacklist = true | false`<br>
      If `true`, the matching device is ignored by the `ipp-usb`
 
+   * `buggy-ipp-responses = reject | allow | sanitize`<br>
+     Some devices send buggy (malformed) IPP responses that violate
+     IPP specification. `ipp-usb` may `reject` these responses
+     (so `ipp-usb` initialization will fail), `allow` them (`ipp-usb`
+     initialization will succeed, but CUPS needs to accept them
+     as well) or `sanitize` them (fix IPP specs violations).
+
    * `disable-fax = true | false`<br>
      If `true`, the matching device's fax capability is ignored
 

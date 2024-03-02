@@ -254,6 +254,10 @@ The following parameters are defined:
 .br
 If \fBtrue\fR, the matching device is ignored by the \fBipp\-usb\fR
 .IP "\[ci]" 4
+\fBbuggy\-ipp\-responses = reject | allow | sanitize\fR
+.br
+Some devices send buggy (malformed) IPP responses that violate IPP specification\. \fBipp\-usb\fR may \fBreject\fR these responses (so \fBipp\-usb\fR initialization will fail), \fBallow\fR them (\fBipp\-usb\fR initialization will succeed, but CUPS needs to accept them as well) or \fBsanitize\fR them (fix IPP specs violations)\.
+.IP "\[ci]" 4
 \fBdisable\-fax = true | false\fR
 .br
 If \fBtrue\fR, the matching device\'s fax capability is ignored

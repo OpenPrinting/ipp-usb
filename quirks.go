@@ -33,6 +33,7 @@ type Quirks struct {
 	InitDelay        time.Duration     // Delay before 1st IPP-USB request
 	RequestDelay     time.Duration     // Delay between IPP-USB requests
 	IgnoreIppStatus  bool              // Ignore IPP status
+	BuggyIppRsp      QuirksBuggyIppRsp // Handling of buggy IPP responses
 	Index            int               // Incremented in order of loading
 }
 
@@ -67,6 +68,36 @@ func (m QuirksResetMethod) String() string {
 	return fmt.Sprintf("unknown (%d)", int(m))
 }
 
+// QuirksBuggyIppRsp defines, how to handle buggy IPP responses
+type QuirksBuggyIppRsp int
+
+// QuirksBuggyIppRspUnset    - handling of bad IPP responses is not specified
+// QuirksBuggyIppRspAllow    - ipp-usb will allow bad IPP responses
+// QuirksBuggyIppRspReject   - ipp-usb will reject bad IPP responses
+// QuirksBuggyIppRspSanitize - bad ipp responses will be sanitized (fixed)
+const (
+	QuirksBuggyIppRspUnset QuirksBuggyIppRsp = iota
+	QuirksBuggyIppRspAllow
+	QuirksBuggyIppRspReject
+	QuirksBuggyIppRspSanitize
+)
+
+// String returns textual representation of QuirksBuggyIppRsp
+func (m QuirksBuggyIppRsp) String() string {
+	switch m {
+	case QuirksBuggyIppRspUnset:
+		return "unset"
+	case QuirksBuggyIppRspAllow:
+		return "allow"
+	case QuirksBuggyIppRspReject:
+		return "reject"
+	case QuirksBuggyIppRspSanitize:
+		return "sanitize"
+	}
+
+	return fmt.Sprintf("unknown (%d)", int(m))
+}
+
 // empty returns true, if Quirks are actually empty
 func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
@@ -76,7 +107,8 @@ func (q *Quirks) empty() bool {
 		q.ResetMethod == QuirksResetUnset &&
 		q.InitDelay == 0 &&
 		q.RequestDelay == 0 &&
-		!q.IgnoreIppStatus
+		!q.IgnoreIppStatus &&
+		q.BuggyIppRsp == QuirksBuggyIppRspUnset
 }
 
 // QuirksSet represents collection of quirks
@@ -165,6 +197,9 @@ func (qset *QuirksSet) readFile(file string) error {
 		switch rec.Key {
 		case "blacklist":
 			err = rec.LoadBool(&q.Blacklist)
+
+		case "buggy-ipp-responses":
+			err = rec.LoadQuirksBuggyIppRsp(&q.BuggyIppRsp)
 
 		case "disable-fax":
 			err = rec.LoadBool(&q.DisableFax)
@@ -314,6 +349,17 @@ func (qset QuirksSet) GetResetMethod() QuirksResetMethod {
 	}
 
 	return QuirksResetNone
+}
+
+// GetBuggyIppRsp returns effective BuggyIppRsp parameter
+func (qset QuirksSet) GetBuggyIppRsp() QuirksBuggyIppRsp {
+	for _, q := range qset {
+		if q.BuggyIppRsp != QuirksBuggyIppRspUnset {
+			return q.BuggyIppRsp
+		}
+	}
+
+	return QuirksBuggyIppRspUnset
 }
 
 // GetInitDelay returns effective InitDelay parameter

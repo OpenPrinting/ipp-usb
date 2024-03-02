@@ -88,14 +88,21 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	for _, quirks := range transport.quirks {
 		log.Debug(' ', "  from [%s] (%s)", quirks.Model, quirks.Origin)
 		log.Debug(' ', "    blacklist = %v", quirks.Blacklist)
-		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
+
+		if quirks.BuggyIppRsp != QuirksBuggyIppRspUnset {
+			log.Debug(' ', "    buggy-ipp-responses = %s", quirks.BuggyIppRsp)
+		}
+
 		log.Debug(' ', "    disable-fax = %v", quirks.DisableFax)
+		log.Debug(' ', "    ignore-ipp-status= %v", quirks.IgnoreIppStatus)
 		log.Debug(' ', "    init-delay = %s", quirks.InitDelay)
 		log.Debug(' ', "    request-delay = %s", quirks.RequestDelay)
+
 		if quirks.ResetMethod != QuirksResetUnset {
 			log.Debug(' ', "    init-reset = %s", quirks.ResetMethod)
 		}
-		log.Debug(' ', "    ignore-ipp-status= %v", quirks.IgnoreIppStatus)
+
+		log.Debug(' ', "    usb-max-interfaces = %v", quirks.UsbMaxInterfaces)
 
 		for name, value := range quirks.HTTPHeaders {
 			log.Debug(' ', "    http-%s = %q", strings.ToLower(name), value)

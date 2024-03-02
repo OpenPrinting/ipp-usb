@@ -25,15 +25,15 @@ import (
 type Quirks struct {
 	Origin           string            // file:line of definition
 	Model            string            // Device model name
-	Blacklist        bool              // Blacklist the device
 	HTTPHeaders      map[string]string // HTTP header override
-	UsbMaxInterfaces uint              // Max number of USB interfaces
-	DisableFax       bool              // Disable fax for device
-	ResetMethod      QuirksResetMethod // Device reset method
-	InitDelay        time.Duration     // Delay before 1st IPP-USB request
-	RequestDelay     time.Duration     // Delay between IPP-USB requests
-	IgnoreIppStatus  bool              // Ignore IPP status
+	Blacklist        bool              // Blacklist the device
 	BuggyIppRsp      QuirksBuggyIppRsp // Handling of buggy IPP responses
+	DisableFax       bool              // Disable fax for device
+	IgnoreIppStatus  bool              // Ignore IPP status
+	InitDelay        time.Duration     // Delay before 1st IPP-USB request
+	InitReset        QuirksResetMethod // Device reset method
+	RequestDelay     time.Duration     // Delay between IPP-USB requests
+	UsbMaxInterfaces uint              // Max number of USB interfaces
 	Index            int               // Incremented in order of loading
 }
 
@@ -102,13 +102,14 @@ func (m QuirksBuggyIppRsp) String() string {
 func (q *Quirks) empty() bool {
 	return !q.Blacklist &&
 		len(q.HTTPHeaders) == 0 &&
-		q.UsbMaxInterfaces == 0 &&
+		!q.Blacklist &&
+		q.BuggyIppRsp == QuirksBuggyIppRspUnset &&
 		!q.DisableFax &&
-		q.ResetMethod == QuirksResetUnset &&
-		q.InitDelay == 0 &&
-		q.RequestDelay == 0 &&
 		!q.IgnoreIppStatus &&
-		q.BuggyIppRsp == QuirksBuggyIppRspUnset
+		q.InitDelay == 0 &&
+		q.InitReset == QuirksResetUnset &&
+		q.RequestDelay == 0 &&
+		q.UsbMaxInterfaces == 0
 }
 
 // QuirksSet represents collection of quirks
@@ -211,7 +212,7 @@ func (qset *QuirksSet) readFile(file string) error {
 			err = rec.LoadDuration(&q.InitDelay)
 
 		case "init-reset":
-			err = rec.LoadQuirksResetMethod(&q.ResetMethod)
+			err = rec.LoadQuirksResetMethod(&q.InitReset)
 
 		case "request-delay":
 			err = rec.LoadDuration(&q.RequestDelay)
@@ -304,94 +305,154 @@ func (qset QuirksSet) ByModelName(model string) QuirksSet {
 	return quirks
 }
 
-// GetBlacklist returns effective Blacklist parameter,
+// GetBlacklist returns effective "blacklist" parameter,
 // taking the whole set into consideration
 func (qset QuirksSet) GetBlacklist() bool {
+	v, _ := qset.GetBlacklistOrigin()
+	return v
+}
+
+// GetBlacklistOrigin returns effective "blacklist" parameter
+// and its origin
+func (qset QuirksSet) GetBlacklistOrigin() (bool, *Quirks) {
 	for _, q := range qset {
 		if q.Blacklist {
-			return true
+			return true, q
 		}
 	}
 
-	return false
+	return false, nil
 }
 
-// GetUsbMaxInterfaces returns effective UsbMaxInterfaces parameter,
+// GetBuggyIppRsp returns effective "buggy-ipp-responses" parameter
 // taking the whole set into consideration
-func (qset QuirksSet) GetUsbMaxInterfaces() uint {
-	for _, q := range qset {
-		if q.UsbMaxInterfaces != 0 {
-			return q.UsbMaxInterfaces
-		}
-	}
-
-	return 0
-}
-
-// GetDisableFax returns effective DisableFax parameter,
-// taking the whole set into consideration
-func (qset QuirksSet) GetDisableFax() bool {
-	for _, q := range qset {
-		if q.DisableFax {
-			return true
-		}
-	}
-
-	return false
-}
-
-// GetResetMethod returns effective ResetMethod parameter
-func (qset QuirksSet) GetResetMethod() QuirksResetMethod {
-	for _, q := range qset {
-		if q.ResetMethod != QuirksResetUnset {
-			return q.ResetMethod
-		}
-	}
-
-	return QuirksResetNone
-}
-
-// GetBuggyIppRsp returns effective BuggyIppRsp parameter
 func (qset QuirksSet) GetBuggyIppRsp() QuirksBuggyIppRsp {
+	v, _ := qset.GetBuggyIppRspOrigin()
+	return v
+}
+
+// GetBuggyIppRspOrigin returns effective "buggy-ipp-responses" parameter
+// and its origin
+func (qset QuirksSet) GetBuggyIppRspOrigin() (QuirksBuggyIppRsp, *Quirks) {
 	for _, q := range qset {
 		if q.BuggyIppRsp != QuirksBuggyIppRspUnset {
-			return q.BuggyIppRsp
+			return q.BuggyIppRsp, q
 		}
 	}
 
-	return QuirksBuggyIppRspUnset
+	return QuirksBuggyIppRspUnset, nil
 }
 
-// GetInitDelay returns effective InitDelay parameter
-func (qset QuirksSet) GetInitDelay() time.Duration {
+// GetDisableFax returns effective "disable-fax" parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetDisableFax() bool {
+	v, _ := qset.GetDisableFaxOrigin()
+	return v
+}
+
+// GetDisableFaxOrigin returns effective "disable-fax" parameter
+// and its origin
+func (qset QuirksSet) GetDisableFaxOrigin() (bool, *Quirks) {
 	for _, q := range qset {
-		if q.InitDelay != 0 {
-			return q.InitDelay
+		if q.DisableFax {
+			return true, q
 		}
 	}
 
-	return 0
+	return false, nil
 }
 
-// GetRequestDelay returns effective RequestDelay parameter
-func (qset QuirksSet) GetRequestDelay() time.Duration {
-	for _, q := range qset {
-		if q.RequestDelay != 0 {
-			return q.RequestDelay
-		}
-	}
-
-	return 0
-}
-
-// GetIgnoreIppStatus returns effective IgnoreIppStatus parameter,
+// GetIgnoreIppStatus returns effective "ignore-ipp-status" parameter,
 // taking the whole set into consideration
 func (qset QuirksSet) GetIgnoreIppStatus() bool {
+	v, _ := qset.GetIgnoreIppStatusOrigin()
+	return v
+}
+
+// GetIgnoreIppStatusOrigin returns effective "ignore-ipp-status" parameter,
+// and its origin
+func (qset QuirksSet) GetIgnoreIppStatusOrigin() (bool, *Quirks) {
 	for _, q := range qset {
 		if q.IgnoreIppStatus {
-			return true
+			return true, q
 		}
 	}
 
-	return false
+	return false, nil
+}
+
+// GetInitDelay returns effective "init-delay" parameter
+// taking the whole set into consideration
+func (qset QuirksSet) GetInitDelay() time.Duration {
+	v, _ := qset.GetInitDelayOrigin()
+	return v
+}
+
+// GetInitDelayOrigin returns effective "init-delay" parameter
+// and its origin
+func (qset QuirksSet) GetInitDelayOrigin() (time.Duration, *Quirks) {
+	for _, q := range qset {
+		if q.InitDelay != 0 {
+			return q.InitDelay, q
+		}
+	}
+
+	return 0, nil
+}
+
+// GetInitReset returns effective "init-reset" parameter
+// taking the whole set into consideration
+func (qset QuirksSet) GetInitReset() QuirksResetMethod {
+	v, _ := qset.GetInitResetOrigin()
+	return v
+}
+
+// GetInitResetOrigin returns effective "init-reset" parameter
+// and its origin
+func (qset QuirksSet) GetInitResetOrigin() (QuirksResetMethod, *Quirks) {
+	for _, q := range qset {
+		if q.InitReset != QuirksResetUnset {
+			return q.InitReset, q
+		}
+	}
+
+	return QuirksResetNone, nil
+}
+
+// GetRequestDelay returns effective "request-delay" parameter
+// taking the whole set into consideration
+func (qset QuirksSet) GetRequestDelay() time.Duration {
+	v, _ := qset.GetRequestDelayOrigin()
+	return v
+}
+
+// GetRequestDelayOrigin returns effective "request-delay" parameter
+// and its origin
+func (qset QuirksSet) GetRequestDelayOrigin() (time.Duration, *Quirks) {
+	for _, q := range qset {
+		if q.RequestDelay != 0 {
+			return q.RequestDelay, q
+		}
+	}
+
+	return 0, nil
+}
+
+// GetUsbMaxInterfaces returns effective "usb-max-interfaces" parameter,
+// taking the whole set into consideration
+func (qset QuirksSet) GetUsbMaxInterfaces() uint {
+	v, _ := qset.GetUsbMaxInterfacesOrigin()
+	return v
+}
+
+// GetUsbMaxInterfacesOrigin returns effective "usb-max-interfaces" parameter,
+// and its origin
+func (qset QuirksSet) GetUsbMaxInterfacesOrigin() (uint, *Quirks) {
+	for _, q := range qset {
+		if q.UsbMaxInterfaces != 0 {
+			return q.UsbMaxInterfaces, q
+		}
+	}
+
+	return 0, nil
 }

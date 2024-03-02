@@ -22,13 +22,14 @@ prioritized section is taken
 The following parameters are recognized:
 
   blacklist = true | false        - blacklist or not the matching devices
+  buggy-ipp-responses = reject |  - how to handle buggy IPP responses
+          allow | sanitize
   disable-fax = true | false      - disable fax capability, even if present
   http-xxx  = yyy                 - set HTTP header Xxx: yyy
   http-xxx  = ""                  - drop HTTP header Xxx
   ignore-ipp-status = true|false  - If enabled, ignore IPP status of requests
                                     that ipp-usb has sent by itself. It
                                     affects only ipp-usb initialization
-  init-reset = none | soft | hard - should USB reset be performed on start
   init-delay = NNN                - delay, in milliseconds, between device
                                     is opened and, optionally, reset and
                                     the first request is sent to device
@@ -37,3 +38,5 @@ The following parameters are recognized:
   request-delay = NNN             - delay, in milliseconds, between
                                     subsequent requests
   usb-max-interfaces = N          - use no more that N first USB interfaces
+
+See `man ipp-usb` for details

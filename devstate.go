@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -32,6 +31,9 @@ type DevState struct {
 }
 
 // LoadDevState loads DevState from a disk file
+//
+// This function always succeeds, even in a case of file i/o errors.
+// In a worst case we loose state persistence, not other functionality.
 func LoadDevState(ident, comment string) *DevState {
 	state := &DevState{
 		Ident:   ident,
@@ -39,13 +41,62 @@ func LoadDevState(ident, comment string) *DevState {
 	}
 	state.path = state.devStatePath()
 
-	// Open state file
+	// Read state file
 	ini, err := OpenIniFile(state.path)
 	if err == nil {
-		defer ini.Close()
+		err = state.load(ini)
+		ini.Close()
 	}
 
-	// Extract data
+	if err != nil && err != io.EOF {
+		if !os.IsNotExist(err) {
+			Log.Error('!', "STATE LOAD: %s", state.error("%s", err))
+		}
+	}
+
+	return state
+}
+
+// LoadDevState loads ports used by some of devices.
+//
+// The returned map contains one entry per used port. Value of this
+// entry is a human-readable string, reasonable for logging
+func LoadUsedPorts() (ports map[int]string) {
+	ports = make(map[int]string)
+
+	dir, err := os.ReadDir(PathProgStateDev)
+	if err != nil {
+		return
+	}
+
+	for _, ent := range dir {
+		if !ent.Type().IsRegular() {
+			continue
+		}
+
+		path := filepath.Join(PathProgStateDev, ent.Name())
+		ini, err := OpenIniFile(path)
+		if err == nil {
+			state := &DevState{}
+			err = state.load(ini)
+			ini.Close()
+
+			if err == nil && state.HTTPPort != 0 {
+				ports[state.HTTPPort] = ent.Name()
+			}
+		}
+	}
+
+	return
+}
+
+// load performs an actual work of loading the DevState file
+func (state *DevState) load(ini *IniFile) error {
+	err := ini.Lock(FileLockWait)
+	if err == nil {
+		defer ini.Unlock()
+	}
+
 	for err == nil {
 		var rec *IniRecord
 		rec, err = ini.Next()
@@ -67,14 +118,11 @@ func LoadDevState(ident, comment string) *DevState {
 
 	}
 
-	if err != nil && err != io.EOF {
-		if !os.IsNotExist(err) {
-			Log.Error('!', "STATE LOAD: %s", state.error("%s", err))
-		}
-		state.Save()
+	if err == io.EOF {
+		err = nil
 	}
 
-	return state
+	return err
 }
 
 // Load TCP port
@@ -111,11 +159,37 @@ func (state *DevState) Save() {
 	fmt.Fprintf(&buf, "dns-sd-name     = %q\n", state.DNSSdName)
 	fmt.Fprintf(&buf, "dns-sd-override = %q\n", state.DNSSdOverride)
 
-	err := ioutil.WriteFile(state.path, buf.Bytes(), 0644)
+	err := state.save(buf.Bytes())
 	if err != nil {
 		err = state.error("%s", err)
 		Log.Error('!', "STATE SAVE: %s", err)
 	}
+}
+
+// save performs an actual work of saving state file
+func (state *DevState) save(data []byte) error {
+	f, err := os.OpenFile(state.path,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+
+	if err != nil {
+		return err
+	}
+
+	err = FileLock(f, FileLockWait)
+	if err != nil {
+		f.Close()
+		return err
+	}
+
+	_, err = f.Write(data)
+	FileUnlock(f)
+
+	if err != nil {
+		f.Close()
+		return err
+	}
+
+	return f.Close()
 }
 
 // HTTPListen allocates HTTP port and updates persistent configuration
@@ -135,7 +209,27 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 		}
 	}
 
-	// Allocate a port
+	// Allocate a port. Don't reuse ports allocated by other
+	// devices.
+	ports := LoadUsedPorts()
+
+	for port = Conf.HTTPMinPort; port <= Conf.HTTPMaxPort; port++ {
+		used := ports[port]
+		if used != "" {
+			Log.Info(' ', "HTTP port %d used by %s", port, used)
+			continue
+		}
+
+		listener, err := NewListener(port)
+		if err == nil {
+			state.HTTPPort = port
+			state.Save()
+			return listener, nil
+		}
+	}
+
+	// No success so far. Repeat allocation attempt, ignoring
+	// existent allocations
 	for port = Conf.HTTPMinPort; port <= Conf.HTTPMaxPort; port++ {
 		listener, err := NewListener(port)
 		if err == nil {
@@ -145,6 +239,7 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 		}
 	}
 
+	// Give up and return an error
 	err := state.error("failed to allocate HTTP port", state.Ident)
 	Log.Error('!', "STATE PORT: %s", err)
 

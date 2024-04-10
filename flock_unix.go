@@ -12,15 +12,16 @@ package main
 
 /*
 #include <errno.h>
-#include <unistd.h>
+#include <sys/file.h>
 
-static inline int do_lockf (int fd, int cmd, off_t len) {
-    int rc = lockf(fd, cmd, len);
+static inline int do_flock (int fd, int op) {
+    int rc = flock(fd, op);
     if (rc < 0) {
         rc = -errno;
     }
     return rc;
 }
+
 */
 import "C"
 
@@ -35,26 +36,19 @@ type FileLockCmd C.int
 
 const (
 	// FileLockWait command used to lock the file; wait if it is busy
-	FileLockWait = C.F_LOCK
+	FileLockWait = C.LOCK_EX
 
 	// FileLockNoWait command used to lock the file without wait.
 	// If file is busy it fails with ErrLockIsBusy error
-	FileLockNoWait = C.F_TLOCK
-
-	// FileLockTest command used to test the lock.
-	// It returns immediately, with ErrLockIsBusy if file
-	// is busy or without an error if not
-	//
-	// File locking state is not affected in both cases
-	FileLockTest = C.F_TEST
+	FileLockNoWait = C.LOCK_EX | C.LOCK_NB
 
 	// FileLockUnlock command used to unlock the file
-	FileLockUnlock = C.F_ULOCK
+	FileLockUnlock = C.LOCK_UN
 )
 
 // FileLock manages file lock
 func FileLock(file *os.File, cmd FileLockCmd) error {
-	rc := C.do_lockf(C.int(file.Fd()), C.int(cmd), 0)
+	rc := C.do_flock(C.int(file.Fd()), C.int(cmd))
 	if rc == 0 {
 		return nil
 	}

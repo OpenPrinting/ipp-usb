@@ -71,7 +71,11 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Create HTTP server
-	dev.UsbTransport.SetDeadline(time.Now().Add(DevInitTimeout))
+	dev.UsbTransport.SetDeadline(
+		time.Now().
+			Add(DevInitTimeout).
+			Add(dev.UsbTransport.Quirks().GetInitDelay()))
+
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)
 
 	// Obtain DNS-SD info for IPP

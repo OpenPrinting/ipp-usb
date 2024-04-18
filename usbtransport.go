@@ -79,6 +79,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "===============================").
 		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
+		Debug(' ', "  USB Port:      %d", transport.info.PortNum).
 		Debug(' ', "  Ident:         %s", transport.info.Ident()).
 		Debug(' ', "  Manufacturer:  %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:       %s", transport.info.ProductName).

@@ -183,7 +183,7 @@ func AuthUID(uid int) (AuthOps, error) {
 func AuthHTTPRequest(client, server *net.TCPAddr, rq *http.Request) (
 	status int, err error) {
 
-	// Quess the operation by URL
+	// Guess the operation by URL
 	post := rq.Method == "POST"
 	ops := AuthOpsConfig // The default
 	switch {

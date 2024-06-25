@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -219,6 +220,19 @@ func AuthUID(info *AuthUIDinfo) AuthOps {
 	return allowed
 }
 
+// authUIDrequiresUID tells if UID authentication really requires UID.
+// UID is not required, if either authentication is not configured, or
+// there is no rules with non-wildcard UID.
+func authUIDrequiresUID() bool {
+	for _, rule := range Conf.ConfAuthUID {
+		if rule.Name != "*" && rule.Name != "@*" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // AuthHTTPRequest performs authentication for the incoming
 // HTTP request
 //
@@ -278,23 +292,33 @@ func AuthHTTPRequest(log *Logger,
 	log.Debug(' ', "  client-addr %s local=%v", client.IP, clientIsLocal)
 	log.Debug(' ', "  server-addr %s local=%v", server.IP, serverIsLocal)
 
-	// Obtain UID
+	// Do we need UID?
 	uid := -1
-	if clientIsLocal && serverIsLocal {
-		if TCPClientUIDSupported() {
-			uid, err = TCPClientUID(client, server)
-			if err != nil {
-				err = fmt.Errorf("can't get client UID: %s",
-					err)
-				log.Error('!', "auth: %s", err)
-				return http.StatusInternalServerError, err
-			}
+	reason := ""
+
+	switch {
+	case !clientIsLocal || !serverIsLocal:
+		reason = "non-local connection"
+	case !TCPClientUIDSupported():
+		reason = fmt.Sprintf("UID auth not supported on %s",
+			runtime.GOOS)
+	case !authUIDrequiresUID():
+		reason = "No auth rules don use UID"
+	}
+
+	// Obtain UID, if we really need it
+	if reason == "" {
+		uid, err = TCPClientUID(client, server)
+		if err != nil {
+			err = fmt.Errorf("can't get client UID: %s",
+				err)
+			log.Error('!', "auth: %s", err)
+			return http.StatusInternalServerError, err
 		}
 
 		log.Debug(' ', "auth: client UID=%d", uid)
 	} else {
-		log.Debug(' ', "auth: client UID=%d (non-local connection)",
-			uid)
+		log.Debug(' ', "auth: client UID=%d (%s)", uid, reason)
 	}
 
 	// Lookup UID info

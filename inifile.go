@@ -42,8 +42,9 @@ type IniRecord struct {
 type IniRecordType int
 
 // Record types:
-//   [section]       <- IniRecordSection
-//     key - value   <- IniRecordKeyVal
+//
+//	[section]       <- IniRecordSection
+//	  key - value   <- IniRecordKeyVal
 const (
 	IniRecordSection IniRecordType = iota
 	IniRecordKeyVal
@@ -227,7 +228,6 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 				ini.buf.Truncate(ini.buf.Len() - trailingSpace)
 				trailingSpace = 0
 			}
-			break
 
 		case prsString:
 			if c == '\\' {
@@ -237,7 +237,6 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 			} else {
 				ini.buf.WriteByte(c)
 			}
-			break
 
 		case prsStringBslash:
 			if c == 'x' || c == 'X' {
@@ -251,34 +250,25 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 				switch c {
 				case 'a':
 					c = '\a'
-					break
 				case 'b':
 					c = '\b'
-					break
 				case 'e':
 					c = '\x1b'
-					break
 				case 'f':
 					c = '\f'
-					break
 				case 'n':
 					c = '\n'
-					break
 				case 'r':
 					c = '\r'
-					break
 				case 't':
 					c = '\t'
-					break
 				case 'v':
 					c = '\v'
-					break
 				}
 
 				ini.buf.WriteByte(c)
 				state = prsString
 			}
-			break
 
 		case prsStringHex:
 			if ini.isxdigit(c) {
@@ -294,7 +284,6 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 			if state != prsStringHex {
 				ini.buf.WriteByte(c)
 			}
-			break
 
 		case prsStringOctal:
 			if ini.isoctal(c) {
@@ -311,10 +300,9 @@ func (ini *IniFile) token(delimiter rune, linecont bool) (byte, string, error) {
 			if state != prsStringOctal {
 				ini.buf.WriteByte(c)
 			}
-			break
 
 		case prsComment:
-			break
+			// Nothing to do
 		}
 	}
 
@@ -499,9 +487,11 @@ func (rec *IniRecord) LoadDuration(out *time.Duration) error {
 
 // LoadSize loads size value (returned as int64)
 // The syntax is following:
-//   123  - size in bytes
-//   123K - size in kilobytes, 1K == 1024
-//   123M - size in megabytes, 1M == 1024K
+//
+//	123  - size in bytes
+//	123K - size in kilobytes, 1K == 1024
+//	123M - size in megabytes, 1M == 1024K
+//
 // The destination remains untouched in a case of an error
 func (rec *IniRecord) LoadSize(out *int64) error {
 	var units uint64 = 1

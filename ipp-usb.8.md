@@ -181,6 +181,11 @@ Please note, this mechanism will not work for remote connections (disabled
 by default but supported). Authentication of remote users requires some
 different mechanism, which is under consideration but is not yet implemented.
 
+Note also, this mechanism may or may not work in containerized installation
+(i.e., snap, flatpak and similar).  The container namespace may be isolated
+from the system and/or user's namespaces, so even for local clients the UID
+as seen by the `ipp-usb` may be different from the system-wide UID.
+
 Authentication parameters are all in the [auth uid] section:
 
     # Local user authentication by UID/GID
@@ -200,11 +205,12 @@ Authentication parameters are all in the [auth uid] section:
       #     @group - all users that belongs to the group
       #
       # Users and groups may be specified either by names or by
-      # numbers. * means any
+      # numbers. "*" means any
       #
       # Note, if user/group is not known in the context of request
       # (for example, in the case of non-local network connection),
-      # "_" used for matching
+      # "*" used for matching, which will only match wildcard
+      # rules.
       #
       # User/group names are resolved at the moment of request
       # processing (and cached for a couple of seconds), so running

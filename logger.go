@@ -179,13 +179,7 @@ func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
 }
 
-// Cc adds io.Writer to send "carbon copy" to
-// The mask parameter filters what lines will included into the carbon copy
-//
-// Note:
-//   LogTraceXxx implies LogDebug
-//   LogDebug implies LogInfo
-//   LogInfo implies LogError
+// Cc adds Logger to send "carbon copy" to.
 func (l *Logger) Cc(to *Logger) *Logger {
 	l.cc = append(l.cc, to)
 	l.ccLevels |= to.levels

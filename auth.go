@@ -16,6 +16,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -114,7 +115,10 @@ type AuthUIDinfo struct {
 }
 
 // authUIDinfoCache contains authUIDinfo cache, indexed by UID
-var authUIDinfoCache = make(map[int]*AuthUIDinfo)
+var (
+	authUIDinfoCache     = make(map[int]*AuthUIDinfo)
+	authUIDinfoCacheLock sync.Mutex
+)
 
 // authUIDinfoCacheTTL is the expiration timeout for authUIDinfoCache
 const authUIDinfoCacheTTL = 2 * time.Second
@@ -122,7 +126,10 @@ const authUIDinfoCacheTTL = 2 * time.Second
 // AuthUIDinfoLookup performs AuthUIDinfo lookup by UID.
 func AuthUIDinfoLookup(uid int) (*AuthUIDinfo, error) {
 	// Lookup authUIDinfoCache
+	authUIDinfoCacheLock.Lock()
 	info := authUIDinfoCache[uid]
+	authUIDinfoCacheLock.Unlock()
+
 	if info != nil && info.expires.After(time.Now()) {
 		return info, nil
 	}
@@ -165,7 +172,9 @@ func AuthUIDinfoLookup(uid int) (*AuthUIDinfo, error) {
 		expires:  time.Now().Add(authUIDinfoCacheTTL),
 	}
 
+	authUIDinfoCacheLock.Lock()
 	authUIDinfoCache[uid] = info
+	authUIDinfoCacheLock.Unlock()
 
 	// Return the answer
 	return info, nil

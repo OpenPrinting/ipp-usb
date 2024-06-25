@@ -57,7 +57,7 @@ func LoadDevState(ident, comment string) *DevState {
 	return state
 }
 
-// LoadDevState loads ports used by some of devices.
+// LoadUsedPorts loads ports used by some of devices.
 //
 // The returned map contains one entry per used port. Value of this
 // entry is a human-readable string, reasonable for logging

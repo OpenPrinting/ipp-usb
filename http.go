@@ -131,7 +131,8 @@ func (proxy *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authenticate
-	if status, err := AuthHTTPRequest(clientAddr, serverAddr, r); err != nil {
+	if status, err := AuthHTTPRequest(proxy.log,
+		clientAddr, serverAddr, r); err != nil {
 		proxy.httpError(session, w, r, status, err)
 		return
 	}

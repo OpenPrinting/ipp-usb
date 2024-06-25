@@ -10,6 +10,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os/user"
@@ -78,21 +79,48 @@ const (
 	AuthOpsNone AuthOps = 0
 )
 
-// authUIDinfo is the resolved and cached UID info, for matching
-type authUIDinfo struct {
-	usrNames []string  // User (numerical and symbolic) names
-	grpNames []string  // Group names (numerical and symbolic)
-	expires  time.Time // Expiration time
+// String returns string representation of AuthOps flags, for debugging.
+func (ops AuthOps) String() string {
+	if ops == 0 {
+		return "none"
+	}
+
+	s := []string{}
+
+	if ops&AuthOpsConfig != 0 {
+		s = append(s, "config")
+	}
+
+	if ops&AuthOpsFax != 0 {
+		s = append(s, "fax")
+	}
+
+	if ops&AuthOpsPrint != 0 {
+		s = append(s, "print")
+	}
+
+	if ops&AuthOpsScan != 0 {
+		s = append(s, "scan")
+	}
+
+	return strings.Join(s, ",")
+}
+
+// AuthUIDinfo is the resolved and cached UID info, for matching
+type AuthUIDinfo struct {
+	UsrNames []string  // User (numerical and symbolic) names
+	GrpNames []string  // Group names (numerical and symbolic)
+	expires  time.Time // Expiration time, for caching
 }
 
 // authUIDinfoCache contains authUIDinfo cache, indexed by UID
-var authUIDinfoCache = make(map[int]*authUIDinfo)
+var authUIDinfoCache = make(map[int]*AuthUIDinfo)
 
 // authUIDinfoCacheTTL is the expiration timeout for authUIDinfoCache
 const authUIDinfoCacheTTL = 2 * time.Second
 
-// authUIDinfoLookup performs authUIDinfo lookup by UID
-func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
+// AuthUIDinfoLookup performs AuthUIDinfo lookup by UID.
+func AuthUIDinfoLookup(uid int) (*AuthUIDinfo, error) {
 	// Lookup authUIDinfoCache
 	info := authUIDinfoCache[uid]
 	if info != nil && info.expires.After(time.Now()) {
@@ -103,19 +131,21 @@ func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
 	// Also populates grpIDs with numeric group IDs
 	usrNames := []string{strconv.Itoa(uid)}
 	grpIDs := []string{}
-	if usr, err := user.LookupId(usrNames[0]); err != nil {
+
+	usr, err := user.LookupId(usrNames[0])
+	if err != nil {
 		return nil, err
-	} else {
-		usrNames = append(usrNames, usr.Username)
-		grpIDs = append(grpIDs, usr.Gid)
-
-		grpids, err := usr.GroupIds()
-		if err != nil {
-			return nil, err
-		}
-
-		grpIDs = append(grpIDs, grpids...)
 	}
+
+	usrNames = append(usrNames, usr.Username)
+	grpIDs = append(grpIDs, usr.Gid)
+
+	grpids, err := usr.GroupIds()
+	if err != nil {
+		return nil, err
+	}
+
+	grpIDs = append(grpIDs, grpids...)
 
 	// Resolve group IDs to names
 	grpNames := append([]string{}, grpIDs...)
@@ -129,9 +159,9 @@ func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
 	}
 
 	// Update cache
-	info = &authUIDinfo{
-		usrNames: usrNames,
-		grpNames: grpNames,
+	info = &AuthUIDinfo{
+		UsrNames: usrNames,
+		GrpNames: grpNames,
 		expires:  time.Now().Add(authUIDinfoCacheTTL),
 	}
 
@@ -144,16 +174,10 @@ func authUIDinfoLookup(uid int) (*authUIDinfo, error) {
 // AuthUID returns operations allowed to client with given UID
 // uid == -1 indicates that UID is not available (i.e., external
 // connection)
-func AuthUID(uid int) (AuthOps, error) {
+func AuthUID(info *AuthUIDinfo) AuthOps {
 	// Everything is allowed if authentication is not configured
 	if Conf.ConfAuthUID == nil {
-		return AuthOpsAll, nil
-	}
-
-	// Lookup UID info
-	info, err := authUIDinfoLookup(uid)
-	if err != nil {
-		return 0, err
+		return AuthOpsAll
 	}
 
 	// Apply rules
@@ -161,17 +185,17 @@ func AuthUID(uid int) (AuthOps, error) {
 
 	for _, rule := range Conf.ConfAuthUID {
 		if rule.IsUser() {
-			for _, usr := range info.usrNames {
+			for _, usr := range info.UsrNames {
 				allowed |= rule.MatchUser(usr)
 			}
 		} else {
-			for _, grp := range info.grpNames {
+			for _, grp := range info.GrpNames {
 				allowed |= rule.MatchGroup(grp)
 			}
 		}
 	}
 
-	return allowed, nil
+	return allowed
 }
 
 // AuthHTTPRequest performs authentication for the incoming
@@ -180,8 +204,9 @@ func AuthUID(uid int) (AuthOps, error) {
 // On success, status is http.StatusOK and err is nil.
 // Otherwise, status is appropriate for HTTP error response,
 // and err explains the reason
-func AuthHTTPRequest(client, server *net.TCPAddr, rq *http.Request) (
-	status int, err error) {
+func AuthHTTPRequest(log *Logger,
+	client, server *net.TCPAddr,
+	rq *http.Request) (status int, err error) {
 
 	// Guess the operation by URL
 	post := rq.Method == "POST"
@@ -195,9 +220,15 @@ func AuthHTTPRequest(client, server *net.TCPAddr, rq *http.Request) (
 		ops = AuthOpsScan
 	}
 
+	log.Debug(' ', "auth: operation requested: %s (HTTP %s %s)",
+		ops, rq.Method, rq.URL)
+
 	// Check if client and server addresses are both local
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
+		err = fmt.Errorf("can't get local IP addresses: %s", err)
+		log.Error('!', "auth: %s", err)
+
 		return http.StatusInternalServerError, err
 	}
 
@@ -222,28 +253,52 @@ func AuthHTTPRequest(client, server *net.TCPAddr, rq *http.Request) (
 		}
 	}
 
+	log.Debug(' ', "auth: address check:")
+	log.Debug(' ', "  client-addr %s local=%v", client.IP, clientIsLocal)
+	log.Debug(' ', "  server-addr %s local=%v", server.IP, serverIsLocal)
+
 	// Obtain UID
 	uid := -1
 	if clientIsLocal && serverIsLocal {
 		if TCPClientUIDSupported() {
 			uid, err = TCPClientUID(client, server)
 			if err != nil {
+				err = fmt.Errorf("can't get client UID: %s",
+					err)
+				log.Error('!', "auth: %s", err)
 				return http.StatusInternalServerError, err
 			}
 		}
+
+		log.Debug(' ', "auth: client UID=%d", uid)
+	} else {
+		log.Debug(' ', "auth: client UID=%d (non-local connection)",
+			uid)
 	}
+
+	// Lookup UID info
+	info, err := AuthUIDinfoLookup(uid)
+	if err != nil {
+		err = fmt.Errorf("can't resolve UID %d: %s", uid, err)
+		log.Error('!', "auth: %s", err)
+		return 0, err
+	}
+
+	log.Debug(' ', "auth: UID %d resolved:", uid)
+	log.Debug(' ', "  user names:  %s", strings.Join(info.UsrNames, ","))
+	log.Debug(' ', "  group names: %s", strings.Join(info.GrpNames, ","))
 
 	// Authenticate
-	allowed, err := AuthUID(uid)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
+	allowed := AuthUID(info)
+	log.Debug(' ', "auth: allowed operations: %s", allowed)
 
 	if ops&allowed != AuthOpsNone {
+		log.Debug(' ', "auth: access granted")
 		return http.StatusOK, nil
 	}
 
 	err = errors.New("Operation not allowed. See ipp-usb.conf for details")
+	log.Error('!', "auth: %s", err)
 
 	return http.StatusForbidden, err
 }

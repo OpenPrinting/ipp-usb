@@ -125,6 +125,18 @@ const authUIDinfoCacheTTL = 2 * time.Second
 
 // AuthUIDinfoLookup performs AuthUIDinfo lookup by UID.
 func AuthUIDinfoLookup(uid int) (*AuthUIDinfo, error) {
+	// UID is not known. Use "*" user/group names, as promised
+	// by documentation
+	if uid == -1 {
+		info := &AuthUIDinfo{
+			UsrNames: []string{"*"},
+			GrpNames: []string{"*"},
+			expires:  time.Now().Add(authUIDinfoCacheTTL),
+		}
+
+		return info, nil
+	}
+
 	// Lookup authUIDinfoCache
 	authUIDinfoCacheLock.Lock()
 	info := authUIDinfoCache[uid]

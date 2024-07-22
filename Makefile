@@ -27,4 +27,4 @@ install: all
 	install -m 644 -D -t $(PREFIX)/$(QUIRKSDIR) ipp-usb-quirks/*
 
 test:
-	go test
+	go test -mod=vendor

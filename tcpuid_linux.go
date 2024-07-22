@@ -99,6 +99,7 @@ func TCPClientUID(client, server *net.TCPAddr) (int, error) {
 			case syscall.NLMSG_ERROR:
 				rsp := (*C.nlmsgerr_struct)(data)
 				err = syscall.Errno(-rsp.error)
+				err = fmt.Errorf("NLMSG_ERROR: %s", err)
 				return -1, err
 
 			case uint16(C.SOCK_DIAG_BY_FAMILY):

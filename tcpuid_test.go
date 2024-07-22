@@ -22,6 +22,18 @@ func doTestTCPClientUID(t *testing.T, network, loopback string) {
 		return
 	}
 
+	// Log local addresses
+	if ift, err := net.Interfaces(); err == nil {
+		for _, ifi := range ift {
+			if addrs, err := ifi.Addrs(); err == nil {
+				t.Logf("%s:", ifi.Name)
+				for _, addr := range addrs {
+					t.Logf("  %s", addr)
+				}
+			}
+		}
+	}
+
 	// Create loopback listener -- it gives us a port
 	l, err := net.Listen(network, loopback+":")
 	if err != nil {

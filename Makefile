@@ -10,7 +10,7 @@ endif
 
 all:
 	-gotags -R . > tags
-	go build -ldflags "-s -w" -tags nethttpomithttp2
+	go build -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor
 
 man:	$(MANPAGE)
 

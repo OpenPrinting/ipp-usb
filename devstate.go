@@ -64,26 +64,52 @@ func LoadDevState(ident, comment string) *DevState {
 func LoadUsedPorts() (ports map[int]string) {
 	ports = make(map[int]string)
 
-	dir, err := os.ReadDir(PathProgStateDev)
+	// Read the PathProgStateDev (normally "/var/ipp-usb/dev")
+	// directory.
+	var files []os.FileInfo
+	var err error
+
+	dir, err := os.Open(PathProgStateDev)
+	if err == nil {
+		files, err = dir.Readdir(0)
+		dir.Close()
+	}
+
+	if err != nil {
+		Log.Error('!', "Can't load existing ports allocation")
+		Log.Error('!', "%s", err)
+		return
+	}
+
 	if err != nil {
 		return
 	}
 
-	for _, ent := range dir {
-		if !ent.Type().IsRegular() {
+	// Scan found files
+	for _, file := range files {
+		Log.Debug(' ', "== %s", file.Name())
+		if !file.Mode().IsRegular() {
 			continue
 		}
 
-		path := filepath.Join(PathProgStateDev, ent.Name())
+		path := filepath.Join(PathProgStateDev, file.Name())
 		ini, err := OpenIniFile(path)
-		if err == nil {
-			state := &DevState{}
-			err = state.load(ini)
-			ini.Close()
+		if err != nil {
+			Log.Error('!', "%s", err)
+			continue
+		}
 
-			if err == nil && state.HTTPPort != 0 {
-				ports[state.HTTPPort] = ent.Name()
-			}
+		state := &DevState{}
+		err = state.load(ini)
+		ini.Close()
+
+		if err != nil {
+			Log.Error('!', "%s", err)
+			continue
+		}
+
+		if state.HTTPPort != 0 {
+			ports[state.HTTPPort] = file.Name()
 		}
 	}
 

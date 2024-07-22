@@ -44,6 +44,14 @@ func TCPClientUIDSupported() bool {
 // TCPClientUID obtains UID of client process that created
 // TCP connection over the loopback interface
 func TCPClientUID(client, server *net.TCPAddr) (int, error) {
+	// Obtain protocol family. Check for mismatch.
+	clientIs4 := client.IP.To4() != nil
+	serverIs4 := server.IP.To4() != nil
+
+	if clientIs4 != serverIs4 {
+		return -1, fmt.Errorf("TCPClientUID: IP4/IP6 mismatchh")
+	}
+
 	// Open NETLINK_SOCK_DIAG socket
 	sock, err := sockDiagOpen()
 	if err != nil {
@@ -59,18 +67,26 @@ func TCPClientUID(client, server *net.TCPAddr) (int, error) {
 	rq.hdr.nlmsg_type = C.uint16_t(C.SOCK_DIAG_BY_FAMILY)
 	rq.hdr.nlmsg_flags = C.uint16_t(C.NLM_F_REQUEST)
 
-	rq.data.sdiag_family = C.AF_INET6
+	if clientIs4 {
+		rq.data.sdiag_family = C.AF_INET
+		copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_src))[:],
+			client.IP.To4())
+		copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_dst))[:],
+			server.IP.To4())
+	} else {
+		rq.data.sdiag_family = C.AF_INET6
+		copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_src))[:],
+			client.IP.To16())
+		copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_dst))[:],
+			server.IP.To16())
+	}
+
 	rq.data.sdiag_protocol = C.IPPROTO_TCP
 	rq.data.idiag_states = 1 << C.TCP_ESTABLISHED
 	rq.data.id.idiag_sport = C.uint16_t(toBE16((uint16(client.Port))))
 	rq.data.id.idiag_dport = C.uint16_t(toBE16((uint16(server.Port))))
 	rq.data.id.idiag_cookie[0] = C.INET_DIAG_NOCOOKIE
 	rq.data.id.idiag_cookie[1] = C.INET_DIAG_NOCOOKIE
-
-	copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_src))[:],
-		client.IP.To16())
-	copy((*[16]byte)(unsafe.Pointer(&rq.data.id.idiag_dst))[:],
-		server.IP.To16())
 
 	// Send request
 	rqData := (*[unsafe.Sizeof(rq)]byte)(unsafe.Pointer(&rq))

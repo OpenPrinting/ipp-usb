@@ -794,7 +794,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		b = b[0:n]
 	}
 
-	backoff := time.Millisecond * 100
+	backoff := time.Millisecond * 10
 	for {
 		tm, expired := conn.timeout()
 		if expired {
@@ -822,7 +822,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 			"USB[%d]: zero-size read", conn.index)
 
 		time.Sleep(backoff)
-		backoff *= 2
+		backoff += backoff / 4 // The same as backoff *= 1.25
 		if backoff > time.Millisecond*1000 {
 			backoff = time.Millisecond * 1000
 		}

@@ -47,7 +47,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 
 	// Decode IPP service info
 	attrs := newIppDecoder(msg)
-	ippinfo, ippScv := attrs.decode(usbinfo)
+	ippinfo, ippSvc := attrs.decode(usbinfo)
 
 	// Check for fax support
 	canFax := false
@@ -72,26 +72,26 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	}
 
 	if canFax {
-		ippScv.Txt.Add("Fax", "T")
-		ippScv.Txt.Add("rfo", "ipp/faxout")
+		ippSvc.Txt.Add("Fax", "T")
+		ippSvc.Txt.Add("rfo", "ipp/faxout")
 	} else {
-		ippScv.Txt.Add("Fax", "F")
+		ippSvc.Txt.Add("Fax", "F")
 	}
 
 	// Construct LPD info. Per Apple spec, we MUST advertise
 	// LPD with zero port, even if we don't support it
-	lpdScv := DNSSdSvcInfo{
+	lpdSvc := DNSSdSvcInfo{
 		Type: "_printer._tcp",
 		Port: 0,
 		Txt:  nil,
 	}
 
 	// Pack it all together
-	ippScv.Port = port
-	services.Add(lpdScv)
+	ippSvc.Port = port
+	services.Add(lpdSvc)
 
 	ippinfo.IppSvcIndex = len(*services)
-	services.Add(ippScv)
+	services.Add(ippSvc)
 
 	return
 }
@@ -100,9 +100,9 @@ func IppService(log *LogMessage, services *DNSSdServices,
 // using the specified http.Client and uri
 //
 // If this function returns nil error, it means that:
-//   1) HTTP transaction performed successfully
-//   2) Received reply successfully decoded
-//   3) It is not an IPP error response
+//  1. HTTP transaction performed successfully
+//  2. Received reply successfully decoded
+//  3. It is not an IPP error response
 //
 // Otherwise, the appropriate error is generated and returned
 func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
@@ -218,34 +218,33 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 //
 // This is where information comes from:
 //
-//   DNS-SD name: "printer-dns-sd-name" with fallback to "printer-info",
-//                "printer-make-and-model" and finally to MfgAndProduct
-//                from the UsbDeviceInfo
+//	DNS-SD name: "printer-dns-sd-name" with fallback to "printer-info",
+//	             "printer-make-and-model" and finally to MfgAndProduct
+//	             from the UsbDeviceInfo
 //
-//   TXT fields:
-//     air:              hardcoded as "none"
-//     mopria-certified: "mopria-certified"
-//     rp:               hardcoded as "ipp/print"
-//     kind:             "printer-kind"
-//     PaperMax:         based on decoding "media-size-supported"
-//     URF:              "urf-supported" with fallback to
-//                       URF extracted from "printer-device-id"
-//     UUID:             "printer-uuid", without "urn:uuid:" prefix
-//     Color:            "color-supported"
-//     Duplex:           search "sides-supported" for strings with
-//                       prefix "one" or "two"
-//     note:             "printer-location"
-//     qtotal:           hardcoded as "1"
-//     usb_MDL:          MDL, extracted from "printer-device-id"
-//     usb_MFG:          MFG, extracted from "printer-device-id"
-//     usb_CMD:          CMD, extracted from "printer-device-id"
-//     ty:               "printer-make-and-model"
-//     priority:         hardcoded as "50"
-//     product:          "printer-make-and-model", in round brackets
-//     pdl:              "document-format-supported"
-//     txtvers:          hardcoded as "1"
-//     adminurl:         "printer-more-info"
-//
+//	TXT fields:
+//	  air:              hardcoded as "none"
+//	  mopria-certified: "mopria-certified"
+//	  rp:               hardcoded as "ipp/print"
+//	  kind:             "printer-kind"
+//	  PaperMax:         based on decoding "media-size-supported"
+//	  URF:              "urf-supported" with fallback to
+//	                    URF extracted from "printer-device-id"
+//	  UUID:             "printer-uuid", without "urn:uuid:" prefix
+//	  Color:            "color-supported"
+//	  Duplex:           search "sides-supported" for strings with
+//	                    prefix "one" or "two"
+//	  note:             "printer-location"
+//	  qtotal:           hardcoded as "1"
+//	  usb_MDL:          MDL, extracted from "printer-device-id"
+//	  usb_MFG:          MFG, extracted from "printer-device-id"
+//	  usb_CMD:          CMD, extracted from "printer-device-id"
+//	  ty:               "printer-make-and-model"
+//	  priority:         hardcoded as "50"
+//	  product:          "printer-make-and-model", in round brackets
+//	  pdl:              "document-format-supported"
+//	  txtvers:          hardcoded as "1"
+//	  adminurl:         "printer-more-info"
 func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	ippinfo *IppPrinterInfo, svc DNSSdSvcInfo) {
 
@@ -349,11 +348,12 @@ func (attrs ippAttrs) getDuplex() string {
 //
 // According to Bonjour Printing Specification, Version 1.2.1,
 // it can take one of following values:
-//   "<legal-A4"
-//   "legal-A4"
-//   "tabloid-A3"
-//   "isoC-A2"
-//   ">isoC-A2"
+//
+//	"<legal-A4"
+//	"legal-A4"
+//	"tabloid-A3"
+//	"isoC-A2"
+//	">isoC-A2"
 //
 // If PaperMax cannot be guessed, it returns empty string
 func (attrs ippAttrs) getPaperMax() string {

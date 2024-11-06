@@ -74,6 +74,7 @@ func StatusFormat() []byte {
 	i := 0
 	for _, status := range statusTable {
 		devs[i] = status
+		i++
 	}
 
 	sort.Slice(devs, func(i, j int) bool {

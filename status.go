@@ -92,16 +92,17 @@ func StatusFormat() []byte {
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %d %q\n",
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5d %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product, status.HTTPPort, info.MfgAndProduct)
+				info.Vendor, info.Product, status.HTTPPort,
+				info.MfgAndProduct)
 
 			s := "OK"
 			if status.init != nil {
 				s = devs[i].init.Error()
 			}
 
-			fmt.Fprintf(buf, " status: %s\n", s)
+			fmt.Fprintf(buf, "      status: %s\n", s)
 		}
 	}
 

@@ -92,7 +92,7 @@ func StatusFormat() []byte {
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %d %-32q",
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %d %q\n",
 				i+1, status.desc.UsbAddr,
 				info.Vendor, info.Product, status.HTTPPort, info.MfgAndProduct)
 
@@ -110,7 +110,7 @@ func StatusFormat() []byte {
 
 // StatusSet adds device to the status table or updates status
 // of the already known device
-func StatusSet(addr UsbAddr, desc UsbDeviceDesc, init error, HTTPPort int) {
+func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
 	statusLock.Lock()
 	statusTable[addr] = &statusOfDevice{
 		desc: desc,

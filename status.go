@@ -20,9 +20,9 @@ import (
 
 // statusOfDevice represents a status of the particular device
 type statusOfDevice struct {
-	desc UsbDeviceDesc // Device descriptor
-	init error         // Initialization error, nil if none
-	HTTPPort int       // Assigned http port for the device
+	desc     UsbDeviceDesc // Device descriptor
+	init     error         // Initialization error, nil if none
+	HTTPPort int           // Assigned http port for the device
 }
 
 var (
@@ -113,8 +113,8 @@ func StatusFormat() []byte {
 func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
 	statusLock.Lock()
 	statusTable[addr] = &statusOfDevice{
-		desc: desc,
-		init: init,
+		desc:     desc,
+		init:     init,
 		HTTPPort: HTTPPort,
 	}
 	statusLock.Unlock()

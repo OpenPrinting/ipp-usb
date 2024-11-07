@@ -22,6 +22,7 @@ import (
 type statusOfDevice struct {
 	desc UsbDeviceDesc // Device descriptor
 	init error         // Initialization error, nil if none
+	HTTPPort int       // Assigned http port for the device
 }
 
 var (
@@ -87,20 +88,20 @@ func StatusFormat() []byte {
 		buf.WriteString(" not found\n")
 	} else {
 		buf.WriteString("\n")
-		fmt.Fprintf(buf, " Num  Device              Vndr:Prod  Model\n")
+		fmt.Fprintf(buf, " Num  Device              Vndr:Prod  Port  Model\n")
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %q\n",
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %d %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product, info.MfgAndProduct)
+				info.Vendor, info.Product, status.HTTPPort, info.MfgAndProduct)
 
 			s := "OK"
 			if status.init != nil {
 				s = devs[i].init.Error()
 			}
 
-			fmt.Fprintf(buf, "      status: %s", s)
+			fmt.Fprintf(buf, " status: %s\n", s)
 		}
 	}
 
@@ -109,11 +110,12 @@ func StatusFormat() []byte {
 
 // StatusSet adds device to the status table or updates status
 // of the already known device
-func StatusSet(addr UsbAddr, desc UsbDeviceDesc, init error) {
+func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
 	statusLock.Lock()
 	statusTable[addr] = &statusOfDevice{
 		desc: desc,
 		init: init,
+		HTTPPort: HTTPPort,
 	}
 	statusLock.Unlock()
 }

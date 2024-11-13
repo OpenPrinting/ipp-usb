@@ -15,10 +15,13 @@ import (
 	"sort"
 )
 
+var Version = "dev"
+
 const usageText = `Usage:
     %s mode [options]
 
 Modes are:
+    version     - display version number and exit
     standalone  - run forever, automatically discover IPP-over-USB
                   devices and serve them all
     udev        - like standalone, but exit when last IPP-over-USB
@@ -50,6 +53,7 @@ const (
 	RunDebug
 	RunCheck
 	RunStatus
+	RunVersion
 )
 
 // String returns RunMode name
@@ -67,6 +71,8 @@ func (m RunMode) String() string {
 		return "check"
 	case RunStatus:
 		return "status"
+	case RunVersion:
+		return "version"
 	}
 
 	return fmt.Sprintf("unknown (%d)", int(m))
@@ -127,6 +133,9 @@ func parseArgv() (params RunParameters) {
 			modes++
 		case "status":
 			params.Mode = RunStatus
+			modes++
+		case "version":
+			params.Mode = RunVersion
 			modes++
 		case "-bg":
 			params.Background = true
@@ -194,6 +203,12 @@ func main() {
 	Log.SetLevels(Conf.LogMain)
 	Console.SetLevels(Conf.LogConsole)
 	Log.Cc(Console)
+	
+	// In RunVersion mode, display version number
+	if params.Mode == RunVersion {
+		InitLog.Info(0, "ipp-usb daemon %s", Version)
+		os.Exit(0)
+	}
 
 	// In RunCheck mode, list IPP-over-USB devices
 	if params.Mode == RunCheck {

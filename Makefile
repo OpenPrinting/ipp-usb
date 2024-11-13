@@ -8,9 +8,11 @@ ifeq ($(PREFIX),/)
         PREFIX :=
 endif
 
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
+
 all:
 	-gotags -R . > tags
-	go build -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor
+	go build -ldflags "-s -w -X 'main.Version=$(VERSION)'" -tags nethttpomithttp2 -mod=vendor
 
 man:	$(MANPAGE)
 

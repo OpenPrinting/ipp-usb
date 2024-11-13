@@ -67,7 +67,7 @@ func StatusFormat() []byte {
 
 	// Dump ipp-usb daemon status. If we are here, we are
 	// definitely running :-)
-	buf.WriteString("ipp-usb daemon: running\n")
+	fmt.Fprintf(buf, "ipp-usb daemon %s: running\n", Version)
 
 	// Sort devices by address
 	devs := make([]*statusOfDevice, len(statusTable))
@@ -92,15 +92,9 @@ func StatusFormat() []byte {
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %q\n",
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5d %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product,
-				func() string {
-					if status.HTTPPort == 0 {
-						return "-"
-					}
-					return fmt.Sprintf("%d", status.HTTPPort)
-				}(),
+				info.Vendor, info.Product, status.HTTPPort,
 				info.MfgAndProduct)
 
 			s := "OK"

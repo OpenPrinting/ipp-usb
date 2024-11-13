@@ -8,7 +8,7 @@ ifeq ($(PREFIX),/)
         PREFIX :=
 endif
 
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
+VERSION := $(shell git describe --tags --abbrev=0 --exact-match 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || echo dev)
 
 all:
 	-gotags -R . > tags

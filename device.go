@@ -17,9 +17,9 @@ import (
 )
 
 // Device object brings all parts together, namely:
-//   * HTTP proxy server
-//   * USB-backed http.Transport
-//   * DNS-SD advertiser
+//   - HTTP proxy server
+//   - USB-backed http.Transport
+//   - DNS-SD advertiser
 //
 // There is one instance of Device object per USB device
 type Device struct {
@@ -45,6 +45,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var dnssdName string
 	var dnssdServices DNSSdServices
 	var log *LogMessage
+	var hwid string
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(desc)
@@ -53,8 +54,11 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Obtain device's logger
-	info = dev.UsbTransport.UsbDeviceInfo()
 	dev.Log = dev.UsbTransport.Log()
+
+	// Obtain device info and derived information.
+	info = dev.UsbTransport.UsbDeviceInfo()
+	hwid = fmt.Sprintf("%4.4x&%4.4x", info.Vendor, info.Product)
 
 	// Load persistent state
 	dev.State = LoadDevState(info.Ident(), info.Comment())
@@ -148,6 +152,15 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	if len(dnssdServices) == 0 {
 		err = ErrUnusable
 		goto ERROR
+	}
+
+	// Add common TXT records:
+	//   - usb_SER=VCF9192281  ; Device USB serial number
+	//   - usb_HWID=0482&069d  ; Its vendor and device ID
+	for i := range dnssdServices {
+		svc := &dnssdServices[i]
+		svc.Txt.Add("usb_SER", info.SerialNumber)
+		svc.Txt.Add("usb_HWID", hwid)
 	}
 
 	// Advertise Web service. Assume it always exists

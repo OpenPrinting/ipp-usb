@@ -92,9 +92,15 @@ func StatusFormat() []byte {
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5d %q\n",
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product, status.HTTPPort,
+				info.Vendor, info.Product,
+				func() string {
+					if status.HTTPPort == 0 {
+						return "-"
+					}
+					return fmt.Sprintf("%d", status.HTTPPort)
+				}(),
 				info.MfgAndProduct)
 
 			s := "OK"

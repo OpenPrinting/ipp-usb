@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"strconv"
 	"sync"
 )
 
@@ -92,12 +93,17 @@ func StatusFormat() []byte {
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5d %q\n",
+			s := "-"
+			if status.HTTPPort != 0 {
+				s = strconv.Itoa(status.HTTPPort)
+			}
+
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product, status.HTTPPort,
+				info.Vendor, info.Product, s,
 				info.MfgAndProduct)
 
-			s := "OK"
+			s = "OK"
 			if status.init != nil {
 				s = devs[i].init.Error()
 			}

@@ -126,6 +126,39 @@ Notes:
      `ipp-usb` service, to avoid possible conflicts with the
      legacy USB drivers.
 
+## Matching DNS-SD announcements against local USB bus
+
+Client software may need to match local devices exposed by `ipp-usb` with
+those found on the local USB bus. This can be useful, for example, to
+avoid offering USB devices in the print or scan dialog that cannot be
+used because they are already in use by `ipp-usb`.
+
+As a rough guideline, clients might consider USB devices that offer
+interfaces with Class=7, SubClass=1, and Protocol=4 as belonging to
+`ipp-usb`. However, this is not a precise method. Some devices may not
+properly implement the IPP over USB protocol and could be blacklisted in
+the `ipp-usb` configuration for this reason. Additionally, some devices
+may be automatically recognized by `ipp-usb` as incompatible and thus
+skipped. It's also possible that `ipp-usb` is disabled on the system
+entirely.
+
+A more reliable approach is to directly query the running `ipp-usb`
+instance to determine which devices it actually handles.
+
+To facilitate the matching of devices that `ipp-usb` manages and
+announces via  DNS-SD against local devices found on the USB bus,
+`ipp-usb` adds two TXT records to each `_ipp._tcp`, `_printer._tcp`,
+and `_uscan._tcp` services it announces:
+
+   * usb_SER=VCF9192281 - USB serial number for the device
+
+   * usb_HWID=0482&069d - USB vendor and hardware ID for the device in hex
+
+Please note that when matching devices discovered via DNS-SD with USB
+devices, it is important to only consider DNS-SD advertisements from IP
+addresses that are either loopback addresses (127.0.0.1 or ::1) or
+belong to a local interface.
+
 ## CONFIGURATION
 
 `ipp-usb` searched for its configuration file in two places:

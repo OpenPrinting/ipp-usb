@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.10.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.10.1
-.TH "IPP\-USB" "8" "June 2024" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "November 2024" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -80,6 +80,21 @@ for the \fB_ipp\._tcp\fR service, the \fB_universal\._sub\._ipp\._tcp\fR subtype
 .IP "\(bu" 4
 \fBBBPP\fR, used for the \fB_ipp\-usb\._tcp\fR service, is the USB bus (BB) and port (PP) numbers in hex\. The purpose of this advertising is to help CUPS and other possible "clients" to guess which devices are handled by the \fBipp\-usb\fR service, to avoid possible conflicts with the legacy USB drivers\.
 .IP "" 0
+.SH "Matching DNS\-SD announcements against local USB bus"
+Client software may need to match local devices exposed by \fBipp\-usb\fR with those found on the local USB bus\. This can be useful, for example, to avoid offering USB devices in the print or scan dialog that cannot be used because they are already in use by \fBipp\-usb\fR\.
+.P
+As a rough guideline, clients might consider USB devices that offer interfaces with Class=7, SubClass=1, and Protocol=4 as belonging to \fBipp\-usb\fR\. However, this is not a precise method\. Some devices may not properly implement the IPP over USB protocol and could be blacklisted in the \fBipp\-usb\fR configuration for this reason\. Additionally, some devices may be automatically recognized by \fBipp\-usb\fR as incompatible and thus skipped\. It's also possible that \fBipp\-usb\fR is disabled on the system entirely\.
+.P
+A more reliable approach is to directly query the running \fBipp\-usb\fR instance to determine which devices it actually handles\.
+.P
+To facilitate the matching of devices that \fBipp\-usb\fR manages and announces via DNS\-SD against local devices found on the USB bus, \fBipp\-usb\fR adds two TXT records to each \fB_ipp\._tcp\fR, \fB_printer\._tcp\fR, and \fB_uscan\._tcp\fR services it announces:
+.IP "\(bu" 4
+usb_SER=VCF9192281 \- USB serial number for the device
+.IP "\(bu" 4
+usb_HWID=0482&069d \- USB vendor and hardware ID for the device in hex
+.IP "" 0
+.P
+Please note that when matching devices discovered via DNS\-SD with USB devices, it is important to only consider DNS\-SD advertisements from IP addresses that are either loopback addresses (127\.0\.0\.1 or ::1) or belong to a local interface\.
 .SH "CONFIGURATION"
 \fBipp\-usb\fR searched for its configuration file in two places:
 .IP "1." 4

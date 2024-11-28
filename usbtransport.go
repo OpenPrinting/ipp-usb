@@ -20,7 +20,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -38,7 +37,7 @@ type UsbTransport struct {
 	connReleased chan struct{} // Signalled when connection released
 	shutdown     chan struct{} // Closed by Shutdown()
 	connstate    *usbConnState // Connections state tracker
-	quirks       QuirksSet     // Device quirks
+	quirks       Quirks        // Device quirks
 	deadline     time.Time     // Deadline for requests
 }
 
@@ -71,7 +70,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.SetLevels(Conf.LogDevice)
 
 	// Setup quirks
-	transport.quirks = Conf.Quirks.ByModelName(transport.info.MfgAndProduct)
+	transport.quirks = Conf.Quirks.MatchByModelName(
+		transport.info.MfgAndProduct)
 
 	// Write device info to the log
 	log := transport.log.Begin().
@@ -119,7 +119,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 
 	// Hard-reset the device, if needed
-	if transport.quirks.GetInitReset() == QuirksResetHard {
+	if transport.quirks.GetInitReset() == QuirkResetHard {
 		transport.log.Debug(' ', "Doing USB HARD RESET")
 		dev.Reset()
 	}
@@ -172,80 +172,17 @@ ERROR:
 
 // Dump quirks to the UsbTransport's log
 func (transport *UsbTransport) dumpQuirks(log *LogMessage) {
-	type dmp struct {
-		name, val string
-		origin    *Quirks
-	}
-
-	dump := []dmp{}
-
-	var v interface{}
-	var o *Quirks
-
-	// Collect parameters
-	v, o = transport.quirks.GetBlacklistOrigin()
-	dump = append(dump, dmp{"blacklist", fmt.Sprintf("%v", v), o})
-
-	v, o = transport.quirks.GetBuggyIppRspOrigin()
-	dump = append(dump, dmp{"buggy-ipp-responses", fmt.Sprintf("%s", v), o})
-
-	v, o = transport.quirks.GetDisableFaxOrigin()
-	dump = append(dump, dmp{"disable-fax", fmt.Sprintf("%v", v), o})
-
-	v, o = transport.quirks.GetIgnoreIppStatusOrigin()
-	dump = append(dump, dmp{"ignore-ipp-status", fmt.Sprintf("%v", v), o})
-
-	v, o = transport.quirks.GetInitDelayOrigin()
-	dump = append(dump, dmp{"init-delay", fmt.Sprintf("%v", v), o})
-
-	v, o = transport.quirks.GetInitResetOrigin()
-	dump = append(dump, dmp{"init-reset", fmt.Sprintf("%s", v), o})
-
-	v, o = transport.quirks.GetRequestDelayOrigin()
-	dump = append(dump, dmp{"request-delay", fmt.Sprintf("%v", v), o})
-
-	v, o = transport.quirks.GetUsbMaxInterfacesOrigin()
-	dump = append(dump, dmp{"usb-max-interfaces", fmt.Sprintf("%v", v), o})
-
-	// Add HTTP headers
-	for _, q := range transport.quirks {
-		for name, value := range q.HTTPHeaders {
-			d := dmp{
-				name:   "http-" + strings.ToLower(name),
-				val:    fmt.Sprintf("%q", value),
-				origin: q,
-			}
-			dump = append(dump, d)
-		}
-	}
-
-	// Skip no-origin (i.e., actually unset) quirks
-	cnt := 0
-	for _, d := range dump {
-		if d.origin != nil {
-			dump[cnt] = d
-			cnt++
-		}
-	}
-
-	dump = dump[:cnt]
-
-	// Sort by name
-	sort.Slice(dump, func(i, j int) bool {
-		return dump[i].name < dump[j].name
-	})
-
-	// And write to the log
 	log.Debug(' ', "Device quirks:")
 
-	origin := (*Quirks)(nil)
-	for _, d := range dump {
-		if origin != d.origin {
-			origin = d.origin
-			log.Debug(' ', "  from [%s] (%s):",
-				origin.Model, origin.Origin)
+	for _, q := range transport.quirks.All() {
+		val := q.RawValue
+		if _, isStr := q.Parsed.(string); isStr {
+			val = strconv.Quote(val)
 		}
-		log.Debug(' ', "    %s = %s", d.name, d.val)
+
+		log.Debug(' ', "  [%s]", q.Match)
+		log.Debug(' ', "    ; (%s)", q.Origin)
+		log.Debug(' ', "    %s = %s", q.Name, val)
 	}
 }
 
@@ -403,7 +340,7 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 }
 
 // Quirks returns device's quirks
-func (transport *UsbTransport) Quirks() QuirksSet {
+func (transport *UsbTransport) Quirks() Quirks {
 	return transport.quirks
 }
 
@@ -435,13 +372,11 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	outreq.Header.Del("Expect")
 
 	// Apply quirks
-	for _, quirks := range transport.quirks {
-		for name, value := range quirks.HTTPHeaders {
-			if value != "" {
-				outreq.Header.Set(name, value)
-			} else {
-				outreq.Header.Del(name)
-			}
+	for name, value := range transport.quirks.HTTPHeaders {
+		if value != "" {
+			outreq.Header.Set(name, value)
+		} else {
+			outreq.Header.Del(name)
 		}
 	}
 
@@ -544,7 +479,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	}
 
 	// Optionally sanitize IPP response
-	if transport.quirks.GetBuggyIppRsp() == QuirksBuggyIppRspSanitize &&
+	if transport.quirks.GetBuggyIppRsp() == QuirkBuggyIppRspSanitize &&
 		resp.Header.Get("Content-Type") == "application/ipp" {
 		transport.sanitizeIppResponse(session, resp)
 	}
@@ -717,7 +652,7 @@ type usbConn struct {
 
 // Open usbConn
 func (transport *UsbTransport) openUsbConn(
-	index int, ifaddr UsbIfAddr, quirks QuirksSet) (*usbConn, error) {
+	index int, ifaddr UsbIfAddr, quirks Quirks) (*usbConn, error) {
 
 	dev := transport.dev
 
@@ -741,7 +676,7 @@ func (transport *UsbTransport) openUsbConn(
 	}
 
 	// Soft-reset interface, if needed
-	if quirks.GetInitReset() == QuirksResetSoft {
+	if quirks.GetInitReset() == QuirkResetSoft {
 		transport.log.Debug(' ', "USB[%d]: doing SOFT_RESET", index)
 		err = conn.iface.SoftReset()
 		if err != nil {

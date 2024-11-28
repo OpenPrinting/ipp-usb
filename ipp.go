@@ -35,7 +35,7 @@ type IppPrinterInfo struct {
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo, quirks QuirksSet,
+	port int, usbinfo UsbDeviceInfo, quirks Quirks,
 	c *http.Client) (ippinfo *IppPrinterInfo, err error) {
 
 	// Query printer attributes
@@ -106,7 +106,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 //
 // Otherwise, the appropriate error is generated and returned
 func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
-	quirks QuirksSet, uri string) (msg *goipp.Message, err error) {
+	quirks Quirks, uri string) (msg *goipp.Message, err error) {
 
 	// Query printer attributes
 	msg = goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)
@@ -169,7 +169,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
 	}
 
 	opts := goipp.DecoderOptions{}
-	if quirks.GetBuggyIppRsp() == QuirksBuggyIppRspAllow {
+	if quirks.GetBuggyIppRsp() == QuirkBuggyIppRspAllow {
 		opts.EnableWorkarounds = true
 	}
 

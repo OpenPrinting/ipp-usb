@@ -17,99 +17,301 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// Quirks represents device-specific quirks
-type Quirks struct {
-	Origin           string            // file:line of definition
-	Model            string            // Device model name
-	HTTPHeaders      map[string]string // HTTP header override
-	Blacklist        bool              // Blacklist the device
-	BuggyIppRsp      QuirksBuggyIppRsp // Handling of buggy IPP responses
-	DisableFax       bool              // Disable fax for device
-	IgnoreIppStatus  bool              // Ignore IPP status
-	InitDelay        time.Duration     // Delay before 1st IPP-USB request
-	InitReset        QuirksResetMethod // Device reset method
-	RequestDelay     time.Duration     // Delay between IPP-USB requests
-	UsbMaxInterfaces uint              // Max number of USB interfaces
-	Index            int               // Incremented in order of loading
+// Quirk represents a single quirk
+type Quirk struct {
+	Origin    string      // file:line of definition
+	Match     string      // Match pattern
+	Name      string      // Quirk name
+	RawValue  string      // Quirk raw (not parsed) value
+	Parsed    interface{} // Parsed Value
+	LoadOrder int         // Incremented in order of loading
 }
 
-// QuirksResetMethod represents how to reset a device
-// during initialization
-type QuirksResetMethod int
-
-// QuirksResetUnset - reset method not specified
-// QuirksResetNone  - don't reset device at all
-// QuirksResetSoft  - use class-specific soft reset
-// QuirksResetHard  - use USB hard reset
+// Quirk names. Use these constants instead of literal strings,
+// so compiler will catch a mistake:
 const (
-	QuirksResetUnset QuirksResetMethod = iota
-	QuirksResetNone
-	QuirksResetSoft
-	QuirksResetHard
+	QuirkNmBlacklist         = "blacklist"
+	QuirkNmBuggyIppResponses = "buggy-ipp-responses"
+	QuirkNmDisableFax        = "disable-fax"
+	QuirkNmIgnoreIppStatus   = "ignore-ipp-status"
+	QuirkNmInitDelay         = "init-delay"
+	QuirkNmInitReset         = "init-reset"
+	QuirkNmRequestDelay      = "request-delay"
+	QuirkNmUsbMaxInterfaces  = "usb-max-interfaces"
 )
 
-// String returns textual representation of QuirksResetMethod
-func (m QuirksResetMethod) String() string {
+// quirkParse maps quirk names into appropriate parsing methods,
+// which defines value syntax and resulting type.
+var quirkParse = map[string]func(*Quirk) error{
+	QuirkNmBlacklist:         (*Quirk).parseBool,
+	QuirkNmBuggyIppResponses: (*Quirk).parseQuirkBuggyIppRsp,
+	QuirkNmDisableFax:        (*Quirk).parseBool,
+	QuirkNmIgnoreIppStatus:   (*Quirk).parseBool,
+	QuirkNmInitDelay:         (*Quirk).parseDuration,
+	QuirkNmInitReset:         (*Quirk).parseQuirkResetMethod,
+	QuirkNmRequestDelay:      (*Quirk).parseDuration,
+	QuirkNmUsbMaxInterfaces:  (*Quirk).parseUint,
+}
+
+// quirkDefaultStrings contains default values for quirks, in
+// a string form.
+var quirkDefaultStrings = map[string]string{
+	QuirkNmBlacklist:         "false",
+	QuirkNmBuggyIppResponses: "reject",
+	QuirkNmDisableFax:        "false",
+	QuirkNmIgnoreIppStatus:   "false",
+	QuirkNmInitDelay:         "0",
+	QuirkNmInitReset:         "none",
+	QuirkNmRequestDelay:      "0",
+	QuirkNmUsbMaxInterfaces:  "0",
+}
+
+// quirkDefault contains default values for quirks, precompiled.
+var quirkDefault = make(map[string]*Quirk)
+
+// init populates quirkDefault using quirk values from quirkDefaultStrings.
+func init() {
+	for name, value := range quirkDefaultStrings {
+		q := &Quirk{
+			Origin:    "default",
+			Match:     "*",
+			Name:      name,
+			RawValue:  value,
+			LoadOrder: math.MaxInt,
+		}
+
+		parse := quirkParse[name]
+		parse(q)
+		quirkDefault[name] = q
+	}
+}
+
+// parseBool parses and saves [Quirk.RawValue] as bool.
+func (q *Quirk) parseBool() error {
+	switch q.RawValue {
+	case "true":
+		q.Parsed = true
+	case "false":
+		q.Parsed = false
+	default:
+		return fmt.Errorf("%q: must be true or false", q.RawValue)
+	}
+
+	return nil
+}
+
+// parseUind parses [Quirk.RawValue] as bool.
+func (q *Quirk) parseUint() error {
+	v, err := strconv.ParseUint(q.RawValue, 10, 32)
+	if err != nil {
+		return fmt.Errorf("%q: invalid unsigned integer", q.RawValue)
+	}
+
+	q.Parsed = uint(v)
+	return nil
+}
+
+// parseDuration parses [Quirk.RawValue] as time.Duration.
+func (q *Quirk) parseDuration() error {
+	ms, err := strconv.ParseUint(q.RawValue, 10, 32)
+	if err != nil {
+		return fmt.Errorf("%q: invalid duration", q.RawValue)
+	}
+
+	q.Parsed = time.Millisecond * time.Duration(ms)
+	return nil
+}
+
+// parseQuirkBuggyIppRsp parses [Quirk.RawValue] as QuirkBuggyIppRsp.
+func (q *Quirk) parseQuirkBuggyIppRsp() error {
+	switch q.RawValue {
+	case "allow":
+		q.Parsed = QuirkBuggyIppRspAllow
+	case "reject":
+		q.Parsed = QuirkBuggyIppRspReject
+	case "sanitize":
+		q.Parsed = QuirkBuggyIppRspSanitize
+	default:
+		s := q.RawValue
+		return fmt.Errorf("%q: must be allow, reject or sanitize", s)
+	}
+
+	return nil
+}
+
+// parseQuirkResetMethod parses [Quirk.RawValue] as QuirkResetMethod.
+func (q *Quirk) parseQuirkResetMethod() error {
+	switch q.RawValue {
+	case "none":
+		q.Parsed = QuirkResetNone
+	case "soft":
+		q.Parsed = QuirkResetSoft
+	case "hard":
+		q.Parsed = QuirkResetHard
+	default:
+		return fmt.Errorf("%q: must be none, soft or hard", q.RawValue)
+	}
+
+	return nil
+}
+
+// prioritize returns more prioritized Quirk, choosing between q and q2.
+func (q *Quirk) prioritize(q2 *Quirk, model string) *Quirk {
+	matchlen := GlobMatch(model, q.Match)
+	matchlen2 := GlobMatch(model, q2.Match)
+
+	switch {
+	// Choose by match length (more specific match wins)
+	case matchlen > matchlen2:
+		return q
+	case matchlen < matchlen2:
+		return q2
+
+	// Choose by load order (first loaded wins)
+	case q.LoadOrder > q2.LoadOrder:
+		return q
+	}
+
+	return q
+}
+
+// QuirkResetMethod represents how to reset a device
+// during initialization
+type QuirkResetMethod int
+
+// QuirkResetUnset - reset method not specified
+// QuirkResetNone  - don't reset device at all
+// QuirkResetSoft  - use class-specific soft reset
+// QuirkResetHard  - use USB hard reset
+const (
+	QuirkResetNone QuirkResetMethod = iota
+	QuirkResetSoft
+	QuirkResetHard
+)
+
+// String returns textual representation of QuirkResetMethod
+func (m QuirkResetMethod) String() string {
 	switch m {
-	case QuirksResetUnset:
-		return "unset"
-	case QuirksResetNone:
+	case QuirkResetNone:
 		return "none"
-	case QuirksResetSoft:
+	case QuirkResetSoft:
 		return "soft"
-	case QuirksResetHard:
+	case QuirkResetHard:
 		return "hard"
 	}
 
 	return fmt.Sprintf("unknown (%d)", int(m))
 }
 
-// QuirksBuggyIppRsp defines, how to handle buggy IPP responses
-type QuirksBuggyIppRsp int
+// QuirkBuggyIppRsp defines, how to handle buggy IPP responses
+type QuirkBuggyIppRsp int
 
-// QuirksBuggyIppRspUnset    - handling of bad IPP responses is not specified
-// QuirksBuggyIppRspAllow    - ipp-usb will allow bad IPP responses
-// QuirksBuggyIppRspReject   - ipp-usb will reject bad IPP responses
-// QuirksBuggyIppRspSanitize - bad ipp responses will be sanitized (fixed)
+// QuirkBuggyIppRspReject   - ipp-usb will reject bad IPP responses
+// QuirkBuggyIppRspAllow    - ipp-usb will allow bad IPP responses
+// QuirkBuggyIppRspSanitize - bad ipp responses will be sanitized (fixed)
 const (
-	QuirksBuggyIppRspUnset QuirksBuggyIppRsp = iota
-	QuirksBuggyIppRspAllow
-	QuirksBuggyIppRspReject
-	QuirksBuggyIppRspSanitize
+	QuirkBuggyIppRspReject QuirkBuggyIppRsp = iota
+	QuirkBuggyIppRspAllow
+	QuirkBuggyIppRspSanitize
 )
 
-// String returns textual representation of QuirksBuggyIppRsp
-func (m QuirksBuggyIppRsp) String() string {
+// String returns textual representation of QuirkBuggyIppRsp
+func (m QuirkBuggyIppRsp) String() string {
 	switch m {
-	case QuirksBuggyIppRspUnset:
-		return "unset"
-	case QuirksBuggyIppRspAllow:
-		return "allow"
-	case QuirksBuggyIppRspReject:
+	case QuirkBuggyIppRspReject:
 		return "reject"
-	case QuirksBuggyIppRspSanitize:
+	case QuirkBuggyIppRspAllow:
+		return "allow"
+	case QuirkBuggyIppRspSanitize:
 		return "sanitize"
 	}
 
 	return fmt.Sprintf("unknown (%d)", int(m))
 }
 
-// empty returns true, if Quirks are actually empty
-func (q *Quirks) empty() bool {
-	return !q.Blacklist &&
-		len(q.HTTPHeaders) == 0 &&
-		!q.Blacklist &&
-		q.BuggyIppRsp == QuirksBuggyIppRspUnset &&
-		!q.DisableFax &&
-		!q.IgnoreIppStatus &&
-		q.InitDelay == 0 &&
-		q.InitReset == QuirksResetUnset &&
-		q.RequestDelay == 0 &&
-		q.UsbMaxInterfaces == 0
+// Quirks is the collection of Quirk-s.
+type Quirks struct {
+	byName      map[string]*Quirk // Quirks by name
+	HTTPHeaders map[string]string // HTTP header override
+}
+
+// Get returns quirk by name.
+func (quirks Quirks) Get(name string) *Quirk {
+	q := quirks.byName[name]
+	if q == nil {
+		q = quirkDefault[name]
+	}
+
+	return q
+}
+
+// All returns all quirks in the collection. This method is
+// intended mostly for diagnostic purposes (logging, dumping,
+// testing and so on).
+func (quirks Quirks) All() []*Quirk {
+	qq := make([]*Quirk, 0, len(quirks.byName))
+	for _, q := range quirks.byName {
+		qq = append(qq, q)
+	}
+
+	sort.Slice(qq, func(i, j int) bool {
+		return qq[i].Name < qq[j].Name
+	})
+
+	return qq
+}
+
+// GetBlacklist returns effective "blacklist" parameter,
+// taking the whole set into consideration.
+func (quirks Quirks) GetBlacklist() bool {
+	return quirks.Get(QuirkNmBlacklist).Parsed.(bool)
+}
+
+// GetBuggyIppRsp returns effective "buggy-ipp-responses" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetBuggyIppRsp() QuirkBuggyIppRsp {
+	return quirks.Get(QuirkNmBuggyIppResponses).Parsed.(QuirkBuggyIppRsp)
+}
+
+// GetDisableFax returns effective "disable-fax" parameter,
+// taking the whole set into consideration.
+func (quirks Quirks) GetDisableFax() bool {
+	return quirks.Get(QuirkNmDisableFax).Parsed.(bool)
+}
+
+// GetIgnoreIppStatus returns effective "ignore-ipp-status" parameter,
+// taking the whole set into consideration.
+func (quirks Quirks) GetIgnoreIppStatus() bool {
+	return quirks.Get(QuirkNmIgnoreIppStatus).Parsed.(bool)
+}
+
+// GetInitDelay returns effective "init-delay" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetInitDelay() time.Duration {
+	return quirks.Get(QuirkNmInitDelay).Parsed.(time.Duration)
+}
+
+// GetInitReset returns effective "init-reset" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetInitReset() QuirkResetMethod {
+	return quirks.Get(QuirkNmInitReset).Parsed.(QuirkResetMethod)
+}
+
+// GetRequestDelay returns effective "request-delay" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetRequestDelay() time.Duration {
+	return quirks.Get(QuirkNmRequestDelay).Parsed.(time.Duration)
+}
+
+// GetUsbMaxInterfaces returns effective "usb-max-interfaces" parameter,
+// taking the whole set into consideration.
+func (quirks Quirks) GetUsbMaxInterfaces() uint {
+	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
 }
 
 // QuirksSet represents collection of quirks
@@ -163,7 +365,9 @@ func (qset *QuirksSet) readFile(file string) error {
 	defer ini.Close()
 
 	// Load all quirks
-	var q *Quirks
+	var quirks *Quirks
+	var loadOrder int
+
 	for err == nil {
 		var rec *IniRecord
 		rec, err = ini.Next()
@@ -171,56 +375,62 @@ func (qset *QuirksSet) readFile(file string) error {
 			break
 		}
 
+		origin := fmt.Sprintf("%s:%d", rec.File, rec.Line)
+
 		// Get Quirks structure
 		if rec.Type == IniRecordSection {
-			q = &Quirks{
-				Origin:      fmt.Sprintf("%s:%d", rec.File, rec.Line),
-				Model:       rec.Section,
+			quirks = &Quirks{
+				byName:      make(map[string]*Quirk),
 				HTTPHeaders: make(map[string]string),
-				Index:       len(*qset),
 			}
-			qset.Add(q)
+			qset.Add(quirks)
 
 			continue
-		} else if q == nil {
-			err = fmt.Errorf("%s:%d: %q = %q out of any section",
-				rec.File, rec.Line, rec.Key, rec.Value)
+		} else if quirks == nil {
+			err = fmt.Errorf("%s: %q = %q out of any section",
+				origin, rec.Key, rec.Value)
 			break
 		}
 
-		// Update Quirks data
+		if found := quirks.byName[rec.Key]; found != nil {
+			err = fmt.Errorf("%s: %q already defined at %s",
+				origin, rec.Key, found.Origin)
+			return err
+		}
+
+		q := &Quirk{
+			Origin:    origin,
+			Match:     rec.Section,
+			Name:      rec.Key,
+			RawValue:  rec.Value,
+			LoadOrder: loadOrder,
+		}
+
+		loadOrder++
+
 		if strings.HasPrefix(rec.Key, "http-") {
-			key := http.CanonicalHeaderKey(rec.Key[5:])
-			q.HTTPHeaders[key] = rec.Value
-			continue
+			// Canonicalize HTTP header name
+			q.Name = strings.ToLower(q.Name)
+			q.Parsed = q.RawValue
+
+			hdr := http.CanonicalHeaderKey(rec.Key[5:])
+			quirks.HTTPHeaders[hdr] = q.RawValue
+		} else {
+			parse := quirkParse[rec.Key]
+			if parse == nil {
+				// Ignore unknown keys, it may be due to
+				// downgrade of the ipp-usb
+				continue
+			}
+
+			err := parse(q)
+			if err != nil {
+				err = fmt.Errorf("%s: %s", origin, err)
+				return err
+			}
 		}
 
-		switch rec.Key {
-		case "blacklist":
-			err = rec.LoadBool(&q.Blacklist)
-
-		case "buggy-ipp-responses":
-			err = rec.LoadQuirksBuggyIppRsp(&q.BuggyIppRsp)
-
-		case "disable-fax":
-			err = rec.LoadBool(&q.DisableFax)
-
-		case "ignore-ipp-status":
-			err = rec.LoadBool(&q.IgnoreIppStatus)
-
-		case "init-delay":
-			err = rec.LoadDuration(&q.InitDelay)
-
-		case "init-reset":
-			err = rec.LoadQuirksResetMethod(&q.InitReset)
-
-		case "request-delay":
-			err = rec.LoadDuration(&q.RequestDelay)
-
-		case "usb-max-interfaces":
-			err = rec.LoadUintRange(&q.UsbMaxInterfaces,
-				1, math.MaxUint32)
-		}
+		quirks.byName[rec.Key] = q
 	}
 
 	if err == io.EOF {
@@ -235,224 +445,24 @@ func (qset *QuirksSet) Add(q *Quirks) {
 	*qset = append(*qset, q)
 }
 
-// ByModelName returns a subset of quirks, applicable for
-// specific device, matched by model name
-//
-// In a case of multiple match, quirks are returned in
-// the from most prioritized to least prioritized order
-//
-// Duplicates are removed: if some parameter is set by
-// more prioritized entry, it is removed from the less
-// prioritized entries. Entries, that in result become
-// empty, are removed at all
-func (qset QuirksSet) ByModelName(model string) QuirksSet {
-	type item struct {
-		q        *Quirks
-		matchlen int
-	}
-	var list []item
-
-	// Get list of matching quirks
-	for _, q := range qset {
-		matchlen := GlobMatch(model, q.Model)
-		if matchlen >= 0 {
-			list = append(list, item{q, matchlen})
-		}
+// MatchByModelName returns collection of quirks, applicable for
+// specific device, matched by model name.
+func (qset QuirksSet) MatchByModelName(model string) Quirks {
+	ret := Quirks{
+		byName: make(map[string]*Quirk),
 	}
 
-	// Sort the list by matchlen, in decreasing order
-	sort.Slice(list, func(i, j int) bool {
-		if list[i].matchlen != list[j].matchlen {
-			return list[i].matchlen > list[j].matchlen
-		}
-		return list[i].q.Index < list[j].q.Index
-	})
-
-	// Rebuild it into the slice of *Quirks
-	quirks := make(QuirksSet, len(list))
-	for i := range list {
-		quirks[i] = list[i].q
-	}
-
-	// Remove duplicates and empty entries
-	httpHeaderSeen := make(map[string]struct{})
-	out := 0
-	for in, q := range quirks {
-		// Note, here we avoid modification of the HTTPHeaders
-		// map in the original Quirks structure
-		//
-		// Unfortunately, Golang misses immutable types,
-		// so we must be very careful here
-		q2 := &Quirks{}
-		*q2 = *q
-		q2.HTTPHeaders = make(map[string]string)
-
-		for name, value := range quirks[in].HTTPHeaders {
-			if _, seen := httpHeaderSeen[name]; !seen {
-				httpHeaderSeen[name] = struct{}{}
-				q2.HTTPHeaders[name] = value
+	for _, quirks := range qset {
+		for name, q := range quirks.byName {
+			if GlobMatch(model, q.Match) >= 0 {
+				q2 := ret.byName[name]
+				if q2 != nil {
+					q = q.prioritize(q2, model)
+				}
+				ret.byName[name] = q
 			}
 		}
-
-		if !q2.empty() {
-			quirks[out] = q2
-			out++
-		}
 	}
 
-	quirks = quirks[:out]
-
-	return quirks
-}
-
-// GetBlacklist returns effective "blacklist" parameter,
-// taking the whole set into consideration
-func (qset QuirksSet) GetBlacklist() bool {
-	v, _ := qset.GetBlacklistOrigin()
-	return v
-}
-
-// GetBlacklistOrigin returns effective "blacklist" parameter
-// and its origin
-func (qset QuirksSet) GetBlacklistOrigin() (bool, *Quirks) {
-	for _, q := range qset {
-		if q.Blacklist {
-			return true, q
-		}
-	}
-
-	return false, nil
-}
-
-// GetBuggyIppRsp returns effective "buggy-ipp-responses" parameter
-// taking the whole set into consideration
-func (qset QuirksSet) GetBuggyIppRsp() QuirksBuggyIppRsp {
-	v, _ := qset.GetBuggyIppRspOrigin()
-	return v
-}
-
-// GetBuggyIppRspOrigin returns effective "buggy-ipp-responses" parameter
-// and its origin
-func (qset QuirksSet) GetBuggyIppRspOrigin() (QuirksBuggyIppRsp, *Quirks) {
-	for _, q := range qset {
-		if q.BuggyIppRsp != QuirksBuggyIppRspUnset {
-			return q.BuggyIppRsp, q
-		}
-	}
-
-	return QuirksBuggyIppRspUnset, nil
-}
-
-// GetDisableFax returns effective "disable-fax" parameter,
-// taking the whole set into consideration
-func (qset QuirksSet) GetDisableFax() bool {
-	v, _ := qset.GetDisableFaxOrigin()
-	return v
-}
-
-// GetDisableFaxOrigin returns effective "disable-fax" parameter
-// and its origin
-func (qset QuirksSet) GetDisableFaxOrigin() (bool, *Quirks) {
-	for _, q := range qset {
-		if q.DisableFax {
-			return true, q
-		}
-	}
-
-	return false, nil
-}
-
-// GetIgnoreIppStatus returns effective "ignore-ipp-status" parameter,
-// taking the whole set into consideration
-func (qset QuirksSet) GetIgnoreIppStatus() bool {
-	v, _ := qset.GetIgnoreIppStatusOrigin()
-	return v
-}
-
-// GetIgnoreIppStatusOrigin returns effective "ignore-ipp-status" parameter,
-// and its origin
-func (qset QuirksSet) GetIgnoreIppStatusOrigin() (bool, *Quirks) {
-	for _, q := range qset {
-		if q.IgnoreIppStatus {
-			return true, q
-		}
-	}
-
-	return false, nil
-}
-
-// GetInitDelay returns effective "init-delay" parameter
-// taking the whole set into consideration
-func (qset QuirksSet) GetInitDelay() time.Duration {
-	v, _ := qset.GetInitDelayOrigin()
-	return v
-}
-
-// GetInitDelayOrigin returns effective "init-delay" parameter
-// and its origin
-func (qset QuirksSet) GetInitDelayOrigin() (time.Duration, *Quirks) {
-	for _, q := range qset {
-		if q.InitDelay != 0 {
-			return q.InitDelay, q
-		}
-	}
-
-	return 0, nil
-}
-
-// GetInitReset returns effective "init-reset" parameter
-// taking the whole set into consideration
-func (qset QuirksSet) GetInitReset() QuirksResetMethod {
-	v, _ := qset.GetInitResetOrigin()
-	return v
-}
-
-// GetInitResetOrigin returns effective "init-reset" parameter
-// and its origin
-func (qset QuirksSet) GetInitResetOrigin() (QuirksResetMethod, *Quirks) {
-	for _, q := range qset {
-		if q.InitReset != QuirksResetUnset {
-			return q.InitReset, q
-		}
-	}
-
-	return QuirksResetNone, nil
-}
-
-// GetRequestDelay returns effective "request-delay" parameter
-// taking the whole set into consideration
-func (qset QuirksSet) GetRequestDelay() time.Duration {
-	v, _ := qset.GetRequestDelayOrigin()
-	return v
-}
-
-// GetRequestDelayOrigin returns effective "request-delay" parameter
-// and its origin
-func (qset QuirksSet) GetRequestDelayOrigin() (time.Duration, *Quirks) {
-	for _, q := range qset {
-		if q.RequestDelay != 0 {
-			return q.RequestDelay, q
-		}
-	}
-
-	return 0, nil
-}
-
-// GetUsbMaxInterfaces returns effective "usb-max-interfaces" parameter,
-// taking the whole set into consideration
-func (qset QuirksSet) GetUsbMaxInterfaces() uint {
-	v, _ := qset.GetUsbMaxInterfacesOrigin()
-	return v
-}
-
-// GetUsbMaxInterfacesOrigin returns effective "usb-max-interfaces" parameter,
-// and its origin
-func (qset QuirksSet) GetUsbMaxInterfacesOrigin() (uint, *Quirks) {
-	for _, q := range qset {
-		if q.UsbMaxInterfaces != 0 {
-			return q.UsbMaxInterfaces, q
-		}
-	}
-
-	return 0, nil
+	return ret
 }

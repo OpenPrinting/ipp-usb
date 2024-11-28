@@ -614,42 +614,6 @@ func (rec *IniRecord) LoadAuthUIDRules(out *[]*AuthUIDRule) error {
 	return nil
 }
 
-// LoadQuirksResetMethod loads QuirksResetMethod value
-// The destination remains untouched in a case of an error
-func (rec *IniRecord) LoadQuirksResetMethod(out *QuirksResetMethod) error {
-	switch rec.Value {
-	case "none":
-		*out = QuirksResetNone
-		return nil
-	case "soft":
-		*out = QuirksResetSoft
-		return nil
-	case "hard":
-		*out = QuirksResetHard
-		return nil
-	default:
-		return rec.errBadValue("must be none, soft or hard")
-	}
-}
-
-// LoadQuirksBuggyIppRsp loads QuirksBuggyIppRsp value
-// The destination remains untouched in a case of an error
-func (rec *IniRecord) LoadQuirksBuggyIppRsp(out *QuirksBuggyIppRsp) error {
-	switch rec.Value {
-	case "allow":
-		*out = QuirksBuggyIppRspAllow
-		return nil
-	case "reject":
-		*out = QuirksBuggyIppRspReject
-		return nil
-	case "sanitize":
-		*out = QuirksBuggyIppRspSanitize
-		return nil
-	default:
-		return rec.errBadValue("must be allow, reject or sanitize")
-	}
-}
-
 // errBadValue creates a "bad value" error related to the INI record
 func (rec *IniRecord) errBadValue(format string, args ...interface{}) error {
 	return &IniError{

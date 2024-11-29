@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"runtime"
@@ -23,12 +24,14 @@ import (
 //
 // int libusbHotplugCallback (libusb_context *ctx, libusb_device *device,
 //     libusb_hotplug_event event, void *user_data);
+// void libusbTransferCallback (struct libusb_transfer *transfer);
 //
 // typedef struct libusb_device_descriptor libusb_device_descriptor_struct;
 // typedef struct libusb_config_descriptor libusb_config_descriptor_struct;
 // typedef struct libusb_interface libusb_interface_struct;
 // typedef struct libusb_interface_descriptor libusb_interface_descriptor_struct;
 // typedef struct libusb_endpoint_descriptor libusb_endpoint_descriptor_struct;
+// typedef struct libusb_transfer libusb_transfer_struct;
 //
 // // Note, libusb_strerror accepts enum libusb_error argument, which
 // // unfortunately behaves differently depending on target OS and compiler
@@ -88,6 +91,20 @@ var (
 
 	// Nonzero, if libusbContextPtr initialized
 	libusbContextOk int32
+
+	// libusbTransferDoneMap contains a map of completion channels,
+	// associated with each active libusb_transfer.
+	//
+	// The libusbTransferCallback uses this map to indicate transfer
+	// completion
+	//
+	// This is required, because CGo is very restrictive in whatever
+	// can be saved in pointer passed to the C side.
+	libusbTransferDoneMap = make(map[*C.libusb_transfer_struct]chan struct{})
+
+	// libusbTransferDoneLock protects multithreaded access to
+	// the libusbTransferDoneMap
+	libusbTransferDoneLock sync.Mutex
 
 	// UsbHotPlugChan receives USB hotplug event notifications
 	UsbHotPlugChan = make(chan struct{}, 1)
@@ -167,6 +184,77 @@ func libusbHotplugCallback(ctx *C.libusb_context, dev *C.libusb_device,
 	}
 
 	return 0
+}
+
+// Called by libusb on libusb_transfer completion
+//
+//export libusbTransferCallback
+func libusbTransferCallback(xfer *C.libusb_transfer_struct) {
+	// Obtain signaling channel
+	libusbTransferDoneLock.Lock()
+	done := libusbTransferDoneMap[xfer]
+	libusbTransferDoneLock.Unlock()
+
+	// Indicate transfer completion by closing the channel
+	close(done)
+}
+
+// libusbTransferStatusDecode decodes libusb_transfer completion status.
+//
+// It returns either non-negative actual transfer length or negative
+// libusb error code.
+func libusbTransferStatusDecode(xfer *C.libusb_transfer_struct) C.int {
+	switch xfer.status {
+	case C.LIBUSB_TRANSFER_COMPLETED:
+		return C.int(xfer.actual_length)
+
+	case C.LIBUSB_TRANSFER_TIMED_OUT:
+		return C.LIBUSB_ERROR_TIMEOUT
+
+	case C.LIBUSB_TRANSFER_STALL:
+		return C.LIBUSB_ERROR_PIPE
+
+	case C.LIBUSB_TRANSFER_OVERFLOW:
+		return C.LIBUSB_ERROR_OVERFLOW
+
+	case C.LIBUSB_TRANSFER_NO_DEVICE:
+		return C.LIBUSB_ERROR_NO_DEVICE
+
+	case C.LIBUSB_TRANSFER_ERROR, C.LIBUSB_TRANSFER_CANCELLED:
+		return C.LIBUSB_ERROR_IO
+
+	default:
+		return C.LIBUSB_ERROR_OTHER
+	}
+}
+
+// libusbTransferAlloc allocates a libusb_transfer.
+//
+// On success, it allocates a completion channel as well and adds
+// it into the libusbTransferDoneMap.
+func libusbTransferAlloc() (*C.libusb_transfer_struct, chan struct{}, error) {
+	xfer := C.libusb_alloc_transfer(0)
+	if xfer == nil {
+		return nil, nil, UsbError{"libusb_alloc_transfer", UsbENomem}
+	}
+
+	doneChan := make(chan struct{})
+
+	libusbTransferDoneLock.Lock()
+	libusbTransferDoneMap[xfer] = doneChan
+	libusbTransferDoneLock.Unlock()
+
+	return xfer, doneChan, nil
+}
+
+// libusbTransferFree removed libusb_transfer from the libusbTransferDoneMap
+// and releases its memory.
+func libusbTransferFree(xfer *C.libusb_transfer_struct) {
+	libusbTransferDoneLock.Lock()
+	delete(libusbTransferDoneMap, xfer)
+	libusbTransferDoneLock.Unlock()
+
+	C.libusb_free_transfer(xfer)
 }
 
 // UsbCheckIppOverUsbDevices returns true if there are some IPP-over-USB devices
@@ -520,9 +608,7 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 
 // usbIppBasicCaps reads and decodes printer's
 // Class-specific Device Info Descriptor to obtain device
-// capabilities
-//
-// See IPP USB specification, section 4.3 for details
+// capabilities; see IPP USB specification, section 4.3 for details
 //
 // This function never fails. In a case of errors, it fall backs
 // to the reasonable default
@@ -619,12 +705,12 @@ func (iface *UsbInterface) Close() {
 //
 // This code was inspired by CUPS, and the original comment follows:
 //
-//    This soft reset is specific to the printer device class and is much less
-//    invasive than the general USB reset libusb_reset_device(). Especially it
-//    does never happen that the USB addressing and configuration changes. What
-//    is actually done is that all buffers get flushed and the bulk IN and OUT
-//    pipes get reset to their default states. This clears all stall conditions.
-//    See http://cholla.mmto.org/computers/linux/usb/usbprint11.
+//	This soft reset is specific to the printer device class and is much less
+//	invasive than the general USB reset libusb_reset_device(). Especially it
+//	does never happen that the USB addressing and configuration changes. What
+//	is actually done is that all buffers get flushed and the bulk IN and OUT
+//	pipes get reset to their default states. This clears all stall conditions.
+//	See http://cholla.mmto.org/computers/linux/usb/usbprint11.
 func (iface *UsbInterface) SoftReset() error {
 	rc := C.libusb_control_transfer(
 		(*C.libusb_device_handle)(iface.devhandle),
@@ -651,24 +737,51 @@ func (iface *UsbInterface) SoftReset() error {
 
 // Send data to interface. Returns count of bytes actually transmitted
 // and error, if any
-func (iface *UsbInterface) Send(data []byte,
+func (iface *UsbInterface) Send(ctx context.Context, data []byte,
 	timeout time.Duration) (n int, err error) {
 
-	var transferred C.int
+	// Allocate a libusb_transfer.
+	xfer, doneChan, err := libusbTransferAlloc()
+	if err != nil {
+		return
+	}
 
-	rc := C.libusb_bulk_transfer(
+	defer libusbTransferFree(xfer)
+
+	// Setup bulk transfer
+	C.libusb_fill_bulk_transfer(
+		xfer,
 		(*C.libusb_device_handle)(iface.devhandle),
 		C.uint8_t(iface.addr.Out|C.LIBUSB_ENDPOINT_OUT),
 		(*C.uchar)(unsafe.Pointer(&data[0])),
 		C.int(len(data)),
-		&transferred,
+		C.libusb_transfer_cb_fn(unsafe.Pointer(C.libusbTransferCallback)),
+		nil,
 		C.uint(timeout/time.Millisecond),
 	)
 
-	if rc < 0 {
-		err = UsbError{"libusb_bulk_transfer", UsbErrCode(rc)}
+	// Submit transfer and wait for completion
+	rc := C.libusb_submit_transfer(xfer)
+	if rc >= 0 {
+		select {
+		case <-ctx.Done():
+			C.libusb_cancel_transfer(xfer)
+		case <-doneChan:
+		}
+
+		<-doneChan
+		rc = libusbTransferStatusDecode(xfer)
 	}
-	n = int(transferred)
+
+	// Decode results
+	switch {
+	case rc >= 0:
+		n = int(rc)
+	case ctx.Err() != nil:
+		err = ctx.Err()
+	default:
+		err = UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
+	}
 
 	return
 }
@@ -678,10 +791,8 @@ func (iface *UsbInterface) Send(data []byte,
 //
 // Note, if data size is not 512-byte aligned, and device has more data,
 // that fits the provided buffer, LIBUSB_ERROR_OVERFLOW error may occur
-func (iface *UsbInterface) Recv(data []byte,
+func (iface *UsbInterface) Recv(ctx context.Context, data []byte,
 	timeout time.Duration) (n int, err error) {
-
-	var transferred C.int
 
 	// Some versions of Linux kernel don't allow bulk transfers to
 	// be larger that 16kb per URB, and libusb uses some smart-ass
@@ -694,23 +805,48 @@ func (iface *UsbInterface) Recv(data []byte,
 		data = data[0:MaxBulkRead]
 	}
 
-	rc := C.libusb_bulk_transfer(
+	// Allocate a libusb_transfer.
+	xfer, doneChan, err := libusbTransferAlloc()
+	if err != nil {
+		return
+	}
+
+	defer libusbTransferFree(xfer)
+
+	// Setup bulk transfer
+	C.libusb_fill_bulk_transfer(
+		xfer,
 		(*C.libusb_device_handle)(iface.devhandle),
 		C.uint8_t(iface.addr.In|C.LIBUSB_ENDPOINT_IN),
 		(*C.uchar)(unsafe.Pointer(&data[0])),
 		C.int(len(data)),
-		&transferred,
+		C.libusb_transfer_cb_fn(unsafe.Pointer(C.libusbTransferCallback)),
+		nil,
 		C.uint(timeout/time.Millisecond),
 	)
 
-	if rc == C.LIBUSB_ERROR_PIPE {
-		iface.ClearHalt(true)
+	// Submit transfer and wait for completion
+	rc := C.libusb_submit_transfer(xfer)
+	if rc >= 0 {
+		select {
+		case <-ctx.Done():
+			C.libusb_cancel_transfer(xfer)
+		case <-doneChan:
+		}
+
+		<-doneChan
+		rc = libusbTransferStatusDecode(xfer)
 	}
 
-	if rc < 0 {
-		err = UsbError{"libusb_bulk_transfer", UsbErrCode(rc)}
+	// Decode results
+	switch {
+	case rc >= 0:
+		n = int(rc)
+	case ctx.Err() != nil:
+		err = ctx.Err()
+	default:
+		err = UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
 	}
-	n = int(transferred)
 
 	return
 }

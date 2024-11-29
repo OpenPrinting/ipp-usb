@@ -736,7 +736,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 			return 0, ErrInitTimedOut
 		}
 
-		n, err := conn.iface.Recv(b, tm)
+		n, err := conn.iface.Recv(context.Background(), b, tm)
 		conn.cntRecv += n
 
 		conn.transport.log.Add(LogTraceHTTP, '<',
@@ -774,7 +774,7 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 		return 0, ErrInitTimedOut
 	}
 
-	n, err := conn.iface.Send(b, tm)
+	n, err := conn.iface.Send(context.Background(), b, tm)
 	conn.cntSent += n
 
 	conn.transport.log.Add(LogTraceHTTP, '>',

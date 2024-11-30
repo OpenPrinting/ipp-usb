@@ -178,6 +178,154 @@ func TestQuirksLookup(t *testing.T) {
 	}
 }
 
+// TestQuirksParsers tests parsers for quirks
+func TestQuirksParsers(t *testing.T) {
+	type testData struct {
+		parser func(*Quirk) error // Parser to test
+		input  string             // Input string
+		value  interface{}        // Expected output value
+		err    string             // Or expected error
+	}
+
+	tests := []testData{
+		// parseBool
+		{
+			parser: (*Quirk).parseBool,
+			input:  "true",
+			value:  true,
+		},
+
+		{
+			parser: (*Quirk).parseBool,
+			input:  "false",
+			value:  false,
+		},
+
+		{
+			parser: (*Quirk).parseBool,
+			input:  "invalid",
+			err:    `"invalid": must be true or false`,
+		},
+
+		// parseQuirkBuggyIppRsp
+		{
+			parser: (*Quirk).parseQuirkBuggyIppRsp,
+			input:  "allow",
+			value:  QuirkBuggyIppRspAllow,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkBuggyIppRsp,
+			input:  "reject",
+			value:  QuirkBuggyIppRspReject,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkBuggyIppRsp,
+			input:  "sanitize",
+			value:  QuirkBuggyIppRspSanitize,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkBuggyIppRsp,
+			input:  "invalid",
+			err:    `"invalid": must be allow, reject or sanitize`,
+		},
+
+		// parseDuration
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "0",
+			value:  time.Duration(0),
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "12345",
+			value:  12345 * time.Millisecond,
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "hello",
+			err:    `"hello": invalid duration`,
+		},
+
+		// parseQuirkResetMethod
+		{
+			parser: (*Quirk).parseQuirkResetMethod,
+			input:  "none",
+			value:  QuirkResetNone,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkResetMethod,
+			input:  "soft",
+			value:  QuirkResetSoft,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkResetMethod,
+			input:  "hard",
+			value:  QuirkResetHard,
+		},
+
+		{
+			parser: (*Quirk).parseQuirkResetMethod,
+			input:  "invalid",
+			err:    `"invalid": must be none, soft or hard`,
+		},
+
+		// parseUint
+		{
+			parser: (*Quirk).parseUint,
+			input:  "0",
+			value:  uint(0),
+		},
+
+		{
+			parser: (*Quirk).parseUint,
+			input:  "12345",
+			value:  uint(12345),
+		},
+
+		{
+			parser: (*Quirk).parseUint,
+			input:  "hello",
+			err:    `"hello": invalid unsigned integer`,
+		},
+	}
+
+	for _, test := range tests {
+		q := Quirk{
+			RawValue: test.input,
+		}
+
+		err := test.parser(&q)
+		errstr := ""
+		if err != nil {
+			errstr = err.Error()
+		}
+
+		if errstr != test.err {
+			t.Errorf("error mismatch:\n"+
+				"expected: %s\n"+
+				"present:  %s",
+				test.err, errstr)
+
+			continue
+		}
+
+		if q.Parsed != test.value {
+			t.Errorf("value mismatch:\n"+
+				"expected: %s(%v)\n"+
+				"present:  %s(%v)",
+				reflect.TypeOf(test.value), test.value,
+				reflect.TypeOf(q.Parsed), q.Parsed)
+		}
+	}
+}
+
 // TestQuirksSetLoad tests LoadQuirksSet
 func TestQuirksSetLoad(t *testing.T) {
 	const path = "testdata/quirks"

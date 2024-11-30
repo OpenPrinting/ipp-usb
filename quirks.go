@@ -82,7 +82,7 @@ func init() {
 			Match:     "*",
 			Name:      name,
 			RawValue:  value,
-			LoadOrder: math.MaxInt,
+			LoadOrder: math.MaxInt32,
 		}
 
 		parse := quirkParse[name]

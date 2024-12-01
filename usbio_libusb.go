@@ -60,7 +60,7 @@ type UsbErrCode int
 
 // UsbErrCode constants
 const (
-	UsbIO            UsbErrCode = C.LIBUSB_ERROR_IO
+	UsbEIO           UsbErrCode = C.LIBUSB_ERROR_IO
 	UsbEInval                   = C.LIBUSB_ERROR_INVALID_PARAM
 	UsbEAccess                  = C.LIBUSB_ERROR_ACCESS
 	UsbENoDev                   = C.LIBUSB_ERROR_NO_DEVICE

@@ -201,31 +201,55 @@ func libusbTransferCallback(xfer *C.libusb_transfer_struct) {
 
 // libusbTransferStatusDecode decodes libusb_transfer completion status.
 //
-// It returns either non-negative actual transfer length or negative
-// libusb error code.
-func libusbTransferStatusDecode(xfer *C.libusb_transfer_struct) C.int {
-	switch xfer.status {
-	case C.LIBUSB_TRANSFER_COMPLETED:
-		return C.int(xfer.actual_length)
+// It returns either non-negative actual transfer length or error.
+//
+// When computing an error, it consults context.Context cancellation
+// and expiration status.
+func libusbTransferStatusDecode(ctx context.Context,
+	xfer *C.libusb_transfer_struct) (int, error) {
 
+	var rc C.int
+	switch xfer.status {
+	// Handle special cases
+	case C.LIBUSB_TRANSFER_COMPLETED:
+		// Successful completion. Return no error regardless
+		// of the context.Context status.
+		return int(xfer.actual_length), nil
+
+	case C.LIBUSB_TRANSFER_CANCELLED:
+		switch {
+		case ctx.Err() == context.DeadlineExceeded:
+			// There may be a race between context.Context
+			// expiration and libusb timeout. Be consistent
+			// in returned error code.
+			rc = C.LIBUSB_ERROR_TIMEOUT
+		case ctx.Err() != nil:
+			return 0, ctx.Err()
+		default:
+			rc = C.LIBUSB_ERROR_IO
+		}
+
+	// Handle other cases
 	case C.LIBUSB_TRANSFER_TIMED_OUT:
-		return C.LIBUSB_ERROR_TIMEOUT
+		rc = C.LIBUSB_ERROR_TIMEOUT
 
 	case C.LIBUSB_TRANSFER_STALL:
-		return C.LIBUSB_ERROR_PIPE
+		rc = C.LIBUSB_ERROR_PIPE
 
 	case C.LIBUSB_TRANSFER_OVERFLOW:
-		return C.LIBUSB_ERROR_OVERFLOW
+		rc = C.LIBUSB_ERROR_OVERFLOW
 
 	case C.LIBUSB_TRANSFER_NO_DEVICE:
-		return C.LIBUSB_ERROR_NO_DEVICE
+		rc = C.LIBUSB_ERROR_NO_DEVICE
 
-	case C.LIBUSB_TRANSFER_ERROR, C.LIBUSB_TRANSFER_CANCELLED:
-		return C.LIBUSB_ERROR_IO
+	case C.LIBUSB_TRANSFER_ERROR:
+		rc = C.LIBUSB_ERROR_IO
 
 	default:
-		return C.LIBUSB_ERROR_OTHER
+		rc = C.LIBUSB_ERROR_OTHER
 	}
+
+	return 0, UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
 }
 
 // libusbTransferAlloc allocates a libusb_transfer.
@@ -770,17 +794,7 @@ func (iface *UsbInterface) Send(ctx context.Context, data []byte,
 		}
 
 		<-doneChan
-		rc = libusbTransferStatusDecode(xfer)
-	}
-
-	// Decode results
-	switch {
-	case rc >= 0:
-		n = int(rc)
-	case ctx.Err() != nil:
-		err = ctx.Err()
-	default:
-		err = UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
+		n, err = libusbTransferStatusDecode(ctx, xfer)
 	}
 
 	return
@@ -835,17 +849,7 @@ func (iface *UsbInterface) Recv(ctx context.Context, data []byte,
 		}
 
 		<-doneChan
-		rc = libusbTransferStatusDecode(xfer)
-	}
-
-	// Decode results
-	switch {
-	case rc >= 0:
-		n = int(rc)
-	case ctx.Err() != nil:
-		err = ctx.Err()
-	default:
-		err = UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
+		n, err = libusbTransferStatusDecode(ctx, xfer)
 	}
 
 	return

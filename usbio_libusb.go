@@ -762,6 +762,11 @@ func (iface *UsbInterface) SoftReset() error {
 func (iface *UsbInterface) Send(ctx context.Context,
 	data []byte) (n int, err error) {
 
+	// Don't even bother to send, if context already expired
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+
 	// Allocate a libusb_transfer.
 	xfer, doneChan, err := libusbTransferAlloc()
 	if err != nil {
@@ -805,6 +810,11 @@ func (iface *UsbInterface) Send(ctx context.Context,
 // that fits the provided buffer, LIBUSB_ERROR_OVERFLOW error may occur
 func (iface *UsbInterface) Recv(ctx context.Context,
 	data []byte) (n int, err error) {
+
+	// Don't even bother to recv, if context already expired
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 
 	// Some versions of Linux kernel don't allow bulk transfers to
 	// be larger that 16kb per URB, and libusb uses some smart-ass

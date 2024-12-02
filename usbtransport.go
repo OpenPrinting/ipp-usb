@@ -697,17 +697,6 @@ ERROR:
 	return nil, err
 }
 
-// Compute Recv/Send timeout
-func (conn *usbConn) timeout() (tm time.Duration, expored bool) {
-	deadline := conn.transport.deadline
-	if deadline.IsZero() {
-		return
-	}
-
-	tm = time.Until(deadline)
-	return tm, tm <= 0
-}
-
 // Read from USB
 func (conn *usbConn) Read(b []byte) (int, error) {
 	conn.transport.connstate.beginRead(conn)

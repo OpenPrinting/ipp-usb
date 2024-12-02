@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"time"
 )
 
 // Device object brings all parts together, namely:
@@ -74,12 +73,10 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		goto ERROR
 	}
 
-	// Create HTTP server
-	dev.UsbTransport.SetDeadline(
-		time.Now().
-			Add(DevInitTimeout).
-			Add(dev.UsbTransport.Quirks().GetInitDelay()))
+	// Configure transport for init
+	dev.UsbTransport.SetTimeout(DevInitTimeout)
 
+	// Create HTTP server
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)
 
 	// Obtain DNS-SD info for IPP
@@ -96,7 +93,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	log.Flush()
 
-	if dev.UsbTransport.DeadlineExpired() {
+	if dev.UsbTransport.TimeoutExpired() {
 		err = ErrInitTimedOut
 		goto ERROR
 	}
@@ -125,7 +122,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 
 	log.Flush()
 
-	if dev.UsbTransport.DeadlineExpired() {
+	if dev.UsbTransport.TimeoutExpired() {
 		err = ErrInitTimedOut
 		goto ERROR
 	}
@@ -183,7 +180,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	})
 
 	// Enable handling incoming requests
-	dev.UsbTransport.SetDeadline(time.Time{})
+	dev.UsbTransport.SetTimeout(DevInitTimeout)
 	dev.HTTPProxy.Enable()
 
 	// Start DNS-SD publisher

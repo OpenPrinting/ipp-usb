@@ -28,17 +28,18 @@ import (
 
 // UsbTransport implements HTTP transport functionality over USB
 type UsbTransport struct {
-	addr         UsbAddr       // Device address
-	info         UsbDeviceInfo // USB device info
-	log          *Logger       // Device's own logger
-	dev          *UsbDevHandle // Underlying USB device
-	connPool     chan *usbConn // Pool of idle connections
-	connList     []*usbConn    // List of all connections
-	connReleased chan struct{} // Signalled when connection released
-	shutdown     chan struct{} // Closed by Shutdown()
-	connstate    *usbConnState // Connections state tracker
-	quirks       Quirks        // Device quirks
-	deadline     time.Time     // Deadline for requests
+	addr           UsbAddr       // Device address
+	info           UsbDeviceInfo // USB device info
+	log            *Logger       // Device's own logger
+	dev            *UsbDevHandle // Underlying USB device
+	connPool       chan *usbConn // Pool of idle connections
+	connList       []*usbConn    // List of all connections
+	connReleased   chan struct{} // Signalled when connection released
+	shutdown       chan struct{} // Closed by Shutdown()
+	connstate      *usbConnState // Connections state tracker
+	quirks         Quirks        // Device quirks
+	timeout        time.Duration // Timeout for requests (0 is none)
+	timeoutExpired uint32        // Atomic non-zero, if timeout expired
 }
 
 // NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
@@ -237,26 +238,21 @@ func (transport *UsbTransport) connInUse() int {
 	return cap(transport.connPool) - len(transport.connPool)
 }
 
-// SetDeadline sets the deadline for all requests, submitted
-// via RoundTrip and RoundTripWithSession methods
-//
-// A deadline is an absolute time after which request processing
-// will fail instead of blocking
+// SetTimeout sets the timeout for all subsequent requests.
 //
 // This is useful only at initialization time and if some requests
 // were failed due to timeout, device reset is required, because
-// at this case synchronization with device will probably be lost
+// at this case synchronization with device will probably be lost.
 //
 // A zero value for t means no timeout
-func (transport *UsbTransport) SetDeadline(t time.Time) {
-	transport.deadline = t
+func (transport *UsbTransport) SetTimeout(t time.Duration) {
+	transport.timeout = t
 }
 
-// DeadlineExpired reports if deadline previously set by SetDeadline()
-// is already expired
-func (transport *UsbTransport) DeadlineExpired() bool {
-	deadline := transport.deadline
-	return !deadline.IsZero() && time.Until(deadline) <= 0
+// TimeoutExpired returns true if one or more of the preceding HTTP request
+// has failed due to timeout.
+func (transport *UsbTransport) TimeoutExpired() bool {
+	return atomic.LoadUint32(&transport.timeoutExpired) != 0
 }
 
 // closeShutdownChan closes the transport.shutdown, which effectively
@@ -455,6 +451,20 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 		time.Sleep(delay)
 	}
 
+	// Set read/write Context. This effectively sets request timeout.
+	//
+	// This is important that context is is set after inter-request
+	// or initial delay is already done, so we don't need to bother
+	// with adjusting the timeout.
+	rwctx := context.Background()
+	if transport.timeout != 0 {
+		var cancel context.CancelFunc
+		rwctx, cancel = context.WithTimeout(rwctx, transport.timeout)
+		defer cancel()
+	}
+
+	conn.setRWCtx(rwctx)
+
 	// Send request and receive a response
 	err = outreq.Write(conn)
 	if err != nil {
@@ -640,14 +650,15 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 
 // usbConn implements an USB connection
 type usbConn struct {
-	transport     *UsbTransport // Transport that owns the connection
-	index         int           // Connection index (for logging)
-	iface         *UsbInterface // Underlying interface
-	reader        *bufio.Reader // For http.ReadResponse
-	delayUntil    time.Time     // Delay till this time before next request
-	delayInterval time.Duration // Pause between requests
-	cntRecv       int           // Total bytes received
-	cntSent       int           // Total bytes sent
+	transport     *UsbTransport   // Transport that owns the connection
+	index         int             // Connection index (for logging)
+	iface         *UsbInterface   // Underlying interface
+	reader        *bufio.Reader   // For http.ReadResponse
+	rwctx         context.Context // For usbConn.Read and usbConn.Write
+	delayUntil    time.Time       // Delay till this time before next request
+	delayInterval time.Duration   // Pause between requests
+	cntRecv       int             // Total bytes received
+	cntSent       int             // Total bytes sent
 }
 
 // Open usbConn
@@ -697,6 +708,11 @@ ERROR:
 	return nil, err
 }
 
+// setRWCtx sets context.Context for subsequent Read and Write operations
+func (conn *usbConn) setRWCtx(ctx context.Context) {
+	conn.rwctx = ctx
+}
+
 // Read from USB
 func (conn *usbConn) Read(b []byte) (int, error) {
 	conn.transport.connstate.beginRead(conn)
@@ -719,16 +735,9 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 	}
 
 	// Setup deadline
-	ctx := context.Background()
-	if !conn.transport.deadline.IsZero() {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, conn.transport.deadline)
-		defer cancel()
-	}
-
 	backoff := time.Millisecond * 10
 	for {
-		n, err := conn.iface.Recv(ctx, b)
+		n, err := conn.iface.Recv(conn.rwctx, b)
 		conn.cntRecv += n
 
 		conn.transport.log.Add(LogTraceHTTP, '<',
@@ -742,13 +751,15 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 				"USB[%d]: recv: %s", conn.index, err)
 
 			if err == context.DeadlineExceeded {
-				err = ErrInitTimedOut
+				atomic.StoreUint32(
+					&conn.transport.timeoutExpired, 1)
 			}
 		}
 
 		if n != 0 || err != nil {
 			return n, err
 		}
+
 		conn.transport.log.Debug(' ',
 			"USB[%d]: zero-size read", conn.index)
 
@@ -766,14 +777,7 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	defer conn.transport.connstate.doneWrite(conn)
 
 	// Setup deadline
-	ctx := context.Background()
-	if !conn.transport.deadline.IsZero() {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, conn.transport.deadline)
-		defer cancel()
-	}
-
-	n, err := conn.iface.Send(context.Background(), b)
+	n, err := conn.iface.Send(conn.rwctx, b)
 	conn.cntSent += n
 
 	conn.transport.log.Add(LogTraceHTTP, '>',
@@ -787,7 +791,8 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 			"USB[%d]: send: %s", conn.index, err)
 
 		if err == context.DeadlineExceeded {
-			err = ErrInitTimedOut
+			atomic.StoreUint32(
+				&conn.transport.timeoutExpired, 1)
 		}
 	}
 

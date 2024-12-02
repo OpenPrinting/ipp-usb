@@ -218,21 +218,19 @@ func libusbTransferStatusDecode(ctx context.Context,
 
 	case C.LIBUSB_TRANSFER_CANCELLED:
 		switch {
-		case ctx.Err() == context.DeadlineExceeded:
-			// There may be a race between context.Context
-			// expiration and libusb timeout. Be consistent
-			// in returned error code.
-			rc = C.LIBUSB_ERROR_TIMEOUT
 		case ctx.Err() != nil:
 			return 0, ctx.Err()
 		default:
 			rc = C.LIBUSB_ERROR_IO
 		}
 
-	// Handle other cases
 	case C.LIBUSB_TRANSFER_TIMED_OUT:
-		rc = C.LIBUSB_ERROR_TIMEOUT
+		// There may be a race between context.Context
+		// expiration and libusb timeout. Be consistent
+		// in returned error.
+		return 0, context.DeadlineExceeded
 
+	// Handle other cases
 	case C.LIBUSB_TRANSFER_STALL:
 		rc = C.LIBUSB_ERROR_PIPE
 
@@ -761,8 +759,8 @@ func (iface *UsbInterface) SoftReset() error {
 
 // Send data to interface. Returns count of bytes actually transmitted
 // and error, if any
-func (iface *UsbInterface) Send(ctx context.Context, data []byte,
-	timeout time.Duration) (n int, err error) {
+func (iface *UsbInterface) Send(ctx context.Context,
+	data []byte) (n int, err error) {
 
 	// Allocate a libusb_transfer.
 	xfer, doneChan, err := libusbTransferAlloc()
@@ -781,7 +779,7 @@ func (iface *UsbInterface) Send(ctx context.Context, data []byte,
 		C.int(len(data)),
 		C.libusb_transfer_cb_fn(unsafe.Pointer(C.libusbTransferCallback)),
 		nil,
-		C.uint(timeout/time.Millisecond),
+		0,
 	)
 
 	// Submit transfer and wait for completion
@@ -805,8 +803,8 @@ func (iface *UsbInterface) Send(ctx context.Context, data []byte,
 //
 // Note, if data size is not 512-byte aligned, and device has more data,
 // that fits the provided buffer, LIBUSB_ERROR_OVERFLOW error may occur
-func (iface *UsbInterface) Recv(ctx context.Context, data []byte,
-	timeout time.Duration) (n int, err error) {
+func (iface *UsbInterface) Recv(ctx context.Context,
+	data []byte) (n int, err error) {
 
 	// Some versions of Linux kernel don't allow bulk transfers to
 	// be larger that 16kb per URB, and libusb uses some smart-ass
@@ -836,7 +834,7 @@ func (iface *UsbInterface) Recv(ctx context.Context, data []byte,
 		C.int(len(data)),
 		C.libusb_transfer_cb_fn(unsafe.Pointer(C.libusbTransferCallback)),
 		nil,
-		C.uint(timeout/time.Millisecond),
+		0,
 	)
 
 	// Submit transfer and wait for completion

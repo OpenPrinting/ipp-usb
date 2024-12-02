@@ -729,14 +729,17 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		b = b[0:n]
 	}
 
+	// Setup deadline
+	ctx := context.Background()
+	if !conn.transport.deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, conn.transport.deadline)
+		defer cancel()
+	}
+
 	backoff := time.Millisecond * 10
 	for {
-		tm, expired := conn.timeout()
-		if expired {
-			return 0, ErrInitTimedOut
-		}
-
-		n, err := conn.iface.Recv(context.Background(), b, tm)
+		n, err := conn.iface.Recv(ctx, b)
 		conn.cntRecv += n
 
 		conn.transport.log.Add(LogTraceHTTP, '<',
@@ -748,6 +751,10 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		if err != nil {
 			conn.transport.log.Error('!',
 				"USB[%d]: recv: %s", conn.index, err)
+
+			if err == context.DeadlineExceeded {
+				err = ErrInitTimedOut
+			}
 		}
 
 		if n != 0 || err != nil {
@@ -769,12 +776,15 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	conn.transport.connstate.beginWrite(conn)
 	defer conn.transport.connstate.doneWrite(conn)
 
-	tm, expired := conn.timeout()
-	if expired {
-		return 0, ErrInitTimedOut
+	// Setup deadline
+	ctx := context.Background()
+	if !conn.transport.deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, conn.transport.deadline)
+		defer cancel()
 	}
 
-	n, err := conn.iface.Send(context.Background(), b, tm)
+	n, err := conn.iface.Send(context.Background(), b)
 	conn.cntSent += n
 
 	conn.transport.log.Add(LogTraceHTTP, '>',
@@ -786,6 +796,10 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	if err != nil {
 		conn.transport.log.Error('!',
 			"USB[%d]: send: %s", conn.index, err)
+
+		if err == context.DeadlineExceeded {
+			err = ErrInitTimedOut
+		}
 	}
 
 	return n, err

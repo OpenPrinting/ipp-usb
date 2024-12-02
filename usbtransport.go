@@ -457,10 +457,10 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// or initial delay is already done, so we don't need to bother
 	// with adjusting the timeout.
 	rwctx := context.Background()
+	var cleanupCtx context.CancelFunc
 	if transport.timeout != 0 {
-		var cancel context.CancelFunc
-		rwctx, cancel = context.WithTimeout(rwctx, transport.timeout)
-		defer cancel()
+		rwctx, cleanupCtx = context.WithTimeout(rwctx,
+			transport.timeout)
 	}
 
 	conn.setRWCtx(rwctx)
@@ -470,6 +470,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	if err != nil {
 		transport.log.HTTPError('!', session, "%s", err)
 		conn.put()
+		cleanupCtx()
 		return nil, err
 	}
 
@@ -477,15 +478,17 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	if err != nil {
 		transport.log.HTTPError('!', session, "%s", err)
 		conn.put()
+		cleanupCtx()
 		return nil, err
 	}
 
 	// Wrap response body
 	resp.Body = &usbResponseBodyWrapper{
-		log:     transport.log,
-		session: session,
-		body:    resp.Body,
-		conn:    conn,
+		log:        transport.log,
+		session:    session,
+		body:       resp.Body,
+		conn:       conn,
+		cleanupCtx: cleanupCtx,
 	}
 
 	// Optionally sanitize IPP response
@@ -595,13 +598,14 @@ func (wrap *usbRequestBodyWrapper) Close() error {
 // usbResponseBodyWrapper wraps http.Response.Body and guarantees
 // that connection will be always drained before closed
 type usbResponseBodyWrapper struct {
-	log     *Logger       // Device's logger
-	session int           // HTTP session, for logging
-	preBody *bytes.Buffer // Data inserted before body, if not nil
-	body    io.ReadCloser // Response.body
-	conn    *usbConn      // Underlying USB connection
-	count   int           // Total count of received bytes
-	drained bool          // EOF or error has been seen
+	log        *Logger            // Device's logger
+	session    int                // HTTP session, for logging
+	preBody    *bytes.Buffer      // Data inserted before body, if not nil
+	body       io.ReadCloser      // Response.body
+	conn       *usbConn           // Underlying USB connection
+	count      int                // Total count of received bytes
+	drained    bool               // EOF or error has been seen
+	cleanupCtx context.CancelFunc // Cancel function for I/O Context
 }
 
 // Read from usbResponseBodyWrapper
@@ -623,6 +627,11 @@ func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 
 // Close usbResponseBodyWrapper
 func (wrap *usbResponseBodyWrapper) Close() error {
+	// Cleanup I/O context.Context, if any
+	if wrap.cleanupCtx != nil {
+		wrap.cleanupCtx()
+	}
+
 	// If EOF or error seen, we can close synchronously
 	if wrap.drained {
 		wrap.body.Close()

@@ -378,8 +378,11 @@ The following parameters are defined:
    * `init-reset = none | soft | hard`<br>
      How to reset device during initialization. Default is `none`
 
+   * `init-timeout` = DELAY <br>
+     Timeout for HTTP requests send by the `ipp-usb` during initialization.
+
    * `request-delay` = DELAY <br>
-     Delay, between subsequent requests.
+     Delay between subsequent requests.
 
    * `usb-max-interfaces = N`<br>
      Don't use more that N USB interfaces, even if more is available.

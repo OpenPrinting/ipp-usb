@@ -45,12 +45,16 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var dnssdServices DNSSdServices
 	var log *LogMessage
 	var hwid string
+	var quirks Quirks
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(desc)
 	if err != nil {
 		goto ERROR
 	}
+
+	// Obtain quirks
+	quirks = dev.UsbTransport.Quirks()
 
 	// Obtain device's logger
 	dev.Log = dev.UsbTransport.Log()
@@ -74,7 +78,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Configure transport for init
-	dev.UsbTransport.SetTimeout(DevInitTimeout)
+	dev.UsbTransport.SetTimeout(quirks.GetInitTimeout())
 
 	// Create HTTP server
 	dev.HTTPProxy = NewHTTPProxy(dev.Log, listener, dev.UsbTransport)

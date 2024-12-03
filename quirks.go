@@ -41,6 +41,7 @@ const (
 	QuirkNmIgnoreIppStatus   = "ignore-ipp-status"
 	QuirkNmInitDelay         = "init-delay"
 	QuirkNmInitReset         = "init-reset"
+	QuirkNmInitTimeout       = "init-timeout"
 	QuirkNmRequestDelay      = "request-delay"
 	QuirkNmUsbMaxInterfaces  = "usb-max-interfaces"
 )
@@ -54,6 +55,7 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmIgnoreIppStatus:   (*Quirk).parseBool,
 	QuirkNmInitDelay:         (*Quirk).parseDuration,
 	QuirkNmInitReset:         (*Quirk).parseQuirkResetMethod,
+	QuirkNmInitTimeout:       (*Quirk).parseDuration,
 	QuirkNmRequestDelay:      (*Quirk).parseDuration,
 	QuirkNmUsbMaxInterfaces:  (*Quirk).parseUint,
 }
@@ -67,6 +69,7 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmIgnoreIppStatus:   "false",
 	QuirkNmInitDelay:         "0",
 	QuirkNmInitReset:         "none",
+	QuirkNmInitTimeout:       DevInitTimeout.String(),
 	QuirkNmRequestDelay:      "0",
 	QuirkNmUsbMaxInterfaces:  "0",
 }
@@ -77,6 +80,7 @@ var quirkDefault = make(map[string]*Quirk)
 // init populates quirkDefault using quirk values from quirkDefaultStrings.
 func init() {
 	for name, value := range quirkDefaultStrings {
+		println(name, "=", value)
 		q := &Quirk{
 			Origin:    "default",
 			Match:     "*",
@@ -86,7 +90,11 @@ func init() {
 		}
 
 		parse := quirkParse[name]
-		parse(q)
+		err := parse(q)
+		if err != nil {
+			panic(err)
+		}
+
 		quirkDefault[name] = q
 	}
 }
@@ -317,6 +325,12 @@ func (quirks Quirks) GetInitDelay() time.Duration {
 // taking the whole set into consideration.
 func (quirks Quirks) GetInitReset() QuirkResetMethod {
 	return quirks.Get(QuirkNmInitReset).Parsed.(QuirkResetMethod)
+}
+
+// GetInitTimeout returns effective "init-timeout" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetInitTimeout() time.Duration {
+	return quirks.Get(QuirkNmInitTimeout).Parsed.(time.Duration)
 }
 
 // GetRequestDelay returns effective "request-delay" parameter

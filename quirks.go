@@ -118,13 +118,30 @@ func (q *Quirk) parseUint() error {
 
 // parseDuration parses [Quirk.RawValue] as time.Duration.
 func (q *Quirk) parseDuration() error {
+	// Try to parse as uint. If OK, interpret it
+	// as a millisecond time.
 	ms, err := strconv.ParseUint(q.RawValue, 10, 32)
-	if err != nil {
+	if err == nil {
+		q.Parsed = time.Millisecond * time.Duration(ms)
+		return nil
+	}
+
+	// Try to use time.ParseDuration.
+	//
+	if strings.HasPrefix(q.RawValue, "+") ||
+		strings.HasPrefix(q.RawValue, "-") {
+		// Note, time.ParseDuration allows signed duration,
+		// but we don't.
 		return fmt.Errorf("%q: invalid duration", q.RawValue)
 	}
 
-	q.Parsed = time.Millisecond * time.Duration(ms)
-	return nil
+	v, err := time.ParseDuration(q.RawValue)
+	if err == nil && v >= 0 {
+		q.Parsed = v
+		return nil
+	}
+
+	return fmt.Errorf("%q: invalid duration", q.RawValue)
 }
 
 // parseQuirkBuggyIppRsp parses [Quirk.RawValue] as QuirkBuggyIppRsp.

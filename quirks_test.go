@@ -241,8 +241,40 @@ func TestQuirksParsers(t *testing.T) {
 
 		{
 			parser: (*Quirk).parseDuration,
+			input:  "0s",
+			value:  time.Duration(0),
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
 			input:  "12345",
 			value:  12345 * time.Millisecond,
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "1h2m3s",
+			value: time.Hour +
+				2*time.Minute +
+				3*time.Second,
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "0.5s",
+			value:  time.Second / 2,
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "+0s",
+			err:    `"+0s": invalid duration`,
+		},
+
+		{
+			parser: (*Quirk).parseDuration,
+			input:  "-0s",
+			err:    `"-0s": invalid duration`,
 		},
 
 		{

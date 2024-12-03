@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.10.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.10.1
-.TH "IPP\-USB" "8" "November 2024" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "December 2024" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -278,32 +278,34 @@ Some devices send buggy (malformed) IPP responses that violate IPP specification
 .IP "\(bu" 4
 \fBdisable\-fax = true | false\fR
 .br
-If \fBtrue\fR, the matching device's fax capability is ignored
+If \fBtrue\fR, the matching device's fax capability is ignored\.
 .IP "\(bu" 4
 \fBhttp\-XXX = YYY\fR
 .br
-Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed
+Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed\.
 .IP "\(bu" 4
 \fBignore\-ipp\-status = true | false\fR
 .br
 If \fBtrue\fR, IPP status of IPP requests sent by the \fBipp\-usb\fR by itself will be ignored\. This quirk is useful, when device correctly handles IPP request but returned status is not reliable\. Affects only \fBipp\-usb\fR initialization\.
 .IP "\(bu" 4
-\fBinit\-delay = NNN\fR
+\fBinit\-delay = DELAY\fR
 .br
-Delay, in milliseconds, between device is opened and, optionally, reset, and the first request is sent to device
+Delay, between device is opened and, optionally, reset, and the first request is sent to device\.
 .IP "\(bu" 4
 \fBinit\-reset = none | soft | hard\fR
 .br
 How to reset device during initialization\. Default is \fBnone\fR
 .IP "\(bu" 4
-\fBrequest\-delay\fR = NNN
+\fBrequest\-delay\fR = DELAY
 .br
-Delay, in milliseconds, between subsequent requests
+Delay, between subsequent requests\.
 .IP "\(bu" 4
 \fBusb\-max\-interfaces = N\fR
 .br
-Don't use more that N USB interfaces, even if more is available
+Don't use more that N USB interfaces, even if more is available\.
 .IP "" 0
+.P
+The DELAY parameter can be specified either as an unsigned integer (in milliseconds) or as a sequence of decimal numbers with an optional fraction and a unit suffix, such as "300ms," "0\.5s," or "2m30s\." Valid time units are "ns," "us" (or "µs"), "ms," "s," "m," and "h\."
 .P
 If you found out about your device that it needs a quirk to work properly or it does not work with \fBipp\-usb\fR at all, although it provides IPP\-over\-USB interface, please report the issue at https://github\.com/OpenPrinting/ipp\-usb\. It will let us to update our collection of quirks, so helping other owners of such a device\.
 .SH "FILES"

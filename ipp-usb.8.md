@@ -359,11 +359,11 @@ The following parameters are defined:
      as well) or `sanitize` them (fix IPP specs violations).
 
    * `disable-fax = true | false`<br>
-     If `true`, the matching device's fax capability is ignored
+     If `true`, the matching device's fax capability is ignored.
 
    * `http-XXX = YYY`<br>
      Set XXX header of the HTTP requests forwarded to device to YYY.
-     If YYY is empty string, XXX header is removed
+     If YYY is empty string, XXX header is removed.
 
    * `ignore-ipp-status = true | false`<br>
      If `true`, IPP status of IPP requests sent by the `ipp-usb` by
@@ -371,18 +371,23 @@ The following parameters are defined:
      handles IPP request but returned status is not reliable. Affects
      only `ipp-usb` initialization.
 
-   * `init-delay = NNN`<br>
-     Delay, in milliseconds, between device is opened and, optionally,
-     reset, and the first request is sent to device
+   * `init-delay = DELAY `<br>
+     Delay, between device is opened and, optionally, reset, and the
+     first request is sent to device.
 
    * `init-reset = none | soft | hard`<br>
      How to reset device during initialization. Default is `none`
 
-   * `request-delay` = NNN<br>
-     Delay, in milliseconds, between subsequent requests
+   * `request-delay` = DELAY <br>
+     Delay, between subsequent requests.
 
    * `usb-max-interfaces = N`<br>
-     Don't use more that N USB interfaces, even if more is available
+     Don't use more that N USB interfaces, even if more is available.
+
+The DELAY parameter can be specified either as an unsigned integer (in
+milliseconds) or as a sequence of decimal numbers with an optional
+fraction and a unit suffix, such as "300ms," "0.5s," or "2m30s." Valid
+time units are "ns," "us" (or "µs"), "ms," "s," "m," and "h."
 
 If you found out about your device that it needs a quirk to work properly or it
 does not work with `ipp-usb` at all, although it provides IPP-over-USB

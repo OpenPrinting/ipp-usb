@@ -180,7 +180,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	})
 
 	// Enable handling incoming requests
-	dev.UsbTransport.SetTimeout(DevInitTimeout)
+	dev.UsbTransport.SetTimeout(0)
 	dev.HTTPProxy.Enable()
 
 	// Start DNS-SD publisher

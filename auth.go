@@ -303,7 +303,7 @@ func AuthHTTPRequest(log *Logger,
 		reason = fmt.Sprintf("UID auth not supported on %s",
 			runtime.GOOS)
 	case !authUIDrequiresUID():
-		reason = "No auth rules don use UID"
+		reason = "auth rules don't use UID"
 	}
 
 	// Obtain UID, if we really need it

@@ -627,15 +627,9 @@ func (wrap *usbResponseBodyWrapper) Read(buf []byte) (int, error) {
 
 // Close usbResponseBodyWrapper
 func (wrap *usbResponseBodyWrapper) Close() error {
-	// Cleanup I/O context.Context, if any
-	if wrap.cleanupCtx != nil {
-		wrap.cleanupCtx()
-	}
-
 	// If EOF or error seen, we can close synchronously
 	if wrap.drained {
-		wrap.body.Close()
-		wrap.conn.put()
+		wrap.cleanup()
 		return nil
 	}
 
@@ -650,11 +644,24 @@ func (wrap *usbResponseBodyWrapper) Close() error {
 		}()
 
 		io.Copy(ioutil.Discard, wrap.body)
-		wrap.body.Close()
-		wrap.conn.put()
+		wrap.cleanup()
 	}()
 
 	return nil
+}
+
+// cleanup performs the final cleanup of the usbResponseBodyWrapper
+// after use.
+func (wrap *usbResponseBodyWrapper) cleanup() {
+	wrap.body.Close()
+	wrap.conn.put()
+
+	// Cleanup I/O context.Context, if any
+	if wrap.cleanupCtx != nil {
+		wrap.cleanupCtx()
+	}
+
+	wrap.log.HTTPDebug('<', wrap.session, "done with response body")
 }
 
 // usbConn implements an USB connection

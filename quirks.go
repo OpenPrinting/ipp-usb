@@ -80,7 +80,6 @@ var quirkDefault = make(map[string]*Quirk)
 // init populates quirkDefault using quirk values from quirkDefaultStrings.
 func init() {
 	for name, value := range quirkDefaultStrings {
-		println(name, "=", value)
 		q := &Quirk{
 			Origin:    "default",
 			Match:     "*",

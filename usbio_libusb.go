@@ -148,7 +148,7 @@ func libusbContext(nopnp bool) (*C.libusb_context, error) {
 		)
 	}
 
-	// Start libusb thread (required for hotplug)
+	// Start libusb thread (required for hotplug and asynchronous I/O)
 	go func() {
 		runtime.LockOSThread()
 		for {
@@ -787,18 +787,21 @@ func (iface *UsbInterface) Send(ctx context.Context,
 		0,
 	)
 
-	// Submit transfer and wait for completion
+	// Submit transfer
 	rc := C.libusb_submit_transfer(xfer)
-	if rc >= 0 {
-		select {
-		case <-ctx.Done():
-			C.libusb_cancel_transfer(xfer)
-		case <-doneChan:
-		}
-
-		<-doneChan
-		n, err = libusbTransferStatusDecode(ctx, xfer)
+	if rc < 0 {
+		return 0, UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
 	}
+
+	// Wait for completion
+	select {
+	case <-ctx.Done():
+		C.libusb_cancel_transfer(xfer)
+	case <-doneChan:
+	}
+
+	<-doneChan
+	n, err = libusbTransferStatusDecode(ctx, xfer)
 
 	return
 }
@@ -847,18 +850,23 @@ func (iface *UsbInterface) Recv(ctx context.Context,
 		0,
 	)
 
-	// Submit transfer and wait for completion
+	// Submit transfer
 	rc := C.libusb_submit_transfer(xfer)
-	if rc >= 0 {
-		select {
-		case <-ctx.Done():
-			C.libusb_cancel_transfer(xfer)
-		case <-doneChan:
-		}
-
-		<-doneChan
-		n, err = libusbTransferStatusDecode(ctx, xfer)
+	if rc < 0 {
+		return 0, UsbError{"libusb_submit_transfer", UsbErrCode(rc)}
 	}
+
+	C.libusb_interrupt_event_handler(libusbContextPtr)
+
+	// Wait for completion
+	select {
+	case <-ctx.Done():
+		C.libusb_cancel_transfer(xfer)
+	case <-doneChan:
+	}
+
+	<-doneChan
+	n, err = libusbTransferStatusDecode(ctx, xfer)
 
 	return
 }

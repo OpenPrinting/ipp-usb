@@ -387,6 +387,10 @@ The following parameters are defined:
    * `usb-max-interfaces = N`<br>
      Don't use more that N USB interfaces, even if more is available.
 
+   * `zlp-send = true | false`<br>
+     Terminate outgoing transfers that a multiple of the endpoint's
+     packet size win an extra zero length packet.
+
 The DELAY parameter can be specified either as an unsigned integer (in
 milliseconds) or as a sequence of decimal numbers with an optional
 fraction and a unit suffix, such as "300ms," "0.5s," or "2m30s." Valid

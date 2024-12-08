@@ -135,6 +135,17 @@ func TestQuirksLookup(t *testing.T) {
 			origin: "default",
 		},
 
+		{
+			model: "Unknown Device",
+			param: QuirkNmZlpSend,
+			get: func(quirks Quirks) interface{} {
+				return quirks.GetZlpSend()
+			},
+			match:  "*",
+			value:  false,
+			origin: "default",
+		},
+
 		// Quirks for some known devices
 		{
 			model: "HP ScanJet Pro 4500 fn1",

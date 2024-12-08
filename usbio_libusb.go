@@ -789,6 +789,10 @@ func (iface *UsbInterface) Send(ctx context.Context,
 		0,
 	)
 
+	if iface.quirks.GetZlpSend() {
+		xfer.flags |= C.LIBUSB_TRANSFER_ADD_ZERO_PACKET
+	}
+
 	// Submit transfer
 	rc := C.libusb_submit_transfer(xfer)
 	if rc < 0 {

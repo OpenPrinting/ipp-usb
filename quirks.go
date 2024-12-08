@@ -44,6 +44,7 @@ const (
 	QuirkNmInitTimeout       = "init-timeout"
 	QuirkNmRequestDelay      = "request-delay"
 	QuirkNmUsbMaxInterfaces  = "usb-max-interfaces"
+	QuirkNmZlpRecvHack       = "zlp-recv-hack"
 	QuirkNmZlpSend           = "zlp-send"
 )
 
@@ -59,6 +60,7 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmInitTimeout:       (*Quirk).parseDuration,
 	QuirkNmRequestDelay:      (*Quirk).parseDuration,
 	QuirkNmUsbMaxInterfaces:  (*Quirk).parseUint,
+	QuirkNmZlpRecvHack:       (*Quirk).parseBool,
 	QuirkNmZlpSend:           (*Quirk).parseBool,
 }
 
@@ -74,6 +76,7 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmInitTimeout:       DevInitTimeout.String(),
 	QuirkNmRequestDelay:      "0",
 	QuirkNmUsbMaxInterfaces:  "0",
+	QuirkNmZlpRecvHack:       "false",
 	QuirkNmZlpSend:           "false",
 }
 
@@ -345,6 +348,12 @@ func (quirks Quirks) GetRequestDelay() time.Duration {
 // taking the whole set into consideration.
 func (quirks Quirks) GetUsbMaxInterfaces() uint {
 	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
+}
+
+// GetZlpRecvHack returns effective "zlp-send" parameter,
+// taking the whole set into consideration.
+func (quirks Quirks) GetZlpRecvHack() bool {
+	return quirks.Get(QuirkNmZlpRecvHack).Parsed.(bool)
 }
 
 // GetZlpSend returns effective "zlp-send" parameter,

@@ -750,6 +750,10 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 		b = b[0:n]
 	}
 
+	// zlp-recv-hack handling
+	zlpRecvHack := conn.transport.quirks.GetZlpRecvHack()
+	zlpRecv := false
+
 	// Setup deadline
 	backoff := time.Millisecond * 10
 	for {
@@ -767,6 +771,13 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 				"USB[%d]: recv: %s", conn.index, err)
 
 			if err == context.DeadlineExceeded {
+				// If we've got read timeout preceded
+				// by the zero-length packet, interpret
+				// is as body EOF condition
+				if zlpRecvHack && zlpRecv {
+					return 0, io.EOF
+				}
+
 				atomic.StoreUint32(
 					&conn.transport.timeoutExpired, 1)
 			}
@@ -776,6 +787,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 			return n, err
 		}
 
+		zlpRecv = true
 		conn.transport.log.Debug(' ',
 			"USB[%d]: zero-size read", conn.index)
 

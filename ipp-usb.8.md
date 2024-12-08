@@ -387,6 +387,21 @@ The following parameters are defined:
    * `usb-max-interfaces = N`<br>
      Don't use more that N USB interfaces, even if more is available.
 
+   * `zlp-recv-hack = true | false`<br>
+     Some enterprise-level HP devices, during the initialization phase
+     (which can last several minutes), may respond with an HTTP 503
+     status or similar, which is expected. However, the response body may
+     be truncated (typically, the terminating '\n' is lost). In such
+     cases, `ipp-usb` will wait indefinitely for a response to maintain
+     synchronization with the device.
+
+     At the same time, these devices send a zero-length UDP packet at the
+     end of the truncated output. If the `zlp-recv-hack` quirk is enabled,
+     when ipp-usb receives a zero-length packet from the USB followed by
+     a receive timeout, it interprets this combination of events as a
+     valid termination of the response body. It works only at the
+     initialization time and doesn't affect futher operations.
+
    * `zlp-send = true | false`<br>
      Terminate outgoing transfers that a multiple of the endpoint's
      packet size win an extra zero length packet.

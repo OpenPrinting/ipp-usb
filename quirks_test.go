@@ -137,6 +137,17 @@ func TestQuirksLookup(t *testing.T) {
 
 		{
 			model: "Unknown Device",
+			param: QuirkNmZlpRecvHack,
+			get: func(quirks Quirks) interface{} {
+				return quirks.GetZlpRecvHack()
+			},
+			match:  "*",
+			value:  false,
+			origin: "default",
+		},
+
+		{
+			model: "Unknown Device",
 			param: QuirkNmZlpSend,
 			get: func(quirks Quirks) interface{} {
 				return quirks.GetZlpSend()

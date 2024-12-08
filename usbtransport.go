@@ -697,7 +697,7 @@ func (transport *UsbTransport) openUsbConn(
 
 	// Obtain interface
 	var err error
-	conn.iface, err = dev.OpenUsbInterface(ifaddr)
+	conn.iface, err = dev.OpenUsbInterface(ifaddr, quirks)
 	if err != nil {
 		goto ERROR
 	}

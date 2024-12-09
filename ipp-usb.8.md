@@ -409,7 +409,7 @@ The following parameters are defined:
 The DELAY parameter can be specified either as an unsigned integer (in
 milliseconds) or as a sequence of decimal numbers with an optional
 fraction and a unit suffix, such as "300ms," "0.5s," or "2m30s." Valid
-time units are "ns," "us" (or "µs"), "ms," "s," "m," and "h."
+time units are "ns," "us" (or "µs"), "ms" "s" "m" and "h"
 
 If you found out about your device that it needs a quirk to work properly or it
 does not work with `ipp-usb` at all, although it provides IPP-over-USB

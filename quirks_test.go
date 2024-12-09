@@ -179,6 +179,21 @@ func TestQuirksLookup(t *testing.T) {
 			value:  time.Duration(0),
 			origin: "default",
 		},
+
+		{
+			// Here we test that more specific 'http-connection'
+			// for the particular model overrides less specific
+			// default value.
+			model: "HP OfficeJet Pro 8730",
+			param: "http-connection",
+			get: func(quirks Quirks) interface{} {
+				q := quirks.Get("http-connection")
+				return q.Parsed
+			},
+			match:  "HP OfficeJet Pro 8730",
+			value:  "close",
+			origin: "testdata/quirks/HP.conf:7",
+		},
 	}
 
 	for _, test := range tests {

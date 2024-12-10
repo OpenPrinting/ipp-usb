@@ -292,6 +292,14 @@ If \fBtrue\fR, IPP status of IPP requests sent by the \fBipp\-usb\fR by itself w
 .br
 Delay, between device is opened and, optionally, reset, and the first request is sent to device\.
 .IP "\(bu" 4
+\fBinit\-retry\-partial = true | false\fR
+.br
+Retry the initialization in case only part of the device's functions have been initialized, instead of continuing to operate with incomplete functionality\.
+.IP
+It can be useful if the device takes a long time to fully initialize\. During this period, some components may respond normally while others are still initializing\. For example, the device may quickly report its scanning capabilities shortly after startup, while its printing functionality may take several minutes to become operational\.
+.IP
+Some enterprise\-level HP printers are known to have this problem\.
+.IP "\(bu" 4
 \fBinit\-reset = none | soft | hard\fR
 .br
 How to reset device during initialization\. Default is \fBnone\fR

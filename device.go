@@ -46,6 +46,9 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var log *LogMessage
 	var hwid string
 	var quirks Quirks
+	var httpstatus int
+	var canPrint bool
+	var canScan bool
 
 	// Create USB transport
 	dev.UsbTransport, err = NewUsbTransport(desc)
@@ -62,6 +65,9 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	// Obtain device info and derived information.
 	info = dev.UsbTransport.UsbDeviceInfo()
 	hwid = fmt.Sprintf("%4.4x&%4.4x", info.Vendor, info.Product)
+
+	canPrint = info.BasicCaps&UsbIppBasicCapsPrint != 0
+	canScan = info.BasicCaps&UsbIppBasicCapsScan != 0
 
 	// Load persistent state
 	dev.State = LoadDevState(info.Ident(), info.Comment())
@@ -87,12 +93,24 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	log = dev.Log.Begin()
 	defer log.Commit()
 
-	ippinfo, err = IppService(log, &dnssdServices,
+	ippinfo, httpstatus, err = IppService(log, &dnssdServices,
 		dev.State.HTTPPort, info, dev.UsbTransport.Quirks(),
 		dev.HTTPClient)
 
 	if err != nil {
 		dev.Log.Error('!', "IPP: %s", err)
+
+		if httpstatus != 0 && canPrint && quirks.GetInitRetryPartial() {
+			dev.Log.Begin().
+				Info(' ', "Printer not ready (HTTP status %d)",
+					httpstatus).
+				Info(' ', "Retrying due to the %q quirk",
+					QuirkNmInitRetryPartial).
+				Commit()
+
+			err = ErrPartialInit
+			goto ERROR
+		}
 	}
 
 	log.Flush()
@@ -117,11 +135,23 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Obtain DNS-SD info for eSCL
-	err = EsclService(log, &dnssdServices, dev.State.HTTPPort, info,
+	httpstatus, err = EsclService(log, &dnssdServices, dev.State.HTTPPort, info,
 		ippinfo, dev.HTTPClient)
 
 	if err != nil {
 		dev.Log.Error('!', "ESCL: %s", err)
+
+		if httpstatus != 0 && canScan && quirks.GetInitRetryPartial() {
+			dev.Log.Begin().
+				Info(' ', "Scanner not ready (HTTP status %d)",
+					httpstatus).
+				Info(' ', "Retrying due to the %q quirk",
+					QuirkNmInitRetryPartial).
+				Commit()
+
+			err = ErrPartialInit
+			goto ERROR
+		}
 	}
 
 	log.Flush()
@@ -212,7 +242,12 @@ ERROR:
 	}
 
 	if dev.UsbTransport != nil {
-		dev.UsbTransport.Close(true)
+		reset := true
+		switch err {
+		case ErrUnusable, ErrPartialInit:
+			reset = false
+		}
+		dev.UsbTransport.Close(reset)
 	}
 
 	if listener != nil {

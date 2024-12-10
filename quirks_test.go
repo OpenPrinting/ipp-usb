@@ -93,6 +93,17 @@ func TestQuirksLookup(t *testing.T) {
 
 		{
 			model: "Unknown Device",
+			param: QuirkNmInitRetryPartial,
+			get: func(quirks Quirks) interface{} {
+				return quirks.GetInitRetryPartial()
+			},
+			match:  "*",
+			value:  false,
+			origin: "default",
+		},
+
+		{
+			model: "Unknown Device",
 			param: QuirkNmInitReset,
 			get: func(quirks Quirks) interface{} {
 				return quirks.GetInitReset()

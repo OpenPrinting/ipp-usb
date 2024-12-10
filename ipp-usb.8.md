@@ -375,6 +375,19 @@ The following parameters are defined:
      Delay, between device is opened and, optionally, reset, and the
      first request is sent to device.
 
+   * `init-retry-partial = true | false`<br>
+     Retry the initialization in case only part of the device's functions
+     have been initialized, instead of continuing to operate with incomplete
+     functionality.
+
+     It can be useful if the device takes a long time to fully initialize.
+     During this period, some components may respond normally while others
+     are still initializing. For example, the device may quickly report its
+     scanning capabilities shortly after startup, while its printing
+     functionality may take several minutes to become operational.
+
+     Some enterprise-level HP printers are known to have this problem.
+
    * `init-reset = none | soft | hard`<br>
      How to reset device during initialization. Default is `none`
 

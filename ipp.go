@@ -36,11 +36,11 @@ type IppPrinterInfo struct {
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
 	port int, usbinfo UsbDeviceInfo, quirks Quirks,
-	c *http.Client) (ippinfo *IppPrinterInfo, err error) {
+	c *http.Client) (ippinfo *IppPrinterInfo, httpstatus int, err error) {
 
 	// Query printer attributes
 	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
-	msg, err := ippGetPrinterAttributes(log, c, quirks, uri)
+	msg, httpstatus, err := ippGetPrinterAttributes(log, c, quirks, uri)
 	if err != nil {
 		return
 	}
@@ -61,7 +61,9 @@ func IppService(log *LogMessage, services *DNSSdServices,
 		// for now, just in case. Firmwares in general are
 		// too buggy, I can't trust them :-(
 		uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
-		if _, err2 := ippGetPrinterAttributes(log, c, quirks, uri); err2 == nil {
+		_, _, err2 := ippGetPrinterAttributes(log, c, quirks, uri)
+
+		if err2 == nil {
 			canFax = true
 			log.Debug(' ', "IPP FaxOut service detected")
 		} else {
@@ -105,8 +107,8 @@ func IppService(log *LogMessage, services *DNSSdServices,
 //  3. It is not an IPP error response
 //
 // Otherwise, the appropriate error is generated and returned
-func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
-	quirks Quirks, uri string) (msg *goipp.Message, err error) {
+func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks Quirks,
+	uri string) (msg *goipp.Message, httpstatus int, err error) {
 
 	// Query printer attributes
 	msg = goipp.NewRequest(goipp.DefaultVersion, goipp.OpGetPrinterAttributes, 1)
@@ -157,6 +159,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client,
 
 	// Check HTTP status
 	if resp.StatusCode/100 != 2 {
+		httpstatus = resp.StatusCode
 		err = fmt.Errorf("HTTP: %s", resp.Status)
 		return
 	}

@@ -40,6 +40,7 @@ const (
 	QuirkNmDisableFax        = "disable-fax"
 	QuirkNmIgnoreIppStatus   = "ignore-ipp-status"
 	QuirkNmInitDelay         = "init-delay"
+	QuirkNmInitRetryPartial  = "init-retry-partial"
 	QuirkNmInitReset         = "init-reset"
 	QuirkNmInitTimeout       = "init-timeout"
 	QuirkNmRequestDelay      = "request-delay"
@@ -56,6 +57,7 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmDisableFax:        (*Quirk).parseBool,
 	QuirkNmIgnoreIppStatus:   (*Quirk).parseBool,
 	QuirkNmInitDelay:         (*Quirk).parseDuration,
+	QuirkNmInitRetryPartial:  (*Quirk).parseBool,
 	QuirkNmInitReset:         (*Quirk).parseQuirkResetMethod,
 	QuirkNmInitTimeout:       (*Quirk).parseDuration,
 	QuirkNmRequestDelay:      (*Quirk).parseDuration,
@@ -72,6 +74,7 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmDisableFax:        "false",
 	QuirkNmIgnoreIppStatus:   "false",
 	QuirkNmInitDelay:         "0",
+	QuirkNmInitRetryPartial:  "false",
 	QuirkNmInitReset:         "none",
 	QuirkNmInitTimeout:       DevInitTimeout.String(),
 	QuirkNmRequestDelay:      "0",
@@ -324,6 +327,12 @@ func (quirks Quirks) GetIgnoreIppStatus() bool {
 // taking the whole set into consideration.
 func (quirks Quirks) GetInitDelay() time.Duration {
 	return quirks.Get(QuirkNmInitDelay).Parsed.(time.Duration)
+}
+
+// GetInitRetryPartial returns effective "init-retry-partial" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetInitRetryPartial() bool {
+	return quirks.Get(QuirkNmInitRetryPartial).Parsed.(bool)
 }
 
 // GetInitReset returns effective "init-reset" parameter

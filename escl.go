@@ -27,7 +27,7 @@ import (
 // Discovered services will be added to the services collection
 func EsclService(log *LogMessage, services *DNSSdServices,
 	port int, usbinfo UsbDeviceInfo, ippinfo *IppPrinterInfo,
-	c *http.Client) (err error) {
+	c *http.Client) (httpstatus int, err error) {
 
 	uri := fmt.Sprintf("http://localhost:%d/eSCL/ScannerCapabilities", port)
 
@@ -48,6 +48,7 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 
 	if resp.StatusCode/100 != 2 {
 		resp.Body.Close()
+		httpstatus = resp.StatusCode
 		err = fmt.Errorf("HTTP status: %s", resp.Status)
 		goto ERROR
 	}

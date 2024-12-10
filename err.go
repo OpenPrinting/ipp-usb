@@ -22,4 +22,5 @@ var (
 	ErrUnusable     = errors.New("Device doesn't implement print or scan service")
 	ErrNoIppUsb     = errors.New("ipp-usb daemon not running")
 	ErrAccess       = errors.New("Access denied")
+	ErrPartialInit  = errors.New("Some parts of device not ready yet")
 )

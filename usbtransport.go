@@ -78,7 +78,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	log := transport.log.Begin().
 		Nl(LogDebug).
 		Debug(' ', "===============================").
-		Info('+', "%s: added %s", transport.addr, transport.info.ProductName).
+		Info('+', "%s: opened %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
 		Debug(' ', "  USB Port:      %d", transport.info.PortNum).
 		Debug(' ', "  Ident:         %s", transport.info.Ident()).
@@ -320,7 +320,7 @@ func (transport *UsbTransport) Close(reset bool) {
 	}
 
 	transport.dev.Close()
-	transport.log.Info('-', "%s: removed %s",
+	transport.log.Info('-', "%s: closed %s",
 		transport.addr, transport.info.ProductName)
 }
 

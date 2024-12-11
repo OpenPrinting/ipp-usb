@@ -175,13 +175,18 @@ ERROR:
 func (transport *UsbTransport) dumpQuirks(log *LogMessage) {
 	log.Debug(' ', "Device quirks:")
 
+	prevMatch := ""
 	for _, q := range transport.quirks.All() {
 		val := q.RawValue
 		if _, isStr := q.Parsed.(string); isStr {
 			val = strconv.Quote(val)
 		}
 
-		log.Debug(' ', "  [%s]", q.Match)
+		if q.Match != prevMatch {
+			prevMatch = q.Match
+			log.Debug(' ', "  [%s]", q.Match)
+		}
+
 		log.Debug(' ', "    ; (%s)", q.Origin)
 		log.Debug(' ', "    %s = %s", q.Name, val)
 	}

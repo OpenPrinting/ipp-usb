@@ -481,6 +481,19 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 
 	resp, err := http.ReadResponse(conn.reader, outreq)
 	if err != nil {
+		// If the latest conn.Read has returned io.EOF, the only
+		// reason it could happen is that the zlp-recv-hack
+		// quirk has triggered.
+		//
+		// The stdlib HTTP stack will wrap the io.EOF error into
+		// its own error message. Here we force error condition
+		// back to io.EOF so it cleanly can be detected and handled
+		// by the initialization retry logic at the upper level
+		println("conn.EOFSeen", conn.EOFSeen())
+		if conn.EOFSeen() {
+			err = io.EOF
+		}
+
 		transport.log.HTTPError('!', session, "%s", err)
 		conn.put()
 		cleanupCtx()
@@ -680,6 +693,7 @@ type usbConn struct {
 	delayInterval time.Duration   // Pause between requests
 	cntRecv       int             // Total bytes received
 	cntSent       int             // Total bytes sent
+	eofSeen       bool            // Last usbConn.Read has returned io.EOF
 }
 
 // Open usbConn
@@ -739,6 +753,9 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 	conn.transport.connstate.beginRead(conn)
 	defer conn.transport.connstate.doneRead(conn)
 
+	// Drop conn.eofSeenn flag
+	conn.eofSeen = false
+
 	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW errors
 	// from libusb, input buffer size must always
 	// be aligned by 1024 bytes for USB 3.0, 512 bytes
@@ -780,6 +797,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 				// by the zero-length packet, interpret
 				// is as body EOF condition
 				if zlpRecvHack && zlpRecv {
+					conn.eofSeen = true
 					return 0, io.EOF
 				}
 
@@ -830,6 +848,11 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	}
 
 	return n, err
+}
+
+// EOFSeen reports of the latest usbConn.Read has returned io.EOF
+func (conn *usbConn) EOFSeen() bool {
+	return conn.eofSeen
 }
 
 // Allocate a connection

@@ -137,7 +137,10 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 
 	// Handle a error
 ERROR:
-	err = fmt.Errorf("eSCL: %s", err)
+	if !ErrIsEOF(err) {
+		err = fmt.Errorf("eSCL: %s", err)
+	}
+
 	return
 }
 

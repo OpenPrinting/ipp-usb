@@ -100,7 +100,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	if err != nil {
 		dev.Log.Error('!', "IPP: %s", err)
 
-		if httpstatus != 0 && canPrint && quirks.GetInitRetryPartial() {
+		canRetry := httpstatus != 0 || ErrIsEOF(err)
+		if canRetry && canPrint && quirks.GetInitRetryPartial() {
 			dev.Log.Begin().
 				Info(' ', "Printer not ready (HTTP status %d)",
 					httpstatus).
@@ -141,7 +142,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	if err != nil {
 		dev.Log.Error('!', "ESCL: %s", err)
 
-		if httpstatus != 0 && canScan && quirks.GetInitRetryPartial() {
+		canRetry := httpstatus != 0 || ErrIsEOF(err)
+		if canRetry && canScan && quirks.GetInitRetryPartial() {
 			dev.Log.Begin().
 				Info(' ', "Scanner not ready (HTTP status %d)",
 					httpstatus).

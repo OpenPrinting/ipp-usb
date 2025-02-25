@@ -151,7 +151,9 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks Quirks,
 	req, _ := msg.EncodeBytes()
 	resp, err := c.Post(uri, goipp.ContentType, bytes.NewBuffer(req))
 	if err != nil {
-		err = fmt.Errorf("HTTP: %s", err)
+		if !ErrIsEOF(err) {
+			err = fmt.Errorf("HTTP: %s", err)
+		}
 		return
 	}
 

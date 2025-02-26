@@ -489,7 +489,6 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 		// its own error message. Here we force error condition
 		// back to io.EOF so it cleanly can be detected and handled
 		// by the initialization retry logic at the upper level
-		println("conn.EOFSeen", conn.EOFSeen())
 		if conn.EOFSeen() {
 			err = io.EOF
 		}

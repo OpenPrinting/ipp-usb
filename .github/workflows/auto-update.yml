@@ -1,0 +1,20 @@
+name: Push new tag update to stable branch
+
+on:
+  schedule:
+    # Daily for now
+    - cron: "9 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  update-snapcraft-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v3
+      - name: Run desktop-snaps action
+        uses: ubuntu/desktop-snaps@stable
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repo: ${{ github.repository }}
+          rock-version-schema: '^(\d{8})'

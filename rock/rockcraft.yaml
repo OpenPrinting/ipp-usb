@@ -1,0 +1,151 @@
+name: ipp-usb
+base: ubuntu@24.04  
+version: "latest"  
+summary: IPP-over-USB - Driverless IPP printing on USB-connected printers
+description: |
+  ipp-usb is a daemon that enables driverless IPP printing on USB-connected
+  printers. It emulates an IPP network printer, providing full access to the
+  physical printer: Printing, scanning, fax out, and the admin web interface.
+
+license: Apache-2.0  
+
+platforms:
+  amd64:  
+  arm64:  
+  armhf:  
+
+services:
+  dbus:
+    command: /scripts/run-dbus.sh 
+    override: replace  
+    on-failure: restart  
+    startup: enabled  
+
+  ipp-usb-server:
+    command: /scripts/run-ipp-usb-server.sh  
+    startup: enabled
+    override: replace
+    on-failure: restart
+    after: [dbus] 
+
+  ipp-usb:
+    command: /scripts/run-ipp-usb.sh  
+    startup: enabled
+    override: replace
+    on-failure: restart
+    after: [dbus, ipp-usb-server]  
+
+parts:
+  goipp:
+    plugin: go  
+    source: https://github.com/OpenPrinting/goipp.git 
+    source-type: git  
+    build-packages:
+      - golang-go  
+    override-prime: ""  
+
+  ipp-usb:
+    plugin: go  
+    source: https://github.com/OpenPrinting/ipp-usb.git 
+    source-type: git
+
+    override-build: |
+      set -eux  # Enables strict error handling.
+      craftctl default  # Executes default build steps.
+
+      # Move the compiled binary to /usr/sbin (standard location for system binaries).
+      mkdir -p ${CRAFT_PART_INSTALL}/usr/sbin
+      mv ${CRAFT_PART_INSTALL}/bin/ipp-usb ${CRAFT_PART_INSTALL}/usr/sbin/
+
+      # Install the IPP-USB configuration file.
+      mkdir -p ${CRAFT_PART_INSTALL}/etc
+      cp ipp-usb.conf ${CRAFT_PART_INSTALL}/etc
+
+      # Install printer-specific quirks files (used to handle vendor-specific behaviors).
+      mkdir -p ${CRAFT_PART_INSTALL}/usr/share/ipp-usb/quirks
+      cp ipp-usb-quirks/* ${CRAFT_PART_INSTALL}/usr/share/ipp-usb/quirks/
+
+    build-packages:
+      - golang-go  
+      - libavahi-client-dev  
+      - libavahi-common-dev  
+      - libavahi-compat-libdnssd-dev  
+      - libdbus-1-dev  
+      - libusb-1.0-0-dev  
+      - ronn  
+
+    stage-packages:
+      - libavahi-client3  
+      - libavahi-common3  
+      - libusb-1.0-0  
+      - udev  
+
+    prime:
+      - etc  
+      - -etc/init.d  
+      - -etc/udev  
+      - usr/sbin  
+      - -usr/sbin/systemd-hwdb  
+      - lib 
+      - -lib/modprobe.d  
+      - -lib/systemd  
+      - -lib/udev  
+      - usr/lib  
+      - usr/share/ipp-usb  
+
+    after: [goipp]  
+
+  avahi-daemon:
+    plugin: nil  
+    build-packages: 
+      - avahi-daemon  
+
+    overlay-packages:
+      - avahi-daemon  
+      - avahi-utils  
+      - libnss-mdns  
+      - mdns-scan  
+      - dbus  
+      - libavahi-client3  
+      - libavahi-common3  
+
+    override-build: |
+      set -eux
+      craftctl default  # Executes the default build steps.
+
+      # Ensure D-Bus configuration files are copied for service discovery.
+      mkdir -p "${CRAFT_PART_INSTALL}/usr/share/dbus-1/"
+      cp -r /usr/share/dbus-1/* "${CRAFT_PART_INSTALL}/usr/share/dbus-1/"
+
+  utils:
+    plugin: nil 
+    overlay-packages:
+      - udev  
+
+  scripts:
+    plugin: dump  
+    source: scripts/  
+
+    organize:
+      run-ipp-usb.sh: scripts/run-ipp-usb.sh
+      run-ipp-usb-server.sh: scripts/run-ipp-usb-server.sh
+      run-dbus.sh: scripts/run-dbus.sh  
+
+    override-prime: |
+      set -eux
+      craftctl default  
+
+      # Ensure the scripts have executable permissions.
+      if [ -f "$CRAFT_PRIME/scripts/run-ipp-usb.sh" ]; then
+        chmod +x "$CRAFT_PRIME/scripts/run-ipp-usb.sh"
+      fi
+
+      if [ -f "$CRAFT_PRIME/scripts/run-ipp-usb-server.sh" ]; then
+        chmod +x "$CRAFT_PRIME/scripts/run-ipp-usb-server.sh"
+      fi
+
+      if [ -f "$CRAFT_PRIME/scripts/run-dbus.sh" ]; then
+        chmod +x "$CRAFT_PRIME/scripts/run-dbus.sh"
+      fi
+
+    after: [ipp-usb,avahi-daemon]  

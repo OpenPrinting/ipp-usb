@@ -2,3 +2,8 @@ ipp-usb
 tags
 *.swp
 *.orig
+*.rock
+
+# Allow Rocks inside GitHub Actions builds
+!build/*.rock
+!dist/*.rock

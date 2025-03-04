@@ -39,7 +39,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	c *http.Client) (ippinfo *IppPrinterInfo, httpstatus int, err error) {
 
 	// Query printer attributes
-	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
+	uri := fmt.Sprintf("ipp://localhost:%d/ipp/print", port)
 	msg, httpstatus, err := ippGetPrinterAttributes(log, c, quirks, uri)
 	if err != nil {
 		return
@@ -60,7 +60,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 		// not on device capabilities, lets leave it here
 		// for now, just in case. Firmwares in general are
 		// too buggy, I can't trust them :-(
-		uri = fmt.Sprintf("http://localhost:%d/ipp/faxout", port)
+		uri = fmt.Sprintf("ipp://localhost:%d/ipp/faxout", port)
 		_, _, err2 := ippGetPrinterAttributes(log, c, quirks, uri)
 
 		if err2 == nil {

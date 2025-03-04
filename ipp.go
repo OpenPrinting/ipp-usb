@@ -39,7 +39,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	c *http.Client) (ippinfo *IppPrinterInfo, httpstatus int, err error) {
 
 	// Query printer attributes
-	uri := fmt.Sprintf("http://localhost:%d/ipp/print", port)
+	uri := fmt.Sprintf("ipp://localhost:%d/ipp/print", port)
 	msg, httpstatus, err := ippGetPrinterAttributes(log, c, quirks, uri)
 	if err != nil {
 		return

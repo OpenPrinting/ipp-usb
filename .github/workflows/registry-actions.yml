@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
   workflow_dispatch:
     inputs:
       workflow_choice:
@@ -30,6 +31,8 @@ jobs:
       - name: Pack with Rockcraft
         uses: canonical/craft-actions/rockcraft-pack@main
         id: rockcraft
+        with:
+          path: rock
 
       - name: Upload Rock Artifact
         uses: actions/upload-artifact@v4
@@ -39,7 +42,7 @@ jobs:
 
   publish-rock:
     needs: build-rock
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'main'|| github.ref_name == 'master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

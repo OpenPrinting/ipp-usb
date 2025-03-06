@@ -247,19 +247,16 @@ To pull the image from the GitHub Container Registry, run the following command:
 
 To run the container after pulling the image, use:
 ```sh
-  sudo docker run --rm --network host \
+  sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
-      -v /run/udev:/run/udev:ro \
       --name ipp-usb-container \
       ghcr.io/openprinting/ipp-usb:latest
 ```
 
-- `--rm`: Automatically removes the container once it stops.
 - `--network host`: Uses the host network, ensuring IPP-over-USB and Avahi service discovery work correctly.
 - `-v /dev/bus/usb:/dev/bus/usb:ro`: Grants the container read-only access to USB devices.
 - `--device-cgroup-rule='c 189:* rmw'`: Grants the container permission to manage USB devices (189:* covers USB device nodes).
-- `-v /run/udev:/run/udev:ro`: Mounts udev info, allowing the container to detect new USB devices.
 
 To check the logs of `ipp-usb`, run:
 ```sh
@@ -301,10 +298,9 @@ Once the `.rock` file is built, compile a Docker image from it using:
 **Run the `ipp-usb` Docker Container**
 
 ```sh
-  sudo docker run --rm --network host \
+  sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
-      -v /run/udev:/run/udev:ro \
       --name ipp-usb-container \
       ipp-usb:latest
 ```
@@ -325,11 +321,10 @@ The `ipp-usb` container uses a configuration file located at:
 ```
 To customize the configuration, mount a modified config file:
 ```sh
-  sudo docker run --rm --network host \
+  sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
       -v /path/to/custom/ipp-usb.conf:/etc/ipp-usb.conf:ro \
-      -v /run/udev:/run/udev:ro \
       --name ipp-usb-container \
       ghcr.io/openprinting/ipp-usb:latest
 ```

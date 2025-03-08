@@ -28,7 +28,7 @@ func TestUUIDNormalize(t *testing.T) {
 	for _, data := range testDataUUID {
 		uuid := UUIDNormalize(data.in)
 		if uuid != data.out {
-			t.Errorf("UUIDNormalize(%q): extected %q, got %q", data.in, data.out, uuid)
+			t.Errorf("UUIDNormalize(%q): expected %q, got %q", data.in, data.out, uuid)
 		}
 	}
 }

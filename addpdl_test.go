@@ -66,7 +66,7 @@ func TestAddPDL(t *testing.T) {
 		}
 
 		if txt[0].Value != data.out {
-			t.Errorf("test %d: extected %q, got %q",
+			t.Errorf("test %d: expected %q, got %q",
 				i+1, data.out, txt[0].Value)
 		}
 	}

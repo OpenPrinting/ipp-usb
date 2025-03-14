@@ -40,14 +40,14 @@ const (
 	QuirkNmDisableFax        = "disable-fax"
 	QuirkNmIgnoreIppStatus   = "ignore-ipp-status"
 	QuirkNmInitDelay         = "init-delay"
-	QuirkNmInitRetryPartial  = "init-retry-partial"
 	QuirkNmInitReset         = "init-reset"
+	QuirkNmInitRetryPartial  = "init-retry-partial"
 	QuirkNmInitTimeout       = "init-timeout"
 	QuirkNmRequestDelay      = "request-delay"
 	QuirkNmUsbMaxInterfaces  = "usb-max-interfaces"
+	QuirkNmUsbSendDelay      = "usb-send-delay"
 	QuirkNmZlpRecvHack       = "zlp-recv-hack"
 	QuirkNmZlpSend           = "zlp-send"
-	QuirkNmUSBSendDelay      = "usb-send-delay"
 )
 
 // quirkParse maps quirk names into appropriate parsing methods,
@@ -58,14 +58,14 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmDisableFax:        (*Quirk).parseBool,
 	QuirkNmIgnoreIppStatus:   (*Quirk).parseBool,
 	QuirkNmInitDelay:         (*Quirk).parseDuration,
-	QuirkNmInitRetryPartial:  (*Quirk).parseBool,
 	QuirkNmInitReset:         (*Quirk).parseQuirkResetMethod,
+	QuirkNmInitRetryPartial:  (*Quirk).parseBool,
 	QuirkNmInitTimeout:       (*Quirk).parseDuration,
 	QuirkNmRequestDelay:      (*Quirk).parseDuration,
 	QuirkNmUsbMaxInterfaces:  (*Quirk).parseUint,
+	QuirkNmUsbSendDelay:      (*Quirk).parseDuration,
 	QuirkNmZlpRecvHack:       (*Quirk).parseBool,
 	QuirkNmZlpSend:           (*Quirk).parseBool,
-	QuirkNmUSBSendDelay:      (*Quirk).parseDuration,
 }
 
 // quirkDefaultStrings contains default values for quirks, in
@@ -361,6 +361,12 @@ func (quirks Quirks) GetUsbMaxInterfaces() uint {
 	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
 }
 
+// GetUSBSendDelay returns effective "usb-send-delay" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetUsbSendDelay() time.Duration {
+	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(time.Duration)
+}
+
 // GetZlpRecvHack returns effective "zlp-send" parameter,
 // taking the whole set into consideration.
 func (quirks Quirks) GetZlpRecvHack() bool {
@@ -371,12 +377,6 @@ func (quirks Quirks) GetZlpRecvHack() bool {
 // taking the whole set into consideration.
 func (quirks Quirks) GetZlpSend() bool {
 	return quirks.Get(QuirkNmZlpSend).Parsed.(bool)
-}
-
-// GetUSBSendDelay returns effective "usb-send-delay" parameter
-// taking the whole set into consideration.
-func (quirks Quirks) GetUSBSendDelay() time.Duration {
-	return quirks.Get(QuirkNmUSBSendDelay).Parsed.(time.Duration)
 }
 
 // QuirksSet represents collection of quirks

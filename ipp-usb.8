@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.10.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.10.1
-.TH "IPP\-USB" "8" "December 2024" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "March 2025" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -304,17 +304,21 @@ Some enterprise\-level HP printers are known to have this problem\.
 .br
 How to reset device during initialization\. Default is \fBnone\fR
 .IP "\(bu" 4
-\fBinit\-timeout\fR = DELAY
+\fBinit\-timeout = DELAY\fR
 .br
 Timeout for HTTP requests send by the \fBipp\-usb\fR during initialization\.
 .IP "\(bu" 4
-\fBrequest\-delay\fR = DELAY
+\fBrequest\-delay = DELAY\fR
 .br
-Delay between subsequent requests\.
+Delay between subsequent HTTP requests, sent to device (this is not the same as \fBusb\-send\-delay\fR, which inserts delays between each subsequent USB send\-to\-device requests)\.
 .IP "\(bu" 4
 \fBusb\-max\-interfaces = N\fR
 .br
 Don't use more that N USB interfaces, even if more is available\.
+.IP "\(bu" 4
+\fBusb\-send\-delay = DELAY\fR
+.br
+Delay between low\-level USB send\-to\-device requests (this is not the same as \fBrequest\-delay\fR, which inserts delays between the whole HTTP\-level requests)\.
 .IP "\(bu" 4
 \fBzlp\-recv\-hack = true | false\fR
 .br

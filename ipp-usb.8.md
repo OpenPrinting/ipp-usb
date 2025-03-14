@@ -371,7 +371,7 @@ The following parameters are defined:
      handles IPP request but returned status is not reliable. Affects
      only `ipp-usb` initialization.
 
-   * `init-delay = DELAY `<br>
+   * `init-delay = DELAY`<br>
      Delay, between device is opened and, optionally, reset, and the
      first request is sent to device.
 
@@ -391,14 +391,21 @@ The following parameters are defined:
    * `init-reset = none | soft | hard`<br>
      How to reset device during initialization. Default is `none`
 
-   * `init-timeout` = DELAY <br>
+   * `init-timeout = DELAY`<br>
      Timeout for HTTP requests send by the `ipp-usb` during initialization.
 
-   * `request-delay` = DELAY <br>
-     Delay between subsequent requests.
+   * `request-delay = DELAY`<br>
+     Delay between subsequent HTTP requests, sent to device (this is not
+     the same as `usb-send-delay`, which inserts delays between each
+     subsequent USB send-to-device requests).
 
    * `usb-max-interfaces = N`<br>
      Don't use more that N USB interfaces, even if more is available.
+
+   * `usb-send-delay = DELAY`<br>
+     Delay between low-level USB send-to-device requests (this is not
+     the same as `request-delay`, which inserts delays between the
+     whole HTTP-level requests).
 
    * `zlp-recv-hack = true | false`<br>
      Some enterprise-level HP devices, during the initialization phase

@@ -461,8 +461,14 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// This is important that context is is set after inter-request
 	// or initial delay is already done, so we don't need to bother
 	// with adjusting the timeout.
+	//
+	// The context cancel function is called from many places and
+	// not always used, so for simplicity I'd better initialize it
+	// to the dummy function rather that to compare it with nil
+	// every time it is called.
 	rwctx := context.Background()
-	var cleanupCtx context.CancelFunc
+	cleanupCtx := context.CancelFunc(func() {})
+
 	if transport.timeout != 0 {
 		rwctx, cleanupCtx = context.WithTimeout(rwctx,
 			transport.timeout)

@@ -81,6 +81,7 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmInitTimeout:       DevInitTimeout.String(),
 	QuirkNmRequestDelay:      "0",
 	QuirkNmUsbMaxInterfaces:  "0",
+	QuirkNmUsbSendDelay:      "0",
 	QuirkNmZlpRecvHack:       "false",
 	QuirkNmZlpSend:           "false",
 }
@@ -361,7 +362,7 @@ func (quirks Quirks) GetUsbMaxInterfaces() uint {
 	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
 }
 
-// GetUSBSendDelay returns effective "usb-send-delay" parameter
+// GetUsbSendDelay returns effective "usb-send-delay" parameter
 // taking the whole set into consideration.
 func (quirks Quirks) GetUsbSendDelay() time.Duration {
 	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(time.Duration)

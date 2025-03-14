@@ -35,55 +35,58 @@ type Quirk struct {
 // Quirk names. Use these constants instead of literal strings,
 // so compiler will catch a mistake:
 const (
-	QuirkNmBlacklist         = "blacklist"
-	QuirkNmBuggyIppResponses = "buggy-ipp-responses"
-	QuirkNmDisableFax        = "disable-fax"
-	QuirkNmIgnoreIppStatus   = "ignore-ipp-status"
-	QuirkNmInitDelay         = "init-delay"
-	QuirkNmInitReset         = "init-reset"
-	QuirkNmInitRetryPartial  = "init-retry-partial"
-	QuirkNmInitTimeout       = "init-timeout"
-	QuirkNmRequestDelay      = "request-delay"
-	QuirkNmUsbMaxInterfaces  = "usb-max-interfaces"
-	QuirkNmUsbSendDelay      = "usb-send-delay"
-	QuirkNmZlpRecvHack       = "zlp-recv-hack"
-	QuirkNmZlpSend           = "zlp-send"
+	QuirkNmBlacklist             = "blacklist"
+	QuirkNmBuggyIppResponses     = "buggy-ipp-responses"
+	QuirkNmDisableFax            = "disable-fax"
+	QuirkNmIgnoreIppStatus       = "ignore-ipp-status"
+	QuirkNmInitDelay             = "init-delay"
+	QuirkNmInitReset             = "init-reset"
+	QuirkNmInitRetryPartial      = "init-retry-partial"
+	QuirkNmInitTimeout           = "init-timeout"
+	QuirkNmRequestDelay          = "request-delay"
+	QuirkNmUsbMaxInterfaces      = "usb-max-interfaces"
+	QuirkNmUsbSendDelayThreshold = "usb-send-delay-threshold"
+	QuirkNmUsbSendDelay          = "usb-send-delay"
+	QuirkNmZlpRecvHack           = "zlp-recv-hack"
+	QuirkNmZlpSend               = "zlp-send"
 )
 
 // quirkParse maps quirk names into appropriate parsing methods,
 // which defines value syntax and resulting type.
 var quirkParse = map[string]func(*Quirk) error{
-	QuirkNmBlacklist:         (*Quirk).parseBool,
-	QuirkNmBuggyIppResponses: (*Quirk).parseQuirkBuggyIppRsp,
-	QuirkNmDisableFax:        (*Quirk).parseBool,
-	QuirkNmIgnoreIppStatus:   (*Quirk).parseBool,
-	QuirkNmInitDelay:         (*Quirk).parseDuration,
-	QuirkNmInitReset:         (*Quirk).parseQuirkResetMethod,
-	QuirkNmInitRetryPartial:  (*Quirk).parseBool,
-	QuirkNmInitTimeout:       (*Quirk).parseDuration,
-	QuirkNmRequestDelay:      (*Quirk).parseDuration,
-	QuirkNmUsbMaxInterfaces:  (*Quirk).parseUint,
-	QuirkNmUsbSendDelay:      (*Quirk).parseDuration,
-	QuirkNmZlpRecvHack:       (*Quirk).parseBool,
-	QuirkNmZlpSend:           (*Quirk).parseBool,
+	QuirkNmBlacklist:             (*Quirk).parseBool,
+	QuirkNmBuggyIppResponses:     (*Quirk).parseQuirkBuggyIppRsp,
+	QuirkNmDisableFax:            (*Quirk).parseBool,
+	QuirkNmIgnoreIppStatus:       (*Quirk).parseBool,
+	QuirkNmInitDelay:             (*Quirk).parseDuration,
+	QuirkNmInitReset:             (*Quirk).parseQuirkResetMethod,
+	QuirkNmInitRetryPartial:      (*Quirk).parseBool,
+	QuirkNmInitTimeout:           (*Quirk).parseDuration,
+	QuirkNmRequestDelay:          (*Quirk).parseDuration,
+	QuirkNmUsbMaxInterfaces:      (*Quirk).parseUint,
+	QuirkNmUsbSendDelayThreshold: (*Quirk).parseUint,
+	QuirkNmUsbSendDelay:          (*Quirk).parseDuration,
+	QuirkNmZlpRecvHack:           (*Quirk).parseBool,
+	QuirkNmZlpSend:               (*Quirk).parseBool,
 }
 
 // quirkDefaultStrings contains default values for quirks, in
 // a string form.
 var quirkDefaultStrings = map[string]string{
-	QuirkNmBlacklist:         "false",
-	QuirkNmBuggyIppResponses: "reject",
-	QuirkNmDisableFax:        "false",
-	QuirkNmIgnoreIppStatus:   "false",
-	QuirkNmInitDelay:         "0",
-	QuirkNmInitRetryPartial:  "false",
-	QuirkNmInitReset:         "none",
-	QuirkNmInitTimeout:       DevInitTimeout.String(),
-	QuirkNmRequestDelay:      "0",
-	QuirkNmUsbMaxInterfaces:  "0",
-	QuirkNmUsbSendDelay:      "0",
-	QuirkNmZlpRecvHack:       "false",
-	QuirkNmZlpSend:           "false",
+	QuirkNmBlacklist:             "false",
+	QuirkNmBuggyIppResponses:     "reject",
+	QuirkNmDisableFax:            "false",
+	QuirkNmIgnoreIppStatus:       "false",
+	QuirkNmInitDelay:             "0",
+	QuirkNmInitRetryPartial:      "false",
+	QuirkNmInitReset:             "none",
+	QuirkNmInitTimeout:           DevInitTimeout.String(),
+	QuirkNmRequestDelay:          "0",
+	QuirkNmUsbMaxInterfaces:      "0",
+	QuirkNmUsbSendDelayThreshold: "0",
+	QuirkNmUsbSendDelay:          "0",
+	QuirkNmZlpRecvHack:           "false",
+	QuirkNmZlpSend:               "false",
 }
 
 // quirkDefault contains default values for quirks, precompiled.
@@ -360,6 +363,12 @@ func (quirks Quirks) GetRequestDelay() time.Duration {
 // taking the whole set into consideration.
 func (quirks Quirks) GetUsbMaxInterfaces() uint {
 	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
+}
+
+// GetUsbSendDelayThreshold returns effective "usb-send-delay-threshold"
+// parameter taking the whole set into consideration.
+func (quirks Quirks) GetUsbSendDelayThreshold() uint {
+	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(uint)
 }
 
 // GetUsbSendDelay returns effective "usb-send-delay" parameter

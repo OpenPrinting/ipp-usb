@@ -320,6 +320,10 @@ Don't use more that N USB interfaces, even if more is available\.
 .br
 Delay between low\-level USB send\-to\-device requests (this is not the same as \fBrequest\-delay\fR, which inserts delays between the whole HTTP\-level requests)\.
 .IP "\(bu" 4
+\fBusb\-send\-delay\-threshold = DELAY\fR
+.br
+\fBusb\-send\-delay\fR only applied if USB send\-to\-device request size exceeds this threshold\.
+.IP "\(bu" 4
 \fBzlp\-recv\-hack = true | false\fR
 .br
 Some enterprise\-level HP devices, during the initialization phase (which can last several minutes), may respond with an HTTP 503 status or similar, which is expected\. However, the response body may be truncated (typically, the terminating '\en' is lost)\. In such cases, \fBipp\-usb\fR will wait indefinitely for a response to maintain synchronization with the device\.

@@ -407,6 +407,10 @@ The following parameters are defined:
      the same as `request-delay`, which inserts delays between the
      whole HTTP-level requests).
 
+   * `usb-send-delay-threshold = DELAY`<br>
+     `usb-send-delay` only applied if USB send-to-device request size
+     exceeds this threshold.
+
    * `zlp-recv-hack = true | false`<br>
      Some enterprise-level HP devices, during the initialization phase
      (which can last several minutes), may respond with an HTTP 503

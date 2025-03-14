@@ -811,7 +811,10 @@ func (iface *UsbInterface) Send(ctx context.Context,
 
 	// Introduce inter-URB send delay, if configured
 	if delay := iface.quirks.GetUsbSendDelay(); delay != 0 {
-		time.Sleep(delay)
+		threshold := int(iface.quirks.GetUsbSendDelayThreshold())
+		if n > threshold {
+			time.Sleep(delay)
+		}
 	}
 
 	return

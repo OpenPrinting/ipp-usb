@@ -809,6 +809,11 @@ func (iface *UsbInterface) Send(ctx context.Context,
 	<-doneChan
 	n, err = libusbTransferStatusDecode(ctx, xfer)
 
+	// Introduce inter-URB send delay, if configured
+	if delay := iface.quirks.GetUSBSendDelay(); delay != 0 {
+		time.Sleep(delay)
+	}
+
 	return
 }
 

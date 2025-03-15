@@ -407,7 +407,7 @@ The following parameters are defined:
      the same as `request-delay`, which inserts delays between the
      whole HTTP-level requests).
 
-   * `usb-send-delay-threshold = DELAY`<br>
+   * `usb-send-delay-threshold = N`<br>
      `usb-send-delay` only applied if USB send-to-device request size
      exceeds this threshold.
 

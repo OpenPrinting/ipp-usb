@@ -832,7 +832,6 @@ func (conn *usbConn) Write(b []byte) (int, error) {
 	conn.transport.connstate.beginWrite(conn)
 	defer conn.transport.connstate.doneWrite(conn)
 
-	// Setup deadline
 	n, err := conn.iface.Send(conn.rwctx, b)
 	conn.cntSent += n
 

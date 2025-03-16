@@ -1,0 +1,148 @@
+name: ipp-usb
+base: ubuntu@24.04
+version: "latest"
+summary: IPP-over-USB - Driverless IPP printing on USB-connected printers
+description: |
+  ipp-usb is a daemon that enables driverless IPP printing on USB-connected
+  printers. It emulates an IPP network printer, providing full access to the
+  physical printer: Printing, scanning, fax out, and the admin web interface.
+
+license: Apache-2.0
+adopt-info: ipp-usb
+
+platforms:
+  amd64:
+  arm64:
+  armhf:
+
+services:
+  dbus:
+    command: /scripts/run-dbus.sh
+    override: replace
+    on-failure: restart
+    startup: enabled
+
+  ipp-usb:
+    command: /scripts/run-ipp-usb.sh
+    startup: enabled
+    override: replace
+    on-failure: restart
+    after: [dbus]
+
+parts:
+  goipp:
+    plugin: go
+    source: https://github.com/OpenPrinting/goipp.git
+    source-type: git
+    source-tag: v1.1.0
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '2'
+#     no-9x-revisions: true
+    build-packages:
+      - golang-go
+    override-prime: ""
+
+  ipp-usb:
+    plugin: go
+    source: https://github.com/OpenPrinting/ipp-usb.git
+    source-type: git
+    source-tag: 0.9.29
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '1'
+#     no-9x-revisions: true
+    override-build: |
+      set -eux
+      craftctl default
+      mkdir -p ${CRAFT_PART_INSTALL}/usr/sbin
+      mv ${CRAFT_PART_INSTALL}/bin/ipp-usb ${CRAFT_PART_INSTALL}/usr/sbin/
+      mkdir -p ${CRAFT_PART_INSTALL}/etc
+      cp ipp-usb.conf ${CRAFT_PART_INSTALL}/etc
+      mkdir -p ${CRAFT_PART_INSTALL}/usr/share/ipp-usb/quirks
+      cp ipp-usb-quirks/* ${CRAFT_PART_INSTALL}/usr/share/ipp-usb/quirks/
+    build-packages:
+      - golang-go
+      - libavahi-client-dev
+      - libavahi-common-dev
+      - libavahi-compat-libdnssd-dev
+      - libdbus-1-dev
+      - ronn
+    stage-packages:
+      - libavahi-client3
+      - libavahi-common3
+    prime:
+      - etc
+      - -etc/init.d
+      - usr/sbin
+      - -usr/sbin/systemd-hwdb
+      - usr/lib
+      - usr/share/ipp-usb
+    after: [goipp, libusb]
+
+  libusb:
+    plugin: autotools
+    source: https://github.com/libusb/libusb.git
+    source-type: git
+    source-tag: 'v1.0.27'  
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '2'
+#     no-9x-revisions: true
+    autotools-configure-parameters:
+      - --disable-udev
+      - --prefix=/usr    
+    build-packages:
+      - build-essential
+      - autoconf
+      - automake
+      - libtool
+      - pkg-config
+      - git
+    stage:
+      - usr/lib/*
+      - usr/include/*
+    prime:
+      - usr/lib/*
+      - usr/include/*
+    override-build: |
+      set -e
+      craftctl default
+      make -j$CRAFT_PARALLEL_BUILD_COUNT
+      make install DESTDIR=$CRAFT_PART_INSTALL
+
+  avahi-daemon:
+    plugin: nil
+    build-packages: 
+      - avahi-daemon
+    overlay-packages:
+      - avahi-utils
+      - libnss-mdns
+      - mdns-scan
+      - dbus
+      - libavahi-client3
+      - libavahi-common3
+    override-build: |
+      craftctl default
+      mkdir -p "${CRAFT_PART_INSTALL}/usr/share/dbus-1/"
+      cp -r /usr/share/dbus-1/* "${CRAFT_PART_INSTALL}/usr/share/dbus-1/"
+
+  scripts:
+    plugin: dump
+    source: scripts/
+    organize:
+      run-ipp-usb.sh: scripts/run-ipp-usb.sh
+      run-dbus.sh: scripts/run-dbus.sh
+    override-prime: |
+      set -eux
+      craftctl default
+      if [ -f "$CRAFT_PRIME/scripts/run-ipp-usb.sh" ]; then
+        chmod +x "$CRAFT_PRIME/scripts/run-ipp-usb.sh"
+      fi
+      if [ -f "$CRAFT_PRIME/scripts/run-dbus.sh" ]; then
+        chmod +x "$CRAFT_PRIME/scripts/run-dbus.sh"
+      fi
+    after: [ipp-usb, avahi-daemon]

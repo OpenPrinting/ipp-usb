@@ -147,3 +147,4 @@ parts:
         chmod +x "$CRAFT_PRIME/scripts/run-dbus.sh"
       fi
     after: [ipp-usb, avahi-daemon]
+    

@@ -10,9 +10,7 @@ description: |
 
 grade: stable
 confinement: strict
-
 adopt-info: ipp-usb
-
 # Only build on the architectures supported
 architectures:
   - build-on: amd64

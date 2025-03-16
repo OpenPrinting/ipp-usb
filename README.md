@@ -250,7 +250,7 @@ To run the container after pulling the image, use:
   sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
-      --name ipp-usb-container \
+      --name ipp-usb \
       ghcr.io/openprinting/ipp-usb:latest
 ```
 
@@ -260,7 +260,7 @@ To run the container after pulling the image, use:
 
 To check the logs of `ipp-usb`, run:
 ```sh
-  sudo docker logs -f ipp-usb-container
+  sudo docker logs -f ipp-usb
 ```
 
 ### Building and Running `ipp-usb` Locally
@@ -301,7 +301,7 @@ Once the `.rock` file is built, compile a Docker image from it using:
   sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
-      --name ipp-usb-container \
+      --name ipp-usb \
       ipp-usb:latest
 ```
 
@@ -309,7 +309,7 @@ Once the `.rock` file is built, compile a Docker image from it using:
 
 To enter the running `ipp-usb` container and access a shell inside it, use:
 ```sh
-  sudo docker exec -it ipp-usb-container bash
+  sudo docker exec -it ipp-usb bash
 ```
 This allows you to inspect logs, debug issues, or manually run commands inside the container.
 

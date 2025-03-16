@@ -119,7 +119,6 @@ parts:
     build-packages: 
       - avahi-daemon
     overlay-packages:
-      - avahi-daemon
       - avahi-utils
       - libnss-mdns
       - mdns-scan
@@ -147,4 +146,3 @@ parts:
         chmod +x "$CRAFT_PRIME/scripts/run-dbus.sh"
       fi
     after: [ipp-usb, avahi-daemon]
-    

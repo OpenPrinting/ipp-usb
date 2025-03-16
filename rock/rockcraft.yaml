@@ -9,6 +9,8 @@ description: |
 
 license: Apache-2.0
 
+adopt-info: ipp-usb
+
 platforms:
   amd64:
   arm64:
@@ -33,6 +35,12 @@ parts:
     plugin: go
     source: https://github.com/OpenPrinting/goipp.git
     source-type: git
+    source-tag: v1.1.0
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '2'
+#     no-9x-revisions: true
     build-packages:
       - golang-go
     override-prime: ""
@@ -41,8 +49,12 @@ parts:
     plugin: go
     source: https://github.com/OpenPrinting/ipp-usb.git
     source-type: git
-    source-branch: master
-
+    source-tag: 0.9.29
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '1'
+#     no-9x-revisions: true
     override-build: |
       set -eux
       craftctl default
@@ -81,6 +93,10 @@ parts:
     source-type: git
     source-tag: 'v1.0.27'  
     source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '2'
+#     no-9x-revisions: true
 
     autotools-configure-parameters:
       - --disable-udev

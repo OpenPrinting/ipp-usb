@@ -11,6 +11,8 @@ description: |
 grade: stable
 confinement: strict
 
+adopt-info: ipp-usb
+
 # Only build on the architectures supported
 architectures:
   - build-on: amd64
@@ -31,6 +33,12 @@ parts:
     plugin: go
     source: https://github.com/OpenPrinting/goipp.git
     source-type: git
+    source-tag: v1.1.0
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '2'
+#     no-9x-revisions: true
     build-packages:
       - golang-go
     override-prime: ""
@@ -39,6 +47,12 @@ parts:
     plugin: go
     source: .
     source-type: git
+    source-tag: 0.9.29
+    source-depth: 1
+# ext:updatesnap
+#   version-format:
+#     lower-than: '1'
+#     no-9x-revisions: true
     override-build: |
       set -eux
       # Correct hard-coded paths in paths.go

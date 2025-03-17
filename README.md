@@ -325,7 +325,7 @@ To customize the configuration, mount a modified config file:
       -v /dev/bus/usb:/dev/bus/usb:ro \
       --device-cgroup-rule='c 189:* rmw' \
       -v /path/to/custom/ipp-usb.conf:/etc/ipp-usb.conf:ro \
-      --name ipp-usb-container \
+      --name ipp-usb \
       ghcr.io/openprinting/ipp-usb:latest
 ```
 

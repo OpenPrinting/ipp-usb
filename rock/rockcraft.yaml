@@ -48,7 +48,7 @@ parts:
     plugin: go
     source: https://github.com/OpenPrinting/ipp-usb.git
     source-type: git
-    source-tag: 0.9.29
+    source-tag: '0.9.30'
     source-depth: 1
 # ext:updatesnap
 #   version-format:
@@ -86,7 +86,7 @@ parts:
     plugin: autotools
     source: https://github.com/libusb/libusb.git
     source-type: git
-    source-tag: 'v1.0.27'  
+    source-tag: 'v1.0.28'
     source-depth: 1
 # ext:updatesnap
 #   version-format:

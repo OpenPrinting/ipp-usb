@@ -239,7 +239,7 @@ parts:
       chown 584792:584792 "$LOCK_DIR"
       chmod 770 "$LOCK_DIR"
 
-      # Set up lock directory for IPP-USB
+      # Set up dev directory for IPP-USB
       DEV_DIR="$IPP_USB_RUN_DIR/dev"
       mkdir -p "$DEV_DIR"
       chown 584792:584792 "$DEV_DIR"

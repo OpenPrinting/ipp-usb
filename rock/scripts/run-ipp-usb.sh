@@ -5,8 +5,8 @@ set -eux
 # Create needed directories (ignore errors)
 mkdir -p /etc/ipp-usb || :
 mkdir -p /var/log/ipp-usb || :
-mkdir -p /var/lock || :
-mkdir -p /var/dev || :
+mkdir -p /var/ipp-usb/lock || :
+mkdir -p /var/ipp-usb/dev || :
 mkdir -p /usr/share/ipp-usb/quirks || :
 
 # Put config files in place (do not overwrite existing user config)

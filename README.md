@@ -245,23 +245,16 @@ To pull the image from the GitHub Container Registry, run the following command:
   sudo docker pull ghcr.io/openprinting/ipp-usb:latest
 ```
 
-Create a Docker volume:
-```sh
-  sudo docker volume create ipp-usb-data
-```
-
 To run the container after pulling the image, use:
 ```sh
   sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
-      -v ipp-usb-data:/var/lib/ipp-usb \
       --device-cgroup-rule='c 189:* rmw' \
       --name ipp-usb \
       ghcr.io/openprinting/ipp-usb:latest
 ```
 - `--network host`: Uses the host’s network for IPP-over-USB and Avahi service discovery, enabling seamless printer detection.
 - `-v /dev/bus/usb:/dev/bus/usb:ro`: Grants read-only access to USB devices, allowing the container to detect USB printers.
-- `-v ipp-usb-data:/var/lib/ipp-usb`: Provides persistent storage for IPP-USB data, ensuring configuration and logs remain after restarts.
 - `--device-cgroup-rule='c 189:* rmw'`: Allows read, write, and device management for USB printers inside the container.
 
 To check the logs of `ipp-usb`, run:
@@ -301,24 +294,17 @@ Once the `.rock` file is built, compile a Docker image from it using:
   sudo rockcraft.skopeo --insecure-policy copy oci-archive:<rock_image> docker-daemon:ipp-usb:latest
 ```
 
-Create a Docker volume:
-```sh
-  sudo docker volume create ipp-usb-data
-```
-
 **Run the `ipp-usb` Docker Container**
 
 ```sh
   sudo docker run -d --network host \
       -v /dev/bus/usb:/dev/bus/usb:ro \
-      -v ipp-usb-data:/var/lib/ipp-usb \
       --device-cgroup-rule='c 189:* rmw' \
       --name ipp-usb \
       ipp-usb:latest
 ```
 - `--network host`: Uses the host’s network for IPP-over-USB and Avahi service discovery, enabling seamless printer detection.
 - `-v /dev/bus/usb:/dev/bus/usb:ro`: Grants read-only access to USB devices, allowing the container to detect USB printers.
-- `-v ipp-usb-data:/var/lib/ipp-usb`: Provides persistent storage for IPP-USB data, ensuring configuration and logs remain after restarts.
 - `--device-cgroup-rule='c 189:* rmw'`: Allows read, write, and device management for USB printers inside the container.
 
 ### Accessing the Container Shell
@@ -335,44 +321,41 @@ The `ipp-usb` container uses a configuration file located at:
 ```sh
 /etc/ipp-usb/ipp-usb.conf
 ```
-By default, the container uses the built-in configuration, but you can override it by mounting a custom config file.
+By default, the container uses the built-in configuration, which can be modified from inside the container. 
 
-#### **Mounting a Custom Configuration File**  
-To use a modified configuration file, you can mount it from the host system when starting the container:  
+### **Modifying the Configuration File Inside the Container**  
+
+#### **1 Enter the Running Container**  
+Use the following command to access the container’s shell:  
 ```sh
-sudo docker run -d --network host \
-    -v /dev/bus/usb:/dev/bus/usb:ro \
-    -v ipp-usb-data:/var/lib/ipp-usb \
-    --device-cgroup-rule='c 189:* rmw' \
-    -v /path/to/custom/ipp-usb.conf:/etc/ipp-usb/ipp-usb.conf:ro \
-    --name ipp-usb \
-    ghcr.io/openprinting/ipp-usb:latest
+sudo docker exec -it ipp-usb bash
 ```
-- Replace `/path/to/custom/ipp-usb.conf` with the actual path to your modified config file.  
-- The `:ro` flag makes the file **read-only**, ensuring it cannot be modified inside the container.  
-- Any changes made to `/path/to/custom/ipp-usb.conf` on the host will apply when the container is restarted.
 
-#### **Editing the Configuration File on the Host**  
-Since the Rock image does not include text editors inside the container, you must edit the config file **on the host** before mounting it.  
-1. Open the config file with a text editor:  
-   ```sh
-   nano /path/to/custom/ipp-usb.conf
-   ```
-2. Modify settings as needed and save the file.  
-3. Restart the container to apply changes:  
-   ```sh
-   sudo docker restart ipp-usb
-   ```
+#### **2 Open the Configuration File in Nano**  
+Once inside the container, open the configuration file using `nano`:  
+```sh
+nano /etc/ipp-usb/ipp-usb.conf
+```
+
+#### **3 Edit and Save the File**  
+- Make the necessary changes to the file.  
+- Press `CTRL + X`, then `Y`, and hit `Enter` to save the changes.  
+
+#### **4 Restart the Container to Apply Changes**  
+Exit the container and restart it to apply the updated configuration:  
+```sh
+sudo docker restart ipp-usb
+```
 
 ### **Viewing Logs in the `ipp-usb` Container**  
 
-The `ipp-usb` container logs important events and errors to `/var/log/ipp-usb/main.log`. Since the container is immutable, you need to either **mount the log directory** for persistence or **use Docker commands** to inspect logs.  
+The `ipp-usb` container logs important events and errors to `/var/log/ipp-usb/main.log`. Since the container is immutable, logs are stored inside the container and can be accessed using Docker commands.
 
 #### **1. Using Docker Logs**  
 To view real-time logs from the running container, use:  
 ```sh
 sudo docker logs -f ipp-usb
-```
+```  
 - The `-f` flag follows the logs in real-time.  
 - Replace `ipp-usb` with your actual container name if different.  
 
@@ -380,32 +363,21 @@ sudo docker logs -f ipp-usb
 If you need to inspect logs manually, enter the container shell:  
 ```sh
 sudo docker exec -it ipp-usb bash
-```
+```  
 Then, inside the container, run:  
 ```sh
+tail -f /var/log/ipp-usb/main.log
+```  
+This will display new log entries in real-time. If you only want to see the last few lines, use:  
+```sh
+tail -n 50 /var/log/ipp-usb/main.log
+```  
+To view the full log file at once, use:  
+```sh
 cat /var/log/ipp-usb/main.log
-```
+```  
 
-#### **3. Persisting Logs by Mounting a Directory**  
-If you want logs to persist after container restarts, mount a host directory to store logs:  
-```sh
-sudo docker run -d --network host \
-    -v /dev/bus/usb:/dev/bus/usb:ro \
-    -v ipp-usb-data:/var/lib/ipp-usb \
-    -v /path/to/logs:/var/log/ipp-usb \
-    --device-cgroup-rule='c 189:* rmw' \
-    --name ipp-usb \
-    ghcr.io/openprinting/ipp-usb:latest
-```
-- Replace `/path/to/logs` with an actual directory on your host system.  
-- Logs will be available at `/path/to/logs/main.log` on the host.  
-
-#### **4. Checking Logs Without Entering the Container**  
-If logs are mounted to a directory on the host, view them directly:  
-```sh
-cat /path/to/logs/main.log
-tail -f /path/to/logs/main.log   # Follow logs in real-time
-```
+Using `tail -f` is preferable for continuous monitoring, whereas `cat` is better for quick one-time checks.
 
 
 ## Installation from source

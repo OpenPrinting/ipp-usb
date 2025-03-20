@@ -210,6 +210,7 @@ parts:
       - python3
       - dbus
       - libnss-mdns
+      - nano
     override-prime: |
       set -eux
       craftctl default
@@ -226,12 +227,6 @@ parts:
       chown 584792:584792 "$DBUS_RUN_DIR"
       chmod 777 "$DBUS_RUN_DIR"
 
-      # Set up state directory for IPP-USB
-      STATE_DIR="$CRAFT_PRIME/var/lib/ipp-usb"
-      mkdir -p "$STATE_DIR"
-      chown 584792:584792 "$STATE_DIR"
-      chmod 770 "$STATE_DIR"
-
       # Set up IPP-USB runtime directories
       IPP_USB_RUN_DIR="$CRAFT_PRIME/var/ipp-usb"
       mkdir -p "$IPP_USB_RUN_DIR"
@@ -244,16 +239,17 @@ parts:
       chown 584792:584792 "$LOCK_DIR"
       chmod 770 "$LOCK_DIR"
 
+      # Set up lock directory for IPP-USB
+      DEV_DIR="$IPP_USB_RUN_DIR/dev"
+      mkdir -p "$DEV_DIR"
+      chown 584792:584792 "$DEV_DIR"
+      chmod 770 "$DEV_DIR"
+
       # Set up log directory for IPP-USB
       LOG_DIR="$CRAFT_PRIME/var/log/ipp-usb"
       mkdir -p "$LOG_DIR"
       chown 584792:584792 "$LOG_DIR"
       chmod 770 "$LOG_DIR"
-
-      DEV_DIR="$CRAFT_PRIME/var/dev"
-      mkdir -p "$DEV_DIR"
-      chown 584792:584792 "$DEV_DIR"
-      chmod 770 "$DEV_DIR"
 
       # Set up log file for IPP-USB
       LOG_FILE="$LOG_DIR/main.log"
@@ -267,17 +263,17 @@ parts:
       chown 584792:584792 "$CONF_DIR"
       chmod 770 "$CONF_DIR"
 
-      # Set up /usr/share/ipp-usb/quirks directory
-      QUIRKS_DIR="$CRAFT_PRIME/usr/share/ipp-usb/quirks"
-      mkdir -p "$QUIRKS_DIR"
-      chown 584792:584792 "$QUIRKS_DIR"
-      chmod 770 "$QUIRKS_DIR"
-
       # Create default ipp-usb.conf file if missing
       CONF_FILE="$CONF_DIR/ipp-usb.conf"
       touch "$CONF_FILE"
       chown 584792:584792 "$CONF_FILE"
       chmod 644 "$CONF_FILE"
+
+      # Set up /usr/share/ipp-usb/quirks directory
+      QUIRKS_DIR="$CRAFT_PRIME/usr/share/ipp-usb/quirks"
+      mkdir -p "$QUIRKS_DIR"
+      chown 584792:584792 "$QUIRKS_DIR"
+      chmod 770 "$QUIRKS_DIR"
 
       # Ensure ipp-usb binary is executable and owned by _daemon_
       IPP_USB_BIN="$CRAFT_PRIME/usr/sbin/ipp-usb"

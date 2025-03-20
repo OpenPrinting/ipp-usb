@@ -329,6 +329,84 @@ To enter the running `ipp-usb` container and access a shell inside it, use:
 ```
 This allows you to inspect logs, debug issues, or manually run commands inside the container.
 
+### Configuration  
+
+The `ipp-usb` container uses a configuration file located at:  
+```sh
+/etc/ipp-usb/ipp-usb.conf
+```
+By default, the container uses the built-in configuration, but you can override it by mounting a custom config file.
+
+#### **Mounting a Custom Configuration File**  
+To use a modified configuration file, you can mount it from the host system when starting the container:  
+```sh
+sudo docker run -d --network host \
+    -v /dev/bus/usb:/dev/bus/usb:ro \
+    -v ipp-usb-data:/var/lib/ipp-usb \
+    --device-cgroup-rule='c 189:* rmw' \
+    -v /path/to/custom/ipp-usb.conf:/etc/ipp-usb/ipp-usb.conf:ro \
+    --name ipp-usb \
+    ghcr.io/openprinting/ipp-usb:latest
+```
+- Replace `/path/to/custom/ipp-usb.conf` with the actual path to your modified config file.  
+- The `:ro` flag makes the file **read-only**, ensuring it cannot be modified inside the container.  
+- Any changes made to `/path/to/custom/ipp-usb.conf` on the host will apply when the container is restarted.
+
+#### **Editing the Configuration File on the Host**  
+Since the Rock image does not include text editors inside the container, you must edit the config file **on the host** before mounting it.  
+1. Open the config file with a text editor:  
+   ```sh
+   nano /path/to/custom/ipp-usb.conf
+   ```
+2. Modify settings as needed and save the file.  
+3. Restart the container to apply changes:  
+   ```sh
+   sudo docker restart ipp-usb
+   ```
+
+### **Viewing Logs in the `ipp-usb` Container**  
+
+The `ipp-usb` container logs important events and errors to `/var/log/ipp-usb/main.log`. Since the container is immutable, you need to either **mount the log directory** for persistence or **use Docker commands** to inspect logs.  
+
+#### **1. Using Docker Logs**  
+To view real-time logs from the running container, use:  
+```sh
+sudo docker logs -f ipp-usb
+```
+- The `-f` flag follows the logs in real-time.  
+- Replace `ipp-usb` with your actual container name if different.  
+
+#### **2. Accessing Logs Inside the Container**  
+If you need to inspect logs manually, enter the container shell:  
+```sh
+sudo docker exec -it ipp-usb bash
+```
+Then, inside the container, run:  
+```sh
+cat /var/log/ipp-usb/main.log
+```
+
+#### **3. Persisting Logs by Mounting a Directory**  
+If you want logs to persist after container restarts, mount a host directory to store logs:  
+```sh
+sudo docker run -d --network host \
+    -v /dev/bus/usb:/dev/bus/usb:ro \
+    -v ipp-usb-data:/var/lib/ipp-usb \
+    -v /path/to/logs:/var/log/ipp-usb \
+    --device-cgroup-rule='c 189:* rmw' \
+    --name ipp-usb \
+    ghcr.io/openprinting/ipp-usb:latest
+```
+- Replace `/path/to/logs` with an actual directory on your host system.  
+- Logs will be available at `/path/to/logs/main.log` on the host.  
+
+#### **4. Checking Logs Without Entering the Container**  
+If logs are mounted to a directory on the host, view them directly:  
+```sh
+cat /path/to/logs/main.log
+tail -f /path/to/logs/main.log   # Follow logs in real-time
+```
+
 
 ## Installation from source
 

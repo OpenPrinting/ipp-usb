@@ -25,5 +25,8 @@ while true; do
     sleep 1
 done
 
-# Start ipp-usb 
-exec /usr/sbin/ipp-usb 
+# Run ipp-usb with logging
+echo "[$(date)] Running ipp-usb..."
+
+# Run ipp-usb with the provided command-line arguments
+exec /usr/sbin/ipp-usb "$@"

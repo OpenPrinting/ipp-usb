@@ -251,12 +251,6 @@ parts:
       chown 584792:584792 "$LOG_DIR"
       chmod 770 "$LOG_DIR"
 
-      # Set up log file for IPP-USB
-      LOG_FILE="$LOG_DIR/main.log"
-      touch "$LOG_FILE"
-      chown 584792:584792 "$LOG_FILE"
-      chmod 644 "$LOG_FILE"
-
       # Set up /etc/ipp-usb directory for configuration files
       CONF_DIR="$CRAFT_PRIME/etc/ipp-usb"
       mkdir -p "$CONF_DIR"
@@ -269,8 +263,8 @@ parts:
       chown 584792:584792 "$CONF_FILE"
       chmod 644 "$CONF_FILE"
 
-      # Set up /usr/share/ipp-usb/quirks directory
-      QUIRKS_DIR="$CRAFT_PRIME/usr/share/ipp-usb/quirks"
+      # Set up quirks directory
+      QUIRKS_DIR="$CRAFT_PRIME/etc/ipp-usb/quirks"
       mkdir -p "$QUIRKS_DIR"
       chown 584792:584792 "$QUIRKS_DIR"
       chmod 770 "$QUIRKS_DIR"

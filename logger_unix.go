@@ -1,3 +1,4 @@
+//go:build darwin || dragonfly || freebsd || linux || nacl || netbsd || openbsd || solaris
 // +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
 
 /* ipp-usb - HTTP reverse proxy, backed by IPP-over-USB connection to device

@@ -10,10 +10,11 @@ package main
 
 // GlobMatch matches string against glob-style pattern.
 // Pattern  may contain wildcards and has a following syntax:
-//   *   - matches any sequence of characters
-//   ?   - matches exactly one character
-//   \ C - matches character C
-//   C   - matches character C (C is not *, ? or \)
+//
+//	?   - matches exactly one character
+//	*   - matches any sequence of characters
+//	\C  - matches character C
+//	C   - matches character C (C is not *, ? or \)
 //
 // It return a counter of matched non-wildcard characters, -1 if no match
 func GlobMatch(str, pattern string) int {

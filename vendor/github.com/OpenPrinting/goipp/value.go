@@ -51,6 +51,23 @@ func (values Values) String() string {
 	return buf.String()
 }
 
+// Clone creates a shallow copy of Values
+func (values Values) Clone() Values {
+	values2 := make(Values, len(values))
+	copy(values2, values)
+	return values2
+}
+
+// DeepCopy creates a deep copy of Values
+func (values Values) DeepCopy() Values {
+	values2 := make(Values, len(values))
+	for i := range values {
+		values2[i].T = values[i].T
+		values2[i].V = values[i].V.DeepCopy()
+	}
+	return values2
+}
+
 // Equal performs deep check of equality of two Values
 func (values Values) Equal(values2 Values) bool {
 	if len(values) != len(values2) {
@@ -67,6 +84,22 @@ func (values Values) Equal(values2 Values) bool {
 	return true
 }
 
+// Similar performs deep check of **logical** equality of two Values
+func (values Values) Similar(values2 Values) bool {
+	if len(values) != len(values2) {
+		return false
+	}
+
+	for i, v := range values {
+		v2 := values2[i]
+		if v.T != v2.T || !ValueSimilar(v.V, v2.V) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Value represents an attribute value
 //
 // IPP uses typed values, and type of each value is unambiguously
@@ -74,9 +107,39 @@ func (values Values) Equal(values2 Values) bool {
 type Value interface {
 	String() string
 	Type() Type
+	DeepCopy() Value
 	encode() ([]byte, error)
 	decode([]byte) (Value, error)
 }
+
+var (
+	_ = Value(Binary(nil))
+	_ = Value(Boolean(false))
+	_ = Value(Collection(nil))
+	_ = Value(Integer(0))
+	_ = Value(Range{})
+	_ = Value(Resolution{})
+	_ = Value(String(""))
+	_ = Value(TextWithLang{})
+	_ = Value(Time{time.Time{}})
+	_ = Value(Void{})
+)
+
+// IntegerOrRange is a Value of type Integer or Range
+type IntegerOrRange interface {
+	Value
+
+	// Within checks that x fits within the range:
+	//
+	//   for Integer: x == Integer's value
+	//   for Range:   Lower <= x && x <= Upper
+	Within(x int) bool
+}
+
+var (
+	_ = IntegerOrRange(Integer(0))
+	_ = IntegerOrRange(Range{})
+)
 
 // ValueEqual checks if two values are equal
 //
@@ -101,6 +164,38 @@ func ValueEqual(v1, v2 Value) bool {
 	return v1 == v2
 }
 
+// ValueSimilar checks if two values are **logically** equal,
+// which means the following:
+//   - If values are equal (i.e., ValueEqual() returns true),
+//     they are similar.
+//   - Binary and String values are similar, if they represent
+//     the same sequence of bytes.
+//   - Two collections are similar, if they contain the same
+//     set of attributes (but may be differently ordered) and
+//     values of these attributes are similar.
+func ValueSimilar(v1, v2 Value) bool {
+	if ValueEqual(v1, v2) {
+		return true
+	}
+
+	t1 := v1.Type()
+	t2 := v2.Type()
+
+	switch {
+	case t1 == TypeBinary && t2 == TypeString:
+		return bytes.Equal(v1.(Binary), []byte(v2.(String)))
+
+	case t1 == TypeString && t2 == TypeBinary:
+		return bytes.Equal([]byte(v1.(String)), v2.(Binary))
+
+	case t1 == TypeCollection && t2 == TypeCollection:
+		return Attributes(v1.(Collection)).Similar(
+			Attributes(v2.(Collection)))
+	}
+
+	return false
+}
+
 // Void is the Value that represents "no value"
 //
 // Use with: TagUnsupportedValue, TagDefault, TagUnknown,
@@ -112,6 +207,11 @@ func (Void) String() string { return "" }
 
 // Type returns type of Value (TypeVoid for Void)
 func (Void) Type() Type { return TypeVoid }
+
+// DeepCopy returns a deep copy of the Void Value
+func (v Void) DeepCopy() Value {
+	return v
+}
 
 // Encode Void Value into wire format
 func (v Void) encode() ([]byte, error) {
@@ -133,6 +233,18 @@ func (v Integer) String() string { return fmt.Sprintf("%d", int32(v)) }
 
 // Type returns type of Value (TypeInteger for Integer)
 func (Integer) Type() Type { return TypeInteger }
+
+// DeepCopy returns a deep copy of the Integer Value
+func (v Integer) DeepCopy() Value {
+	return v
+}
+
+// Within checks that x fits within the range
+//
+// It implements IntegerOrRange interface
+func (v Integer) Within(x int) bool {
+	return x == int(v)
+}
 
 // Encode Integer Value into wire format
 func (v Integer) encode() ([]byte, error) {
@@ -158,6 +270,11 @@ func (v Boolean) String() string { return fmt.Sprintf("%t", bool(v)) }
 
 // Type returns type of Value (TypeBoolean for Boolean)
 func (Boolean) Type() Type { return TypeBoolean }
+
+// DeepCopy returns a deep copy of the Boolean Value
+func (v Boolean) DeepCopy() Value {
+	return v
+}
 
 // Encode Boolean Value into wire format
 func (v Boolean) encode() ([]byte, error) {
@@ -188,6 +305,11 @@ func (v String) String() string { return string(v) }
 // Type returns type of Value (TypeString for String)
 func (String) Type() Type { return TypeString }
 
+// DeepCopy returns a deep copy of the String Value
+func (v String) DeepCopy() Value {
+	return v
+}
+
 // Encode String Value into wire format
 func (v String) encode() ([]byte, error) {
 	return []byte(v), nil
@@ -208,6 +330,11 @@ func (v Time) String() string { return v.Time.Format(time.RFC3339) }
 
 // Type returns type of Value (TypeDateTime for Time)
 func (Time) Type() Type { return TypeDateTime }
+
+// DeepCopy returns a deep copy of the Time Value
+func (v Time) DeepCopy() Value {
+	return v
+}
 
 // Encode Time Value into wire format
 func (v Time) encode() ([]byte, error) {
@@ -331,6 +458,11 @@ func (v Resolution) String() string {
 // Type returns type of Value (TypeResolution for Resolution)
 func (Resolution) Type() Type { return TypeResolution }
 
+// DeepCopy returns a deep copy of the Resolution Value
+func (v Resolution) DeepCopy() Value {
+	return v
+}
+
 // Encode Resolution Value into wire format
 func (v Resolution) encode() ([]byte, error) {
 	// Wire format
@@ -397,6 +529,11 @@ func (v Range) String() string {
 // Type returns type of Value (TypeRange for Range)
 func (Range) Type() Type { return TypeRange }
 
+// DeepCopy returns a deep copy of the Range Value
+func (v Range) DeepCopy() Value {
+	return v
+}
+
 // Encode Range Value into wire format
 func (v Range) encode() ([]byte, error) {
 	// Wire format
@@ -409,6 +546,13 @@ func (v Range) encode() ([]byte, error) {
 		byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l),
 		byte(u >> 24), byte(u >> 16), byte(u >> 8), byte(u),
 	}, nil
+}
+
+// Within checks that x fits within the range
+//
+// It implements IntegerOrRange interface
+func (v Range) Within(x int) bool {
+	return v.Lower <= x && x <= v.Upper
 }
 
 // Decode Range Value from wire format
@@ -425,8 +569,8 @@ func (Range) decode(data []byte) (Value, error) {
 
 // TextWithLang is the Value that represents a combination
 // of two strings:
-//   * text on some natural language (i.e., "hello")
-//   * name of that language (i.e., "en")
+//   - text on some natural language (i.e., "hello")
+//   - name of that language (i.e., "en")
 //
 // Use with: TagTextLang, TagNameLang
 type TextWithLang struct {
@@ -438,6 +582,11 @@ func (v TextWithLang) String() string { return v.Text + " [" + v.Lang + "]" }
 
 // Type returns type of Value (TypeTextWithLang for TextWithLang)
 func (TextWithLang) Type() Type { return TypeTextWithLang }
+
+// DeepCopy returns a deep copy of the TextWithLang Value
+func (v TextWithLang) DeepCopy() Value {
+	return v
+}
 
 // Encode TextWithLang Value into wire format
 func (v TextWithLang) encode() ([]byte, error) {
@@ -527,6 +676,13 @@ func (v Binary) String() string {
 // Type returns type of Value (TypeBinary for Binary)
 func (Binary) Type() Type { return TypeBinary }
 
+// DeepCopy returns a deep copy of the Binary Value
+func (v Binary) DeepCopy() Value {
+	v2 := make(Binary, len(v))
+	copy(v2, v)
+	return v2
+}
+
 // Encode TextWithLang Value into wire format
 func (v Binary) encode() ([]byte, error) {
 	return []byte(v), nil
@@ -569,6 +725,11 @@ func (v Collection) String() string {
 
 // Type returns type of Value (TypeCollection for Collection)
 func (Collection) Type() Type { return TypeCollection }
+
+// DeepCopy returns a deep copy of the Collection Value
+func (v Collection) DeepCopy() Value {
+	return Collection(Attributes(v).DeepCopy())
+}
 
 // Encode Collection Value into wire format
 func (Collection) encode() ([]byte, error) {

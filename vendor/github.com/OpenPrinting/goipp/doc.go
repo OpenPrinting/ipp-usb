@@ -89,7 +89,7 @@ response messages
     )
 
     const (
-	    PrinterURL = "http://192.168.1.102:631/ipp/print"
+	    PrinterURL = "ipp://192.168.1.102:631/ipp/print"
 	    TestPage   = "onepage-a4.pdf"
     )
 

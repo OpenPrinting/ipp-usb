@@ -319,14 +319,12 @@ func (md *messageDecoder) decodeAttribute(tag Tag) (Attribute, error) {
 		}
 
 		t := binary.BigEndian.Uint32(value[:4])
-		value = value[4:]
 
 		if t > 0x7fffffff {
-			err = errors.New("Extension tag out of range")
+			err = fmt.Errorf(
+				"Extension tag 0x%8.8x out of range", t)
 			goto ERROR
 		}
-
-		tag = Tag(t)
 	}
 
 	// Unpack value

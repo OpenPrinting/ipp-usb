@@ -273,7 +273,12 @@ func (m QuirkBuggyIppRsp) String() string {
 	return fmt.Sprintf("unknown (%d)", int(m))
 }
 
-// Quirks is the collection of Quirk-s.
+// Quirks is the collection of Quirk, indexed by Quirk.Name.
+// All quirks in the collection have a unique name.
+//
+// It is used for two purposes:
+//   - to represent a section in the quirks file
+//   - to represent set of quirks, applied to the particular device.
 type Quirks struct {
 	byName      map[string]*Quirk // Quirks by name
 	HTTPHeaders map[string]string // HTTP header override
@@ -389,7 +394,10 @@ func (quirks Quirks) GetZlpSend() bool {
 	return quirks.Get(QuirkNmZlpSend).Parsed.(bool)
 }
 
-// QuirksSet represents collection of quirks
+// QuirksSet is a collection of Quirks.
+//
+// Its primary purpose is to represent in-memory copy of Quirks,
+// loaded from the quirks files.
 type QuirksSet []*Quirks
 
 // LoadQuirksSet creates new QuirksSet and loads its content from a directory

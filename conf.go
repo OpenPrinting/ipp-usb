@@ -38,7 +38,7 @@ type Configuration struct {
 	LogMaxBackupFiles  uint           // Count of files preserved during rotation
 	LogAllPrinterAttrs bool           // Get *all* printer attrs, for logging
 	ColorConsole       bool           // Enable ANSI colors on console
-	Quirks             QuirksSet      // Device quirks
+	Quirks             QuirksDb       // Quirks data base
 }
 
 // Conf contains a global instance of program configuration

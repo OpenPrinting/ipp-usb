@@ -394,28 +394,26 @@ func (quirks Quirks) GetZlpSend() bool {
 	return quirks.Get(QuirkNmZlpSend).Parsed.(bool)
 }
 
-// QuirksSet is a collection of Quirks.
-//
-// Its primary purpose is to represent in-memory copy of Quirks,
-// loaded from the quirks files.
-type QuirksSet []*Quirks
+// QuirksDb represents in-memory data base of Quirks, as loaded
+// from the disk files.
+type QuirksDb []*Quirks
 
-// LoadQuirksSet creates new QuirksSet and loads its content from a directory
-func LoadQuirksSet(paths ...string) (QuirksSet, error) {
-	qset := QuirksSet{}
+// LoadQuirksSet creates new QuirksDb and loads its content from a directory
+func LoadQuirksSet(paths ...string) (QuirksDb, error) {
+	qdb := QuirksDb{}
 
 	for _, path := range paths {
-		err := qset.readDir(path)
+		err := qdb.readDir(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return qset, nil
+	return qdb, nil
 }
 
 // readDir loads all Quirks from a directory
-func (qset *QuirksSet) readDir(path string) error {
+func (qdb *QuirksDb) readDir(path string) error {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -427,7 +425,7 @@ func (qset *QuirksSet) readDir(path string) error {
 	for _, file := range files {
 		if file.Mode().IsRegular() &&
 			strings.HasSuffix(file.Name(), ".conf") {
-			err = qset.readFile(filepath.Join(path, file.Name()))
+			err = qdb.readFile(filepath.Join(path, file.Name()))
 			if err != nil {
 				return err
 			}
@@ -438,7 +436,7 @@ func (qset *QuirksSet) readDir(path string) error {
 }
 
 // readFile reads all Quirks from a file
-func (qset *QuirksSet) readFile(file string) error {
+func (qdb *QuirksDb) readFile(file string) error {
 	// Open quirks file
 	ini, err := OpenIniFileWithRecType(file)
 	if err != nil {
@@ -466,7 +464,7 @@ func (qset *QuirksSet) readFile(file string) error {
 				byName:      make(map[string]*Quirk),
 				HTTPHeaders: make(map[string]string),
 			}
-			qset.Add(quirks)
+			qdb.Add(quirks)
 
 			continue
 		} else if quirks == nil {
@@ -523,19 +521,19 @@ func (qset *QuirksSet) readFile(file string) error {
 	return err
 }
 
-// Add appends Quirks to QuirksSet
-func (qset *QuirksSet) Add(q *Quirks) {
-	*qset = append(*qset, q)
+// Add appends Quirks to QuirksDb
+func (qdb *QuirksDb) Add(q *Quirks) {
+	*qdb = append(*qdb, q)
 }
 
 // MatchByModelName returns collection of quirks, applicable for
 // specific device, matched by model name.
-func (qset QuirksSet) MatchByModelName(model string) Quirks {
+func (qdb QuirksDb) MatchByModelName(model string) Quirks {
 	ret := Quirks{
 		byName: make(map[string]*Quirk),
 	}
 
-	for _, quirks := range qset {
+	for _, quirks := range qdb {
 		for name, q := range quirks.byName {
 			if GlobMatch(model, q.Match) >= 0 {
 				q2 := ret.byName[name]

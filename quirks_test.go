@@ -19,7 +19,7 @@ func TestQuirksLookup(t *testing.T) {
 	const path = "testdata/quirks"
 
 	// Load quirks
-	qset, err := LoadQuirksSet(path)
+	qdb, err := LoadQuirksSet(path)
 	if err != nil {
 		t.Fatalf("LoadQuirksSet(%q): %s", path, err)
 	}
@@ -208,7 +208,7 @@ func TestQuirksLookup(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		quirks := qset.MatchByModelName(test.model)
+		quirks := qdb.MatchByModelName(test.model)
 		q := quirks.Get(test.param)
 		v := test.get(quirks)
 

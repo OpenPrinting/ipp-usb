@@ -242,7 +242,7 @@ func (info *UsbDeviceInfo) FixUp() {
 	prod := strings.TrimSpace(info.ProductName)
 
 	info.MfgAndProduct = prod
-	if !strings.HasPrefix(prod, mfg) {
+	if mfg != "" && !strings.HasPrefix(prod, mfg) {
 		info.MfgAndProduct = mfg + " " + prod
 	}
 }
@@ -250,8 +250,15 @@ func (info *UsbDeviceInfo) FixUp() {
 // Ident returns device identification string, suitable as
 // persistent state identifier
 func (info UsbDeviceInfo) Ident() string {
-	id := fmt.Sprintf("%4.4x-%4.4x-%s-%s",
-		info.Vendor, info.Product, info.SerialNumber, info.MfgAndProduct)
+	id := fmt.Sprintf("%4.4x-%4.4x", info.Vendor, info.Product)
+
+	if info.SerialNumber != "" {
+		id += "-" + info.SerialNumber
+	}
+
+	if info.MfgAndProduct != "" {
+		id += "-" + info.MfgAndProduct
+	}
 
 	id = strings.Map(func(c rune) rune {
 		switch {

@@ -24,12 +24,13 @@ import (
 
 // Quirk represents a single quirk
 type Quirk struct {
-	Origin    string      // file:line of definition
-	Match     string      // Match pattern
-	Name      string      // Quirk name
-	RawValue  string      // Quirk raw (not parsed) value
-	Parsed    interface{} // Parsed Value
-	LoadOrder int         // Incremented in order of loading
+	Origin    string       // file:line of definition
+	Match     string       // Match pattern
+	MatchHWID *HWIDPattern // HWID match pattern or nil
+	Name      string       // Quirk name
+	RawValue  string       // Quirk raw (not parsed) value
+	Parsed    interface{}  // Parsed Value
+	LoadOrder int          // Incremented in order of loading
 }
 
 // Quirk names. Use these constants instead of literal strings,
@@ -43,6 +44,8 @@ const (
 	QuirkNmInitReset             = "init-reset"
 	QuirkNmInitRetryPartial      = "init-retry-partial"
 	QuirkNmInitTimeout           = "init-timeout"
+	QuirkNmMfg                   = "mfg"
+	QuirkNmModel                 = "model"
 	QuirkNmRequestDelay          = "request-delay"
 	QuirkNmUsbMaxInterfaces      = "usb-max-interfaces"
 	QuirkNmUsbSendDelayThreshold = "usb-send-delay-threshold"
@@ -62,10 +65,12 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmInitReset:             (*Quirk).parseQuirkResetMethod,
 	QuirkNmInitRetryPartial:      (*Quirk).parseBool,
 	QuirkNmInitTimeout:           (*Quirk).parseDuration,
+	QuirkNmMfg:                   (*Quirk).parseString,
+	QuirkNmModel:                 (*Quirk).parseString,
 	QuirkNmRequestDelay:          (*Quirk).parseDuration,
 	QuirkNmUsbMaxInterfaces:      (*Quirk).parseUint,
-	QuirkNmUsbSendDelayThreshold: (*Quirk).parseUint,
 	QuirkNmUsbSendDelay:          (*Quirk).parseDuration,
+	QuirkNmUsbSendDelayThreshold: (*Quirk).parseUint,
 	QuirkNmZlpRecvHack:           (*Quirk).parseBool,
 	QuirkNmZlpSend:               (*Quirk).parseBool,
 }
@@ -78,13 +83,15 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmDisableFax:            "false",
 	QuirkNmIgnoreIppStatus:       "false",
 	QuirkNmInitDelay:             "0",
-	QuirkNmInitRetryPartial:      "false",
 	QuirkNmInitReset:             "none",
+	QuirkNmInitRetryPartial:      "false",
 	QuirkNmInitTimeout:           DevInitTimeout.String(),
+	QuirkNmMfg:                   "",
+	QuirkNmModel:                 "",
 	QuirkNmRequestDelay:          "0",
 	QuirkNmUsbMaxInterfaces:      "0",
-	QuirkNmUsbSendDelayThreshold: "0",
 	QuirkNmUsbSendDelay:          "0",
+	QuirkNmUsbSendDelayThreshold: "0",
 	QuirkNmZlpRecvHack:           "false",
 	QuirkNmZlpSend:               "false",
 }
@@ -113,6 +120,22 @@ func init() {
 	}
 }
 
+// isHTTP reports if Quirk is the HTTP header quirk
+func (q *Quirk) isHTTP() bool {
+	return strings.HasPrefix(q.Name, "http-")
+}
+
+// isHTTP reports if Quirk is matched by HWID
+func (q *Quirk) isHWID() bool {
+	return q.MatchHWID != nil
+}
+
+// parseString parses and saves [Quirk.RawValue] as string.
+func (q *Quirk) parseString() error {
+	q.Parsed = q.RawValue
+	return nil
+}
+
 // parseBool parses and saves [Quirk.RawValue] as bool.
 func (q *Quirk) parseBool() error {
 	switch q.RawValue {
@@ -127,7 +150,7 @@ func (q *Quirk) parseBool() error {
 	return nil
 }
 
-// parseUind parses [Quirk.RawValue] as bool.
+// parseUint parses [Quirk.RawValue] as unsigned int.
 func (q *Quirk) parseUint() error {
 	v, err := strconv.ParseUint(q.RawValue, 10, 32)
 	if err != nil {
@@ -189,6 +212,11 @@ func (q *Quirk) parseQuirkResetMethod() error {
 	case "none":
 		q.Parsed = QuirkResetNone
 	case "soft":
+		if q.isHWID() {
+			return fmt.Errorf("%s = %s not available in HWID mode",
+				q.Name, q.RawValue)
+		}
+
 		q.Parsed = QuirkResetSoft
 	case "hard":
 		q.Parsed = QuirkResetHard
@@ -197,26 +225,6 @@ func (q *Quirk) parseQuirkResetMethod() error {
 	}
 
 	return nil
-}
-
-// prioritize returns more prioritized Quirk, choosing between q and q2.
-func (q *Quirk) prioritize(q2 *Quirk, model string) *Quirk {
-	matchlen := GlobMatch(model, q.Match)
-	matchlen2 := GlobMatch(model, q2.Match)
-
-	switch {
-	// Choose by match length (more specific match wins)
-	case matchlen > matchlen2:
-		return q
-	case matchlen < matchlen2:
-		return q2
-
-	// Choose by load order (first loaded wins)
-	case q.LoadOrder > q2.LoadOrder:
-		return q
-	}
-
-	return q
 }
 
 // QuirkResetMethod represents how to reset a device
@@ -281,7 +289,87 @@ func (m QuirkBuggyIppRsp) String() string {
 //   - to represent set of quirks, applied to the particular device.
 type Quirks struct {
 	byName      map[string]*Quirk // Quirks by name
+	weights     map[string]int    // Matching weights
 	HTTPHeaders map[string]string // HTTP header override
+}
+
+// newQuirks returns a new Quirks structure
+func newQuirks() *Quirks {
+	return &Quirks{
+		byName:      make(map[string]*Quirk),
+		weights:     make(map[string]int),
+		HTTPHeaders: make(map[string]string),
+	}
+}
+
+// put adds Quirk to Quirks, or replaces existing one, if any.
+func (quirks Quirks) put(q *Quirk) {
+	quirks.byName[q.Name] = q
+
+	if q.isHTTP() {
+		// Canonicalize and save HTTP header name
+		hdr := http.CanonicalHeaderKey(q.Name[5:])
+		quirks.HTTPHeaders[hdr] = q.RawValue
+	}
+}
+
+// prioritize puts Quirk to Quirks, if it is either not in the set yet
+// or has higher priority that existing one
+func (quirks Quirks) prioritize(q *Quirk, weight int) {
+	prev := quirks.byName[q.Name]
+	prevWeight := quirks.weights[q.Name]
+
+	save := false
+
+	switch {
+	// Always save, if the Quirk is not yet in the set
+	case prev == nil:
+		save = true
+	// Choose by matching weight (more specific match wins)
+	case weight > prevWeight:
+		save = true
+	case weight < prevWeight:
+
+	// Choose by load order (first loaded wins)
+	case q.LoadOrder > prev.LoadOrder:
+		save = true
+	}
+
+	if save {
+		quirks.put(q)
+		quirks.weights[q.Name] = weight
+	}
+}
+
+// WriteLog writes Quirks to log.
+func (quirks Quirks) WriteLog(title string, log *LogMessage) {
+	if quirks.IsEmpty() {
+		log.Debug(' ', "%s: EMPTY", title)
+		return
+	}
+
+	log.Debug(' ', "%s:", title)
+
+	prevMatch := ""
+	for _, q := range quirks.All() {
+		val := q.RawValue
+		if _, isStr := q.Parsed.(string); isStr {
+			val = strconv.Quote(val)
+		}
+
+		if q.Match != prevMatch {
+			prevMatch = q.Match
+			log.Debug(' ', "  [%s]", q.Match)
+		}
+
+		log.Debug(' ', "    ; (%s)", q.Origin)
+		log.Debug(' ', "    %s = %s", q.Name, val)
+	}
+}
+
+// IsEmpty reports if Quirks are empty
+func (quirks Quirks) IsEmpty() bool {
+	return len(quirks.byName) == 0
 }
 
 // Get returns quirk by name.
@@ -356,6 +444,18 @@ func (quirks Quirks) GetInitReset() QuirkResetMethod {
 // taking the whole set into consideration.
 func (quirks Quirks) GetInitTimeout() time.Duration {
 	return quirks.Get(QuirkNmInitTimeout).Parsed.(time.Duration)
+}
+
+// GetMfg returns effective "mfg" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetMfg() string {
+	return quirks.Get(QuirkNmMfg).Parsed.(string)
+}
+
+// GetModel returns effective "model" parameter
+// taking the whole set into consideration.
+func (quirks Quirks) GetModel() string {
+	return quirks.Get(QuirkNmModel).Parsed.(string)
 }
 
 // GetRequestDelay returns effective "request-delay" parameter
@@ -447,6 +547,7 @@ func (qdb *QuirksDb) readFile(file string) error {
 
 	// Load all quirks
 	var quirks *Quirks
+	var matchHWID *HWIDPattern
 	var loadOrder int
 
 	for err == nil {
@@ -460,10 +561,8 @@ func (qdb *QuirksDb) readFile(file string) error {
 
 		// Get Quirks structure
 		if rec.Type == IniRecordSection {
-			quirks = &Quirks{
-				byName:      make(map[string]*Quirk),
-				HTTPHeaders: make(map[string]string),
-			}
+			matchHWID = ParseHWIDPattern(rec.Section)
+			quirks = newQuirks()
 			qdb.Add(quirks)
 
 			continue
@@ -482,6 +581,7 @@ func (qdb *QuirksDb) readFile(file string) error {
 		q := &Quirk{
 			Origin:    origin,
 			Match:     rec.Section,
+			MatchHWID: matchHWID,
 			Name:      rec.Key,
 			RawValue:  rec.Value,
 			LoadOrder: loadOrder,
@@ -489,15 +589,11 @@ func (qdb *QuirksDb) readFile(file string) error {
 
 		loadOrder++
 
-		if strings.HasPrefix(rec.Key, "http-") {
-			// Canonicalize HTTP header name
+		if q.isHTTP() {
 			q.Name = strings.ToLower(q.Name)
 			q.Parsed = q.RawValue
-
-			hdr := http.CanonicalHeaderKey(rec.Key[5:])
-			quirks.HTTPHeaders[hdr] = q.RawValue
 		} else {
-			parse := quirkParse[rec.Key]
+			parse := quirkParse[q.Name]
 			if parse == nil {
 				// Ignore unknown keys, it may be due to
 				// downgrade of the ipp-usb
@@ -511,7 +607,7 @@ func (qdb *QuirksDb) readFile(file string) error {
 			}
 		}
 
-		quirks.byName[rec.Key] = q
+		quirks.put(q)
 	}
 
 	if err == io.EOF {
@@ -526,24 +622,40 @@ func (qdb *QuirksDb) Add(q *Quirks) {
 	*qdb = append(*qdb, q)
 }
 
-// MatchByModelName returns collection of quirks, applicable for
-// specific device, matched by model name.
-func (qdb QuirksDb) MatchByModelName(model string) Quirks {
-	ret := Quirks{
-		byName: make(map[string]*Quirk),
-	}
+// MatchByHWID returns collection of quirks, applicable for the
+// specific device, matched by HWID
+func (qdb QuirksDb) MatchByHWID(vid, pid uint16) Quirks {
+	ret := newQuirks()
 
 	for _, quirks := range qdb {
-		for name, q := range quirks.byName {
-			if GlobMatch(model, q.Match) >= 0 {
-				q2 := ret.byName[name]
-				if q2 != nil {
-					q = q.prioritize(q2, model)
+		for _, q := range quirks.byName {
+			if q.isHWID() {
+				weight := q.MatchHWID.Match(vid, pid)
+				if weight >= 0 {
+					ret.prioritize(q, weight)
 				}
-				ret.byName[name] = q
 			}
 		}
 	}
 
-	return ret
+	return *ret
+}
+
+// MatchByModelName returns collection of quirks, applicable for
+// the specific device, matched by model name.
+func (qdb QuirksDb) MatchByModelName(model string) Quirks {
+	ret := newQuirks()
+
+	for _, quirks := range qdb {
+		for _, q := range quirks.byName {
+			if !q.isHWID() {
+				weight := GlobMatch(model, q.Match)
+				if weight >= 0 {
+					ret.prioritize(q, weight)
+				}
+			}
+		}
+	}
+
+	return *ret
 }

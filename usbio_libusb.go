@@ -339,6 +339,8 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 	desc.Bus = int(C.libusb_get_bus_number(dev))
 	desc.Address = int(C.libusb_get_device_address(dev))
 	desc.Config = -1
+	desc.Vendor = uint16(cDesc.idVendor)
+	desc.Product = uint16(cDesc.idProduct)
 
 	// Roll over configs/interfaces/alt settings/endpoins
 	for cfgNum := 0; cfgNum < int(cDesc.bNumConfigurations); cfgNum++ {

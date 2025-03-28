@@ -16,7 +16,20 @@ package main
 //	\C  - matches character C
 //	C   - matches character C (C is not *, ? or \)
 //
-// It return a counter of matched non-wildcard characters, -1 if no match
+// This function is used to match quirks, applicable to devices,
+// by model name.
+//
+// It returns the "matching weight" which allows to prioritize
+// quirks, if there are multiple matches, as more or less specific
+// (the more the weight, the more specific the quirk is).
+//
+// For the glob-style model name matching, the match weight is defined
+// as a counter of matched non-wildcard characters.
+//
+// If there is no match, it returns -1.
+//
+// Se also [HWIDPattern.Match] documentation for comparison with
+// the similar function, used for match-by-HWID purpose.
 func GlobMatch(str, pattern string) int {
 	return globMatchInternal(str, pattern, 0)
 }

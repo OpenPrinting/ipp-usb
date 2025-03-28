@@ -669,6 +669,14 @@ func (msg *LogMessage) Flush() {
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	}
 
+	// If there are still no destination, return for now.
+	//
+	// It may happen either because destination is not yet
+	// set (log.ToXXX not called) or because we've failed
+	// to open destination file.
+	//
+	// In both cases if we return now, the logger will continue
+	// to work in the buffering mode, which is desired behavior.
 	if msg.logger.out == nil {
 		return
 	}

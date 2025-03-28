@@ -224,8 +224,8 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 // This is where information comes from:
 //
 //	DNS-SD name: "printer-dns-sd-name" with fallback to "printer-info",
-//	             "printer-make-and-model" and finally to MfgAndProduct
-//	             from the UsbDeviceInfo
+//	             "printer-make-and-model" and finally to the
+//	             UsbDeviceInfo.MakeAndModel
 //
 //	TXT fields:
 //	  air:              hardcoded as "none"
@@ -273,7 +273,7 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 		ippinfo.DNSSdName = attrs.strSingle("printer-make-and-model")
 	}
 	if ippinfo.DNSSdName == "" {
-		ippinfo.DNSSdName = usbinfo.MfgAndProduct
+		ippinfo.DNSSdName = usbinfo.MakeAndModel()
 	}
 
 	// Obtain UUID

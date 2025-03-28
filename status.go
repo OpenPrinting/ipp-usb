@@ -101,7 +101,7 @@ func StatusFormat() []byte {
 			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %q\n",
 				i+1, status.desc.UsbAddr,
 				info.Vendor, info.Product, s,
-				info.MfgAndProduct)
+				info.MakeAndModel())
 
 			s = "OK"
 			if status.init != nil {

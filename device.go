@@ -125,7 +125,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	if ippinfo != nil {
 		dnssdName = ippinfo.DNSSdName
 	} else {
-		dnssdName = info.DNSSdName()
+		dnssdName = info.MakeAndModel()
 	}
 
 	// Update device state, if name changed

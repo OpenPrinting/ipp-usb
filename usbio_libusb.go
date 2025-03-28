@@ -623,8 +623,6 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 
 	info.PortNum = int(C.libusb_get_port_number(dev))
 
-	info.FixUp()
-
 	return info, nil
 }
 

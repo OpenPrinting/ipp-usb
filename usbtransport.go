@@ -72,7 +72,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 
 	// Setup quirks
 	transport.quirks = Conf.Quirks.MatchByModelName(
-		transport.info.MfgAndProduct)
+		transport.info.MakeAndModel())
 
 	// Write device info to the log
 	log := transport.log.Begin().
@@ -85,7 +85,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Manufacturer:  %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:       %s", transport.info.ProductName).
 		Debug(' ', "  SerialNumber:  %s", transport.info.SerialNumber).
-		Debug(' ', "  MfgAndProduct: %s", transport.info.MfgAndProduct).
+		Debug(' ', "  MfgAndProduct: %s", transport.info.MakeAndModel()).
 		Debug(' ', "  BasicCaps:     %s", transport.info.BasicCaps).
 		Nl(LogDebug)
 

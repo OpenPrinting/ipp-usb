@@ -104,7 +104,7 @@ type Logger struct {
 		LogLevel, []byte)
 
 	// Don't reexport these methods from the root message
-	Commit, Flush, Reject struct{}
+	Commit, Reject struct{}
 }
 
 // NewLogger creates new logger. Logger mode is not set,
@@ -177,6 +177,12 @@ func (l *Logger) ToMainFile() *Logger {
 // ToDevFile redirects log to per-device log file
 func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
+}
+
+// HasDestination reports if Logger destination is already
+// configured (i.e., Logger.ToXXX called for this logger).
+func (l *Logger) HasDestination() bool {
+	return l.mode != loggerNoMode
 }
 
 // Cc adds Logger to send "carbon copy" to.

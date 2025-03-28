@@ -10,6 +10,7 @@ package main
 
 import (
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -233,6 +234,29 @@ func (caps UsbIppBasicCaps) String() string {
 	}
 
 	return strings.Join(s, ",")
+}
+
+// CheckMissed return a error, if UsbDeviceInfo misses some
+// essential parameters.
+//
+// It check for the following parameters:
+//
+//   - Manufacturer
+//   - ProductName
+//   - SerialNumber
+//
+// If some of them missed, the appropriate error is returned.
+func (info UsbDeviceInfo) CheckMissed() error {
+	switch {
+	case info.Manufacturer == "":
+		return errors.New("missed Manufacturer string")
+	case info.ProductName == "":
+		return errors.New("missed ProductName string")
+	case info.SerialNumber == "":
+		return errors.New("missed SerialNumber string")
+	}
+
+	return nil
 }
 
 // MakeAndModel returns device Make and Model as a single

@@ -342,7 +342,7 @@ func (quirks Quirks) prioritize(q *Quirk, weight int) {
 }
 
 // WriteLog writes Quirks to log.
-func (quirks Quirks) WriteLog(title string, log *LogMessage) {
+func (quirks Quirks) WriteLog(title string, log *Logger) {
 	if quirks.IsEmpty() {
 		log.Debug(' ', "%s: EMPTY", title)
 		return

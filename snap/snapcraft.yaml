@@ -16,6 +16,7 @@ architectures:
   - build-on: amd64
   - build-on: arm64
   - build-on: armhf
+  - build-on: riscv64
 
 apps:
   ipp-usb-server:
@@ -105,4 +106,3 @@ parts:
     prime:
       - scripts/
     after: [ipp-usb]
-    

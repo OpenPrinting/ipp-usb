@@ -417,7 +417,7 @@ func TestQuirksParsers(t *testing.T) {
 	}
 }
 
-// TestQuirksSetLoad tests LoadQuirksSet
+// TestLoadQuirksSet tests LoadQuirksSet function.
 func TestQuirksSetLoad(t *testing.T) {
 	const path = "testdata/quirks"
 	const badPath = path + "-not-exist"

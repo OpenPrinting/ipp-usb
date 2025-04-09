@@ -1,2 +1,2 @@
-# github.com/OpenPrinting/goipp v1.1.1-0.20250326113126-96e2ddfb63e0
+# github.com/OpenPrinting/goipp v1.2.0
 github.com/OpenPrinting/goipp

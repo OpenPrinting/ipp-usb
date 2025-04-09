@@ -51,26 +51,40 @@ func (values Values) String() string {
 	return buf.String()
 }
 
-// Clone creates a shallow copy of Values
+// Clone creates a shallow copy of Values.
+// For nil input it returns nil output.
 func (values Values) Clone() Values {
-	values2 := make(Values, len(values))
-	copy(values2, values)
-	return values2
-}
-
-// DeepCopy creates a deep copy of Values
-func (values Values) DeepCopy() Values {
-	values2 := make(Values, len(values))
-	for i := range values {
-		values2[i].T = values[i].T
-		values2[i].V = values[i].V.DeepCopy()
+	var values2 Values
+	if values != nil {
+		values2 = make(Values, len(values))
+		copy(values2, values)
 	}
 	return values2
 }
 
-// Equal performs deep check of equality of two Values
+// DeepCopy creates a deep copy of Values
+// For nil input it returns nil output.
+func (values Values) DeepCopy() Values {
+	var values2 Values
+	if values != nil {
+		values2 = make(Values, len(values))
+		for i := range values {
+			values2[i].T = values[i].T
+			values2[i].V = values[i].V.DeepCopy()
+		}
+	}
+	return values2
+}
+
+// Equal performs deep check of equality of two Values.
+//
+// Note, Values(nil) and Values{} are not Equal but Similar.
 func (values Values) Equal(values2 Values) bool {
 	if len(values) != len(values2) {
+		return false
+	}
+
+	if (values == nil) != (values2 == nil) {
 		return false
 	}
 
@@ -85,6 +99,8 @@ func (values Values) Equal(values2 Values) bool {
 }
 
 // Similar performs deep check of **logical** equality of two Values
+//
+// Note, Values(nil) and Values{} are not Equal but Similar.
 func (values Values) Similar(values2 Values) bool {
 	if len(values) != len(values2) {
 		return false
@@ -257,7 +273,7 @@ func (Integer) decode(data []byte) (Value, error) {
 		return nil, errors.New("value must be 4 bytes")
 	}
 
-	return Integer(binary.BigEndian.Uint32(data)), nil
+	return Integer(int32(binary.BigEndian.Uint32(data))), nil
 }
 
 // Boolean is the Value that contains true of false
@@ -486,8 +502,8 @@ func (Resolution) decode(data []byte) (Value, error) {
 	}
 
 	return Resolution{
-		Xres:  int(binary.BigEndian.Uint32(data[0:4])),
-		Yres:  int(binary.BigEndian.Uint32(data[4:8])),
+		Xres:  int(int32(binary.BigEndian.Uint32(data[0:4]))),
+		Yres:  int(int32(binary.BigEndian.Uint32(data[4:8]))),
 		Units: Units(data[8]),
 	}, nil
 
@@ -510,7 +526,7 @@ func (u Units) String() string {
 	case UnitsDpcm:
 		return "dpcm"
 	default:
-		return fmt.Sprintf("0x%2.2x", uint8(u))
+		return fmt.Sprintf("unknown(0x%2.2x)", uint8(u))
 	}
 }
 
@@ -562,8 +578,8 @@ func (Range) decode(data []byte) (Value, error) {
 	}
 
 	return Range{
-		Lower: int(binary.BigEndian.Uint32(data[0:4])),
-		Upper: int(binary.BigEndian.Uint32(data[4:8])),
+		Lower: int(int32(binary.BigEndian.Uint32(data[0:4]))),
+		Upper: int(int32(binary.BigEndian.Uint32(data[4:8]))),
 	}, nil
 }
 
@@ -701,11 +717,6 @@ type Collection Attributes
 // Add Attribute to Attributes
 func (v *Collection) Add(attr Attribute) {
 	*v = append(*v, attr)
-}
-
-// Equal checks that two collections are equal
-func (v Collection) Equal(v2 Attributes) bool {
-	return Attributes(v).Equal(Attributes(v2))
 }
 
 // String converts Collection to string

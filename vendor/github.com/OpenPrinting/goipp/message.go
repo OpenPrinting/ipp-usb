@@ -264,59 +264,15 @@ func (m *Message) DecodeBytesEx(data []byte, opt DecoderOptions) error {
 //
 // Deprecated. Use [Formatter] instead.
 func (m *Message) Print(out io.Writer, request bool) {
-	out.Write([]byte("{\n"))
-
-	fmt.Fprintf(out, msgPrintIndent+"VERSION %s\n", m.Version)
+	f := Formatter{}
 
 	if request {
-		fmt.Fprintf(out, msgPrintIndent+"OPERATION %s\n", Op(m.Code))
+		f.FmtRequest(m)
 	} else {
-		fmt.Fprintf(out, msgPrintIndent+"STATUS %s\n", Status(m.Code))
+		f.FmtResponse(m)
 	}
 
-	for _, grp := range m.AttrGroups() {
-		fmt.Fprintf(out, "\n"+msgPrintIndent+"GROUP %s\n", grp.Tag)
-		for _, attr := range grp.Attrs {
-			m.printAttribute(out, attr, 1)
-			out.Write([]byte("\n"))
-		}
-	}
-
-	out.Write([]byte("}\n"))
-}
-
-// Pretty-print an attribute. Handles Collection attributes
-// recursively.
-func (m *Message) printAttribute(out io.Writer, attr Attribute, indent int) {
-	m.printIndent(out, indent)
-	fmt.Fprintf(out, "ATTR %q", attr.Name)
-
-	tag := TagZero
-	for _, val := range attr.Values {
-		if val.T != tag {
-			fmt.Fprintf(out, " %s:", val.T)
-			tag = val.T
-		}
-
-		if collection, ok := val.V.(Collection); ok {
-			out.Write([]byte(" {\n"))
-			for _, attr2 := range collection {
-				m.printAttribute(out, attr2, indent+1)
-				out.Write([]byte("\n"))
-			}
-			m.printIndent(out, indent)
-			out.Write([]byte("}"))
-		} else {
-			fmt.Fprintf(out, " %s", val.V)
-		}
-	}
-}
-
-// Print indentation
-func (m *Message) printIndent(out io.Writer, indent int) {
-	for i := 0; i < indent; i++ {
-		out.Write([]byte(msgPrintIndent))
-	}
+	f.WriteTo(out)
 }
 
 // AttrGroups returns [Message] attributes as a sequence of

@@ -161,7 +161,7 @@ func (tag Tag) String() string {
 	}
 
 	if tag < 0x100 {
-		return fmt.Sprintf("0x%2.2x", uint(tag))
+		return fmt.Sprintf("0x%2.2x", uint32(tag))
 	}
 
 	return fmt.Sprintf("0x%8.8x", uint(tag))

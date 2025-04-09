@@ -21,25 +21,39 @@ func (attrs *Attributes) Add(attr Attribute) {
 	*attrs = append(*attrs, attr)
 }
 
-// Clone creates a shallow copy of Attributes
+// Clone creates a shallow copy of Attributes.
+// For nil input it returns nil output.
 func (attrs Attributes) Clone() Attributes {
-	attrs2 := make(Attributes, len(attrs))
-	copy(attrs2, attrs)
+	var attrs2 Attributes
+	if attrs != nil {
+		attrs2 = make(Attributes, len(attrs))
+		copy(attrs2, attrs)
+	}
 	return attrs2
 }
 
-// DeepCopy creates a deep copy of Attributes
+// DeepCopy creates a deep copy of Attributes.
+// For nil input it returns nil output.
 func (attrs Attributes) DeepCopy() Attributes {
-	attrs2 := make(Attributes, len(attrs))
-	for i := range attrs {
-		attrs2[i] = attrs[i].DeepCopy()
+	var attrs2 Attributes
+	if attrs != nil {
+		attrs2 = make(Attributes, len(attrs))
+		for i := range attrs {
+			attrs2[i] = attrs[i].DeepCopy()
+		}
 	}
 	return attrs2
 }
 
 // Equal checks that attrs and attrs2 are equal
+//
+// Note, Attributes(nil) and Attributes{} are not Equal but Similar.
 func (attrs Attributes) Equal(attrs2 Attributes) bool {
 	if len(attrs) != len(attrs2) {
+		return false
+	}
+
+	if (attrs == nil) != (attrs2 == nil) {
 		return false
 	}
 
@@ -59,6 +73,8 @@ func (attrs Attributes) Equal(attrs2 Attributes) bool {
 //     but may be differently ordered
 //   - Values of attributes of the same name within attrs and
 //     attrs2 are similar
+//
+// Note, Attributes(nil) and Attributes{} are not Equal but Similar.
 func (attrs Attributes) Similar(attrs2 Attributes) bool {
 	// Fast check: if lengths are not the same, attributes
 	// are definitely not equal

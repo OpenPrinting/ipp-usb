@@ -9,10 +9,213 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 )
+
+// TestQuirksPrioritization tests that quirks with the same name,
+// defined in the different places, are properly prioritized.
+func TestQuirksPrioritization(t *testing.T) {
+	type variable struct {
+		name, value string
+	}
+
+	type section struct {
+		name string
+		vars []variable
+	}
+
+	type expectation struct {
+		match       string
+		name, value string
+	}
+
+	type testData struct {
+		sections []section
+		expected []expectation
+	}
+
+	tests := []testData{
+		{
+			// More specific match wins
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+
+				{
+					name: "test printer",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					match: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// More specific match wins.
+			// The same as above, reordered
+			sections: []section{
+				{
+					name: "test printer",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					match: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// Equal match. The first match wins.
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					match: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// Equal match. The first match wins.
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					match: "test printer",
+					name:  "blacklist",
+					value: "true",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		// Populate the QuirksDb
+		qdb := QuirksDb{}
+		loadOrder := 0
+
+		for _, s := range test.sections {
+			quirks := newQuirks()
+
+			for _, v := range s.vars {
+				q := &Quirk{
+					Origin:    "test",
+					Match:     s.name,
+					MatchHWID: ParseHWIDPattern(s.name),
+					Name:      v.name,
+					RawValue:  v.value,
+					LoadOrder: loadOrder,
+				}
+				loadOrder++
+
+				quirks.put(q)
+			}
+
+			qdb.Add(quirks)
+		}
+
+		// Test lookups against expectations
+		for _, ex := range test.expected {
+			// Lookup quirks data based
+			hwid := ParseHWIDPattern(ex.match)
+			var quirks Quirks
+			if hwid != nil && !hwid.anypid {
+				quirks = qdb.MatchByHWID(hwid.vid, hwid.pid)
+			} else {
+				quirks = qdb.MatchByModelName(ex.match)
+			}
+
+			q := quirks.Get(ex.name)
+			if q != nil && q.RawValue == ex.value {
+				continue
+			}
+
+			// Write error log
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, "quirks base:\n")
+			for _, s := range test.sections {
+				fmt.Fprintf(&buf, "  [%s]\n", s.name)
+				for _, v := range s.vars {
+					fmt.Fprintf(&buf, "    %s = %s\n",
+						v.name, v.value)
+				}
+			}
+			fmt.Fprintf(&buf, "\n")
+
+			fmt.Fprintf(&buf, "quirks query:\n")
+			fmt.Fprintf(&buf, "  match:    %s\n", ex.match)
+			fmt.Fprintf(&buf, "  quirk:    %s\n", ex.name)
+			fmt.Fprintf(&buf, "  expected: %s\n", ex.value)
+			present := "nil"
+			if q != nil {
+				present = q.RawValue
+			}
+			fmt.Fprintf(&buf, "  present:  %s\n", present)
+
+			t.Errorf("TestQuirksPrioritization failed:\n%s", &buf)
+		}
+	}
+}
 
 // TestQuirksLookup tests lookup of various parameters
 func TestQuirksLookup(t *testing.T) {

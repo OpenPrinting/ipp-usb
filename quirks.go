@@ -313,9 +313,9 @@ func (quirks Quirks) put(q *Quirk) {
 	}
 }
 
-// prioritize puts Quirk to Quirks, if it is either not in the set yet
+// prioritizeAndSave puts Quirk to Quirks, if it is either not in the set yet
 // or has higher priority that existing one
-func (quirks Quirks) prioritize(q *Quirk, weight int) {
+func (quirks Quirks) prioritizeAndSave(q *Quirk, weight int) {
 	prev := quirks.byName[q.Name]
 	prevWeight := quirks.weights[q.Name]
 
@@ -632,7 +632,7 @@ func (qdb QuirksDb) MatchByHWID(vid, pid uint16) Quirks {
 			if q.isHWID() {
 				weight := q.MatchHWID.Match(vid, pid)
 				if weight >= 0 {
-					ret.prioritize(q, weight)
+					ret.prioritizeAndSave(q, weight)
 				}
 			}
 		}
@@ -651,7 +651,7 @@ func (qdb QuirksDb) MatchByModelName(model string) Quirks {
 			if !q.isHWID() {
 				weight := GlobMatch(model, q.Match)
 				if weight >= 0 {
-					ret.prioritize(q, weight)
+					ret.prioritizeAndSave(q, weight)
 				}
 			}
 		}

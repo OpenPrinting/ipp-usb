@@ -301,11 +301,13 @@ In a case of multiple matches even after applying this algorithm, the first defi
 .P
 In another words, non\-wildcard HWID match considered most specific, model name matches are ranked by the amount of non\-wildcard matched characters, and wildcard HWID match considered less specific as any of above, because it can only be applied to all devices of the particular vendor, and the least specific is the all\-wildcard model name match, used to specify defaults\.
 .P
-Please notice that some HWID\-matched quirks are applied early and their effect cannot be later withdrawn by the model\-name matched quirks\.
+Please notice that HWID\-matched quirks are loaded early and may cause some actions to be performed before the model\-name matched quirks are loaded and applied, and the model\-name matched quirks cannot withdraw these early performed actions\. It happens because some printers cannot reliably report their model name before appropriate actions is applied\. It is related to the following quirks:
 .IP "\(bu" 4
-\fBblacklist = true\fR
+\fBblacklist = true\fR\. Model\-name quirks will not be loaded if device is blacklisted by HWID\.
 .IP "\(bu" 4
-\fBinit\-reset = hard\fR
+\fBinit\-reset = hard\fR\. Reset will be issued, even if model\-name matched quirk has a different setting\.
+.IP "\(bu" 4
+\fBmfg = name\fR and \fBmodel = name\fR\. These parameters are only available for the HWID quirks and override identification information, provided by the device, when searching quirks by the model name\.
 .IP "" 0
 .P
 The following parameters are defined:

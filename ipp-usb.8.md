@@ -383,10 +383,22 @@ wildcard HWID match considered less specific as any of above, because it can
 only be applied to all devices of the particular vendor, and the least
 specific is the all-wildcard model name match, used to specify defaults.
 
-Please notice that some HWID-matched quirks are applied early and their
-effect cannot be later withdrawn by the model-name matched quirks.
-   * `blacklist = true`
-   * `init-reset = hard`
+Please notice that HWID-matched quirks are loaded early and may cause some
+actions to be performed before the model-name matched quirks are loaded and
+applied, and the model-name matched quirks cannot withdraw these early
+performed actions. It happens because some printers cannot reliably report
+their model name before appropriate actions is applied. It is related to
+the following quirks:
+
+   * `blacklist = true`. Model-name quirks will not be loaded if device is
+     blacklisted by HWID.
+
+   * `init-reset = hard`. Reset will be issued, even if model-name matched
+     quirk has a different setting.
+
+   * `mfg = name` and `model = name`. These parameters are only available
+     for the HWID quirks and override identification information, provided
+     by the device, when searching quirks by the model name.
 
 The following parameters are defined:
 

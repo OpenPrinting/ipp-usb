@@ -71,10 +71,11 @@ func ParseHWIDPattern(pattern string) *HWIDPattern {
 // quirks, if there are multiple matches, as more or less specific
 // (the more the weight, the more specific the quirk is).
 //
-// Note that as there are currently only two cases (match by VID and
-// match by VID+PID), some arbitrary integer values are chosen to
-// distinguish between these two cases. And for now, it is not planned
-// to compare weights between match-by-HWID and match-by-model-name.
+// The matching weight is the math.MaxInt32 for the exact match (VID+PID)
+// and 1 for the wildcard match (VID only). It makes the exact match to
+// be considered as very specific, while wildcard match to be considered
+// only slightly more specific, that the all-wildcard (i.e., the default)
+// match by the model name.
 //
 // If there is no match, it returns -1.
 //

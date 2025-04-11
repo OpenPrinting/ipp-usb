@@ -649,7 +649,21 @@ func (qdb QuirksDb) MatchByModelName(model string) Quirks {
 	for _, quirks := range qdb {
 		for _, q := range quirks.byName {
 			if !q.isHWID() {
-				weight := GlobMatch(model, q.Match)
+				// Note, by multiplying GlobMatch by 2,
+				// we have the following:
+				//   - Exact HWID match is the must
+				//     weightful. Its weight is math.MaxUint32
+				//   - The default (all-wildcard) match is
+				//     the least weightful. Its weight is 0.
+				//   - Any non-default model-name match is
+				//     more weightful, that the wildcard
+				//     HWID match, which weight is 1
+				//   - Weight of any non-default model-name
+				//     match is proportional to the length of
+				//     the non-wildcard matched part and
+				//     it is between the wildcard and exact
+				//     HWID match.
+				weight := 2 * GlobMatch(model, q.Match)
 				if weight >= 0 {
 					ret.prioritizeAndSave(q, weight)
 				}

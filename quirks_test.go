@@ -155,7 +155,7 @@ func TestQuirksPrioritization(t *testing.T) {
 		loadOrder := 0
 
 		for _, s := range test.sections {
-			quirks := newQuirks()
+			quirks := NewQuirks()
 
 			for _, v := range s.vars {
 				q := &Quirk{
@@ -178,11 +178,11 @@ func TestQuirksPrioritization(t *testing.T) {
 		for _, ex := range test.expected {
 			// Lookup quirks data based
 			hwid := ParseHWIDPattern(ex.match)
-			var quirks *Quirks
+			quirks := NewQuirks()
 			if hwid != nil && !hwid.anypid {
-				quirks = qdb.MatchByHWID(hwid.vid, hwid.pid)
+				quirks.PullByHWID(qdb, hwid.vid, hwid.pid)
 			} else {
-				quirks = qdb.MatchByModelName(ex.match)
+				quirks.PullByModelName(qdb, ex.match)
 			}
 
 			q := quirks.Get(ex.name)
@@ -411,7 +411,8 @@ func TestQuirksLookup(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		quirks := qdb.MatchByModelName(test.model)
+		quirks := NewQuirks()
+		quirks.PullByModelName(qdb, test.model)
 		q := quirks.Get(test.param)
 		v := test.get(quirks)
 

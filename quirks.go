@@ -293,8 +293,8 @@ type Quirks struct {
 	HTTPHeaders map[string]string // HTTP header override
 }
 
-// newQuirks returns a new Quirks structure
-func newQuirks() *Quirks {
+// NewQuirks returns a new Quirks structure
+func NewQuirks() *Quirks {
 	return &Quirks{
 		byName:      make(map[string]*Quirk),
 		weights:     make(map[string]int),
@@ -338,6 +338,54 @@ func (quirks *Quirks) prioritizeAndSave(q *Quirk, weight int) {
 	if save {
 		quirks.put(q)
 		quirks.weights[q.Name] = weight
+	}
+}
+
+// PullByHWID pulls matching quirks from the QuirksDb.
+// Match is performed by HWID.
+//
+// Matches quirks are saved into the receiver.
+func (quirks *Quirks) PullByHWID(qdb QuirksDb, vid, pid uint16) {
+	for _, dbquirks := range qdb {
+		for _, q := range dbquirks.byName {
+			if q.isHWID() {
+				weight := q.MatchHWID.Match(vid, pid)
+				if weight >= 0 {
+					quirks.prioritizeAndSave(q, weight)
+				}
+			}
+		}
+	}
+}
+
+// PullByModelName pulls matching quirks from the QuirksDb.
+// Match is performed by the model name.
+//
+// Matches quirks are saved into the receiver.
+func (quirks *Quirks) PullByModelName(qdb QuirksDb, model string) {
+	for _, dbquirks := range qdb {
+		for _, q := range dbquirks.byName {
+			if !q.isHWID() {
+				// Note, by multiplying GlobMatch by 2,
+				// we have the following:
+				//   - Exact HWID match is the must
+				//     weightful. Its weight is math.MaxUint32
+				//   - The default (all-wildcard) match is
+				//     the least weightful. Its weight is 0.
+				//   - Any non-default model-name match is
+				//     more weightful, that the wildcard
+				//     HWID match, which weight is 1
+				//   - Weight of any non-default model-name
+				//     match is proportional to the length of
+				//     the non-wildcard matched part and
+				//     it is between the wildcard and exact
+				//     HWID match.
+				weight := 2 * GlobMatch(model, q.Match)
+				if weight >= 0 {
+					quirks.prioritizeAndSave(q, weight)
+				}
+			}
+		}
 	}
 }
 
@@ -562,7 +610,7 @@ func (qdb *QuirksDb) readFile(file string) error {
 		// Get Quirks structure
 		if rec.Type == IniRecordSection {
 			matchHWID = ParseHWIDPattern(rec.Section)
-			quirks = newQuirks()
+			quirks = NewQuirks()
 			qdb.Add(quirks)
 
 			continue
@@ -620,56 +668,4 @@ func (qdb *QuirksDb) readFile(file string) error {
 // Add appends Quirks to QuirksDb
 func (qdb *QuirksDb) Add(q *Quirks) {
 	*qdb = append(*qdb, q)
-}
-
-// MatchByHWID returns collection of quirks, applicable for the
-// specific device, matched by HWID
-func (qdb QuirksDb) MatchByHWID(vid, pid uint16) *Quirks {
-	ret := newQuirks()
-
-	for _, quirks := range qdb {
-		for _, q := range quirks.byName {
-			if q.isHWID() {
-				weight := q.MatchHWID.Match(vid, pid)
-				if weight >= 0 {
-					ret.prioritizeAndSave(q, weight)
-				}
-			}
-		}
-	}
-
-	return ret
-}
-
-// MatchByModelName returns collection of quirks, applicable for
-// the specific device, matched by model name.
-func (qdb QuirksDb) MatchByModelName(model string) *Quirks {
-	ret := newQuirks()
-
-	for _, quirks := range qdb {
-		for _, q := range quirks.byName {
-			if !q.isHWID() {
-				// Note, by multiplying GlobMatch by 2,
-				// we have the following:
-				//   - Exact HWID match is the must
-				//     weightful. Its weight is math.MaxUint32
-				//   - The default (all-wildcard) match is
-				//     the least weightful. Its weight is 0.
-				//   - Any non-default model-name match is
-				//     more weightful, that the wildcard
-				//     HWID match, which weight is 1
-				//   - Weight of any non-default model-name
-				//     match is proportional to the length of
-				//     the non-wildcard matched part and
-				//     it is between the wildcard and exact
-				//     HWID match.
-				weight := 2 * GlobMatch(model, q.Match)
-				if weight >= 0 {
-					ret.prioritizeAndSave(q, weight)
-				}
-			}
-		}
-	}
-
-	return ret
 }

@@ -91,8 +91,10 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Do it early, so we can reset the device before querying
 	// its UsbDeviceInfo. Some devices are not reliable on
 	// returning UsbDeviceInfo before reset.
-	quirks := Conf.Quirks.MatchByHWID(desc.Vendor, desc.Product)
+	quirks := NewQuirks()
+	quirks.PullByHWID(Conf.Quirks, desc.Vendor, desc.Product)
 	quirks.WriteLog("HWID quirks", transport.log)
+	transport.log.Nl(LogDebug)
 
 	if quirks.GetBlacklist() {
 		err = ErrBlackListed
@@ -139,9 +141,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// Load match-by-model quirks
 	model := transport.info.MakeAndModel()
 	transport.log.Debug(' ', "Loading quirks for model: %q", model)
-	transport.quirks = Conf.Quirks.MatchByModelName(model)
+	quirks.PullByModelName(Conf.Quirks, model)
+	transport.quirks = quirks
 
 	transport.quirks.WriteLog("Device quirks", transport.log)
+	transport.log.Nl(LogDebug)
 
 	// Write device info to the log
 	transport.log.Begin().
@@ -182,13 +186,19 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	// but have to declare it now, so we can goto ERROR
 	var maxconn uint
 
-	// Check for blacklisted device
+	// The 'blacklist' and 'init-reset' quirks were already
+	// applied by HWID, but now we have loaded quirks by
+	// model name so need to re-check and, possibly, apply.
+	//
+	// Note, transport.hardReset will prevent us from
+	// issuing an unneeded second hard-reset, but if device
+	// is blacklisted here but previously reset by the HWID,
+	// we cannot prevent that.
 	if transport.quirks.GetBlacklist() {
 		err = ErrBlackListed
 		goto ERROR
 	}
 
-	// Hard-reset the device, if needed
 	if transport.quirks.GetInitReset() == QuirkResetHard {
 		transport.hardReset("init-reset = hard", false)
 	}

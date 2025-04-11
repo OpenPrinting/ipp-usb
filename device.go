@@ -45,7 +45,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var dnssdServices DNSSdServices
 	var log *LogMessage
 	var hwid string
-	var quirks Quirks
+	var quirks *Quirks
 	var httpstatus int
 	var canPrint bool
 	var canScan bool

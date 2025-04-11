@@ -676,7 +676,7 @@ func (devhandle *UsbDevHandle) usbIppBasicCaps() (caps UsbIppBasicCaps) {
 
 // OpenUsbInterface opens an interface
 func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr,
-	quirks Quirks) (*UsbInterface, error) {
+	quirks *Quirks) (*UsbInterface, error) {
 
 	// Claim the interface
 	rc := C.libusb_claim_interface(
@@ -713,7 +713,7 @@ func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr,
 type UsbInterface struct {
 	devhandle *UsbDevHandle // Device handle
 	addr      UsbIfAddr     // Interface address
-	quirks    Quirks        // Device quirks
+	quirks    *Quirks       // Device quirks
 }
 
 // Close the interface

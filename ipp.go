@@ -35,7 +35,7 @@ type IppPrinterInfo struct {
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo, quirks Quirks,
+	port int, usbinfo UsbDeviceInfo, quirks *Quirks,
 	c *http.Client) (ippinfo *IppPrinterInfo, httpstatus int, err error) {
 
 	// Query printer attributes
@@ -107,7 +107,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 //  3. It is not an IPP error response
 //
 // Otherwise, the appropriate error is generated and returned
-func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks Quirks,
+func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 	uri string) (msg *goipp.Message, httpstatus int, err error) {
 
 	// Query printer attributes

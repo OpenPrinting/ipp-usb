@@ -303,7 +303,7 @@ func newQuirks() *Quirks {
 }
 
 // put adds Quirk to Quirks, or replaces existing one, if any.
-func (quirks Quirks) put(q *Quirk) {
+func (quirks *Quirks) put(q *Quirk) {
 	quirks.byName[q.Name] = q
 
 	if q.isHTTP() {
@@ -315,7 +315,7 @@ func (quirks Quirks) put(q *Quirk) {
 
 // prioritizeAndSave puts Quirk to Quirks, if it is either not in the set yet
 // or has higher priority that existing one
-func (quirks Quirks) prioritizeAndSave(q *Quirk, weight int) {
+func (quirks *Quirks) prioritizeAndSave(q *Quirk, weight int) {
 	prev := quirks.byName[q.Name]
 	prevWeight := quirks.weights[q.Name]
 
@@ -342,7 +342,7 @@ func (quirks Quirks) prioritizeAndSave(q *Quirk, weight int) {
 }
 
 // WriteLog writes Quirks to log.
-func (quirks Quirks) WriteLog(title string, log *Logger) {
+func (quirks *Quirks) WriteLog(title string, log *Logger) {
 	if quirks.IsEmpty() {
 		log.Debug(' ', "%s: EMPTY", title)
 		return
@@ -368,12 +368,12 @@ func (quirks Quirks) WriteLog(title string, log *Logger) {
 }
 
 // IsEmpty reports if Quirks are empty
-func (quirks Quirks) IsEmpty() bool {
+func (quirks *Quirks) IsEmpty() bool {
 	return len(quirks.byName) == 0
 }
 
 // Get returns quirk by name.
-func (quirks Quirks) Get(name string) *Quirk {
+func (quirks *Quirks) Get(name string) *Quirk {
 	q := quirks.byName[name]
 	if q == nil {
 		q = quirkDefault[name]
@@ -385,7 +385,7 @@ func (quirks Quirks) Get(name string) *Quirk {
 // All returns all quirks in the collection. This method is
 // intended mostly for diagnostic purposes (logging, dumping,
 // testing and so on).
-func (quirks Quirks) All() []*Quirk {
+func (quirks *Quirks) All() []*Quirk {
 	qq := make([]*Quirk, 0, len(quirks.byName))
 	for _, q := range quirks.byName {
 		qq = append(qq, q)
@@ -400,97 +400,97 @@ func (quirks Quirks) All() []*Quirk {
 
 // GetBlacklist returns effective "blacklist" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetBlacklist() bool {
+func (quirks *Quirks) GetBlacklist() bool {
 	return quirks.Get(QuirkNmBlacklist).Parsed.(bool)
 }
 
 // GetBuggyIppRsp returns effective "buggy-ipp-responses" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetBuggyIppRsp() QuirkBuggyIppRsp {
+func (quirks *Quirks) GetBuggyIppRsp() QuirkBuggyIppRsp {
 	return quirks.Get(QuirkNmBuggyIppResponses).Parsed.(QuirkBuggyIppRsp)
 }
 
 // GetDisableFax returns effective "disable-fax" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetDisableFax() bool {
+func (quirks *Quirks) GetDisableFax() bool {
 	return quirks.Get(QuirkNmDisableFax).Parsed.(bool)
 }
 
 // GetIgnoreIppStatus returns effective "ignore-ipp-status" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetIgnoreIppStatus() bool {
+func (quirks *Quirks) GetIgnoreIppStatus() bool {
 	return quirks.Get(QuirkNmIgnoreIppStatus).Parsed.(bool)
 }
 
 // GetInitDelay returns effective "init-delay" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetInitDelay() time.Duration {
+func (quirks *Quirks) GetInitDelay() time.Duration {
 	return quirks.Get(QuirkNmInitDelay).Parsed.(time.Duration)
 }
 
 // GetInitRetryPartial returns effective "init-retry-partial" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetInitRetryPartial() bool {
+func (quirks *Quirks) GetInitRetryPartial() bool {
 	return quirks.Get(QuirkNmInitRetryPartial).Parsed.(bool)
 }
 
 // GetInitReset returns effective "init-reset" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetInitReset() QuirkResetMethod {
+func (quirks *Quirks) GetInitReset() QuirkResetMethod {
 	return quirks.Get(QuirkNmInitReset).Parsed.(QuirkResetMethod)
 }
 
 // GetInitTimeout returns effective "init-timeout" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetInitTimeout() time.Duration {
+func (quirks *Quirks) GetInitTimeout() time.Duration {
 	return quirks.Get(QuirkNmInitTimeout).Parsed.(time.Duration)
 }
 
 // GetMfg returns effective "mfg" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetMfg() string {
+func (quirks *Quirks) GetMfg() string {
 	return quirks.Get(QuirkNmMfg).Parsed.(string)
 }
 
 // GetModel returns effective "model" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetModel() string {
+func (quirks *Quirks) GetModel() string {
 	return quirks.Get(QuirkNmModel).Parsed.(string)
 }
 
 // GetRequestDelay returns effective "request-delay" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetRequestDelay() time.Duration {
+func (quirks *Quirks) GetRequestDelay() time.Duration {
 	return quirks.Get(QuirkNmRequestDelay).Parsed.(time.Duration)
 }
 
 // GetUsbMaxInterfaces returns effective "usb-max-interfaces" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetUsbMaxInterfaces() uint {
+func (quirks *Quirks) GetUsbMaxInterfaces() uint {
 	return quirks.Get(QuirkNmUsbMaxInterfaces).Parsed.(uint)
 }
 
 // GetUsbSendDelayThreshold returns effective "usb-send-delay-threshold"
 // parameter taking the whole set into consideration.
-func (quirks Quirks) GetUsbSendDelayThreshold() uint {
+func (quirks *Quirks) GetUsbSendDelayThreshold() uint {
 	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(uint)
 }
 
 // GetUsbSendDelay returns effective "usb-send-delay" parameter
 // taking the whole set into consideration.
-func (quirks Quirks) GetUsbSendDelay() time.Duration {
+func (quirks *Quirks) GetUsbSendDelay() time.Duration {
 	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(time.Duration)
 }
 
 // GetZlpRecvHack returns effective "zlp-send" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetZlpRecvHack() bool {
+func (quirks *Quirks) GetZlpRecvHack() bool {
 	return quirks.Get(QuirkNmZlpRecvHack).Parsed.(bool)
 }
 
 // GetZlpSend returns effective "zlp-send" parameter,
 // taking the whole set into consideration.
-func (quirks Quirks) GetZlpSend() bool {
+func (quirks *Quirks) GetZlpSend() bool {
 	return quirks.Get(QuirkNmZlpSend).Parsed.(bool)
 }
 
@@ -624,7 +624,7 @@ func (qdb *QuirksDb) Add(q *Quirks) {
 
 // MatchByHWID returns collection of quirks, applicable for the
 // specific device, matched by HWID
-func (qdb QuirksDb) MatchByHWID(vid, pid uint16) Quirks {
+func (qdb QuirksDb) MatchByHWID(vid, pid uint16) *Quirks {
 	ret := newQuirks()
 
 	for _, quirks := range qdb {
@@ -638,12 +638,12 @@ func (qdb QuirksDb) MatchByHWID(vid, pid uint16) Quirks {
 		}
 	}
 
-	return *ret
+	return ret
 }
 
 // MatchByModelName returns collection of quirks, applicable for
 // the specific device, matched by model name.
-func (qdb QuirksDb) MatchByModelName(model string) Quirks {
+func (qdb QuirksDb) MatchByModelName(model string) *Quirks {
 	ret := newQuirks()
 
 	for _, quirks := range qdb {
@@ -671,5 +671,5 @@ func (qdb QuirksDb) MatchByModelName(model string) Quirks {
 		}
 	}
 
-	return *ret
+	return ret
 }

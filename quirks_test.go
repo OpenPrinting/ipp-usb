@@ -178,7 +178,7 @@ func TestQuirksPrioritization(t *testing.T) {
 		for _, ex := range test.expected {
 			// Lookup quirks data based
 			hwid := ParseHWIDPattern(ex.match)
-			var quirks Quirks
+			var quirks *Quirks
 			if hwid != nil && !hwid.anypid {
 				quirks = qdb.MatchByHWID(hwid.vid, hwid.pid)
 			} else {
@@ -229,12 +229,12 @@ func TestQuirksLookup(t *testing.T) {
 
 	// Test loaded values against expected
 	type testData struct {
-		model  string                   // Model name
-		param  string                   // Parameter (quirk) name
-		get    func(Quirks) interface{} // Lookup function
-		match  string                   // Expected match
-		value  interface{}              // Expected value
-		origin string                   // Expected origin
+		model  string                    // Model name
+		param  string                    // Parameter (quirk) name
+		get    func(*Quirks) interface{} // Lookup function
+		match  string                    // Expected match
+		value  interface{}               // Expected value
+		origin string                    // Expected origin
 	}
 
 	tests := []testData{
@@ -242,7 +242,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmBlacklist,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetBlacklist()
 			},
 			match:  "*",
@@ -253,7 +253,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmBuggyIppResponses,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetBuggyIppRsp()
 			},
 			match:  "*",
@@ -264,7 +264,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmDisableFax,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetDisableFax()
 			},
 			match:  "*",
@@ -275,7 +275,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmIgnoreIppStatus,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetIgnoreIppStatus()
 			},
 			match:  "*",
@@ -286,7 +286,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitDelay()
 			},
 			match:  "*",
@@ -297,7 +297,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitRetryPartial,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitRetryPartial()
 			},
 			match:  "*",
@@ -308,7 +308,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitReset,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitReset()
 			},
 			match:  "*",
@@ -319,7 +319,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitTimeout,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitTimeout()
 			},
 			match:  "*",
@@ -330,7 +330,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmRequestDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetRequestDelay()
 			},
 			match:  "*",
@@ -341,7 +341,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmUsbMaxInterfaces,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetUsbMaxInterfaces()
 			},
 			match:  "*",
@@ -352,7 +352,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmZlpRecvHack,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetZlpRecvHack()
 			},
 			match:  "*",
@@ -363,7 +363,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmZlpSend,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetZlpSend()
 			},
 			match:  "*",
@@ -375,7 +375,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "HP ScanJet Pro 4500 fn1",
 			param: QuirkNmUsbMaxInterfaces,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetUsbMaxInterfaces()
 			},
 			match:  "HP ScanJet Pro 4500 fn1",
@@ -386,7 +386,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "HP ScanJet Pro 4500 fn1",
 			param: QuirkNmRequestDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetRequestDelay()
 			},
 			match:  "*",
@@ -400,7 +400,7 @@ func TestQuirksLookup(t *testing.T) {
 			// default value.
 			model: "HP OfficeJet Pro 8730",
 			param: "http-connection",
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				q := quirks.Get("http-connection")
 				return q.Parsed
 			},

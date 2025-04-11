@@ -38,7 +38,7 @@ type UsbTransport struct {
 	connReleased   chan struct{} // Signalled when connection released
 	shutdown       chan struct{} // Closed by Shutdown()
 	connstate      *usbConnState // Connections state tracker
-	quirks         Quirks        // Device quirks
+	quirks         *Quirks       // Device quirks
 	timeout        time.Duration // Timeout for requests (0 is none)
 	timeoutExpired uint32        // Atomic non-zero, if timeout expired
 }
@@ -397,7 +397,7 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 }
 
 // Quirks returns device's quirks
-func (transport *UsbTransport) Quirks() Quirks {
+func (transport *UsbTransport) Quirks() *Quirks {
 	return transport.quirks
 }
 
@@ -759,7 +759,7 @@ type usbConn struct {
 
 // Open usbConn
 func (transport *UsbTransport) openUsbConn(
-	index int, ifaddr UsbIfAddr, quirks Quirks) (*usbConn, error) {
+	index int, ifaddr UsbIfAddr, quirks *Quirks) (*usbConn, error) {
 
 	dev := transport.dev
 

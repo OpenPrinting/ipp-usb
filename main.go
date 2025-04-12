@@ -263,7 +263,7 @@ func main() {
 
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
-	os.MkdirAll(PathLockDir, 0755)
+	MakeParentDirectory(PathLockFile)
 	lock, err := os.OpenFile(PathLockFile,
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	InitLog.Check(err)

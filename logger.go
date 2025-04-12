@@ -171,12 +171,12 @@ func (l *Logger) ToFile(path string) *Logger {
 
 // ToMainFile redirects log to the main log file
 func (l *Logger) ToMainFile() *Logger {
-	return l.ToFile(PathLogFile)
+	return l.ToFile(PathMainLogFile)
 }
 
 // ToDevFile redirects log to per-device log file
 func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
-	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
+	return l.ToFile(filepath.Join(PathDevLogDir, info.Ident()+".log"))
 }
 
 // HasDestination reports if Logger destination is already
@@ -670,7 +670,7 @@ func (msg *LogMessage) Flush() {
 
 	// Open log file on demand
 	if msg.logger.out == nil && msg.logger.mode == loggerFile {
-		os.MkdirAll(PathLogDir, 0755)
+		MakeParentDirectory(msg.logger.path)
 		msg.logger.out, _ = os.OpenFile(msg.logger.path,
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	}

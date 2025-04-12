@@ -29,7 +29,8 @@ func TestQuirksPrioritization(t *testing.T) {
 	}
 
 	type expectation struct {
-		match       string
+		hwid        string
+		model       string
 		name, value string
 	}
 
@@ -59,7 +60,7 @@ func TestQuirksPrioritization(t *testing.T) {
 
 			expected: []expectation{
 				{
-					match: "test printer",
+					model: "test printer",
 					name:  "blacklist",
 					value: "false",
 				},
@@ -87,7 +88,7 @@ func TestQuirksPrioritization(t *testing.T) {
 
 			expected: []expectation{
 				{
-					match: "test printer",
+					model: "test printer",
 					name:  "blacklist",
 					value: "false",
 				},
@@ -114,7 +115,7 @@ func TestQuirksPrioritization(t *testing.T) {
 
 			expected: []expectation{
 				{
-					match: "test printer",
+					model: "test printer",
 					name:  "blacklist",
 					value: "false",
 				},
@@ -122,7 +123,8 @@ func TestQuirksPrioritization(t *testing.T) {
 		},
 
 		{
-			// Equal match. The first match wins.
+			// Equal mptch. The first match wins.
+			// The same as above, reordered
 			sections: []section{
 				{
 					name: "test *",
@@ -141,9 +143,96 @@ func TestQuirksPrioritization(t *testing.T) {
 
 			expected: []expectation{
 				{
-					match: "test printer",
+					model: "test printer",
 					name:  "blacklist",
 					value: "true",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Exact HWID match wins
+			sections: []section{
+				{
+					name: "1234:5678",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "10",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Non-default model name match wins over wildcard HWID match.
+			sections: []section{
+				{
+					name: "1234:*",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "20",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Wildcard HWID match wins over default model name match.
+			sections: []section{
+				{
+					name: "1234:*",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "*",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "10",
 				},
 			},
 		},
@@ -177,12 +266,12 @@ func TestQuirksPrioritization(t *testing.T) {
 		// Test lookups against expectations
 		for _, ex := range test.expected {
 			// Lookup quirks data based
-			hwid := ParseHWIDPattern(ex.match)
 			quirks := NewQuirks()
-			if hwid != nil && !hwid.anypid {
+			if hwid := ParseHWIDPattern(ex.hwid); hwid != nil {
 				quirks.PullByHWID(qdb, hwid.vid, hwid.pid)
-			} else {
-				quirks.PullByModelName(qdb, ex.match)
+			}
+			if ex.model != "" {
+				quirks.PullByModelName(qdb, ex.model)
 			}
 
 			q := quirks.Get(ex.name)
@@ -203,7 +292,12 @@ func TestQuirksPrioritization(t *testing.T) {
 			fmt.Fprintf(&buf, "\n")
 
 			fmt.Fprintf(&buf, "quirks query:\n")
-			fmt.Fprintf(&buf, "  match:    %s\n", ex.match)
+			if ex.hwid != "" {
+				fmt.Fprintf(&buf, "  hwid:     %s\n", ex.hwid)
+			}
+			if ex.model != "" {
+				fmt.Fprintf(&buf, "  model:    %s\n", ex.model)
+			}
 			fmt.Fprintf(&buf, "  quirk:    %s\n", ex.name)
 			fmt.Fprintf(&buf, "  expected: %s\n", ex.value)
 			present := "nil"

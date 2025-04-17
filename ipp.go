@@ -493,7 +493,6 @@ func (attrs ippAttrs) getBool(name string) string {
 // Get attribute's value by attribute name
 // Value type is checked and enforced
 func (attrs ippAttrs) getAttr(t goipp.Type, name string) []goipp.Value {
-
 	v, ok := attrs[name]
 	if ok && v[0].V.Type() == t {
 		var vals []goipp.Value

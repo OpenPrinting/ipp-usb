@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/OpenPrinting/goipp"
@@ -46,7 +47,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	}
 
 	// Decode IPP service info
-	attrs := newIppAttrs(msg)
+	attrs := newIppAttrs(msg.Printer)
 	ippinfo, ippSvc := attrs.decode(usbinfo)
 
 	// Check for fax support
@@ -205,18 +206,40 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 // enrolled into a map for convenient access
 type ippAttrs map[string]goipp.Values
 
-// Create new ippAttrs
-func newIppAttrs(msg *goipp.Message) ippAttrs {
+// Create new ippAttrs from the goipp.Attributes
+func newIppAttrs(input goipp.Attributes) ippAttrs {
 	attrs := make(ippAttrs)
 
 	// Note, we move from the end of list to the beginning, so
 	// in a case of duplicated attributes, first occurrence wins
-	for i := len(msg.Printer) - 1; i >= 0; i-- {
-		attr := msg.Printer[i]
+	for i := len(input) - 1; i >= 0; i-- {
+		attr := input[i]
 		attrs[attr.Name] = attr.Values
 	}
 
 	return attrs
+}
+
+// export returns content of the ippAttrs as goipp.Attributes
+// This function is intended mostly for testing purposes.
+func (attrs ippAttrs) export() goipp.Attributes {
+	ret := make(goipp.Attributes, 0, len(attrs))
+
+	// Export map as slice of attributes
+	for name, values := range attrs {
+		attr := goipp.Attribute{
+			Name:   name,
+			Values: values,
+		}
+		ret = append(ret, attr)
+	}
+
+	// Sort resulting slice by name so result will be deterministic.
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Name < ret[j].Name
+	})
+
+	return ret
 }
 
 // Decode printer attributes and build TXT record for IPP service

@@ -468,13 +468,69 @@ func (attrs ippAttrs) strBrackets(name string) string {
 
 // Get attribute's []string value by attribute name
 func (attrs ippAttrs) getStrings(name string) []string {
-	vals := attrs.getAttr(goipp.TypeString, name)
-	strs := make([]string, len(vals))
-	for i := range vals {
-		strs[i] = string(vals[i].(goipp.String))
+	// Obtain attribute values.
+	vals := attrs[name]
+	if vals == nil {
+		return nil
 	}
 
-	return strs
+	// Classify available strings by language
+	langsInOrder := make([]string, 0, len(vals))
+	stringsByLang := make(map[string][]string, len(vals))
+	stringsWithoutLang := make([]string, 0, len(vals))
+
+	for i := range vals {
+		switch val := vals[i].V.(type) {
+		case goipp.String:
+			stringsWithoutLang = append(stringsWithoutLang,
+				string(val))
+		case goipp.TextWithLang:
+			lang := strings.ToLower(val.Lang)
+
+			strings := stringsByLang[lang]
+			stringsByLang[lang] = append(strings, val.Text)
+
+			if strings == nil {
+				langsInOrder = append(langsInOrder, lang)
+			}
+		}
+	}
+
+	// If we have goipp.String values, just use them
+	if len(stringsWithoutLang) != 0 {
+		return stringsWithoutLang
+	}
+
+	// Choose the most appropriate language
+	if len(langsInOrder) == 0 {
+		// No strings, return nil
+		return nil
+	}
+
+	if len(langsInOrder) == 1 {
+		// We have only one language, use it
+		return stringsByLang[langsInOrder[0]]
+	}
+
+	if strings := stringsByLang["en"]; strings != nil {
+		// Use "en" if available
+		return strings
+	}
+
+	if strings := stringsByLang["en-us"]; strings != nil {
+		// Use "en-us"
+		return strings
+	}
+
+	for _, lang := range langsInOrder {
+		// Use the first variant of "en-" in the list.
+		if strings.HasPrefix(lang, "en") {
+			return stringsByLang[lang]
+		}
+	}
+
+	// Fallback to the first language in the list
+	return stringsByLang[langsInOrder[0]]
 }
 
 // Get boolean attribute. Returns "F" or "T" if attribute is found,
@@ -497,7 +553,9 @@ func (attrs ippAttrs) getAttr(t goipp.Type, name string) []goipp.Value {
 	if ok && v[0].V.Type() == t {
 		var vals []goipp.Value
 		for i := range v {
-			vals = append(vals, v[i].V)
+			if v[i].V.Type() == t {
+				vals = append(vals, v[i].V)
+			}
 		}
 		return vals
 	}

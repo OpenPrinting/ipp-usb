@@ -46,7 +46,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	}
 
 	// Decode IPP service info
-	attrs := newIppDecoder(msg)
+	attrs := newIppAttrs(msg)
 	ippinfo, ippSvc := attrs.decode(usbinfo)
 
 	// Check for fax support
@@ -206,7 +206,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 type ippAttrs map[string]goipp.Values
 
 // Create new ippAttrs
-func newIppDecoder(msg *goipp.Message) ippAttrs {
+func newIppAttrs(msg *goipp.Message) ippAttrs {
 	attrs := make(ippAttrs)
 
 	// Note, we move from the end of list to the beginning, so

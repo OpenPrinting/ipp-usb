@@ -9,6 +9,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -38,6 +39,14 @@ var (
 
 	// Directory that contains per-device state files
 	PathDevStateDir = DefaultPathDevStateDir
+
+	// Path to the program's executable file.
+	// Initialized by PathInit()
+	PathExecutableFile string
+
+	// Path to the directory that contains the executable file.
+	// Initialized by PathInit()
+	PathExecutableDir string
 )
 
 // Default paths:
@@ -76,6 +85,22 @@ const (
 	// DefaultPathMainLogFile defines path to the main log file
 	DefaultPathMainLogFile = DefaultPathLogDir + "/main.log"
 )
+
+// PathsInit initializes paths handling.
+func PathsInit() error {
+	// Initialize PathExecutableFile and PathExecutableDir
+	var err error
+	PathExecutableFile, err = os.Executable()
+	if err != nil {
+		err = fmt.Errorf(
+			"Error getting path to the executable file: %s", err)
+		return err
+	}
+
+	PathExecutableDir = filepath.Dir(PathExecutableFile)
+
+	return nil
+}
 
 // MakeDirectory creates a directory, specified by the path,
 // along with any necessary parents.

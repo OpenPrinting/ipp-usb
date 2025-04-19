@@ -176,6 +176,10 @@ func printStatus() {
 func main() {
 	var err error
 
+	// Initialize paths
+	err = PathsInit()
+	InitLog.Check(err)
+
 	// Parse arguments
 	params := parseArgv()
 

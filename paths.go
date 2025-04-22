@@ -12,30 +12,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Effective paths, may be altered with the command-line options:
 var (
-	// Configuration directory
-	PathConfDir = DefaultPathConfDir
-
 	// Control socket
 	PathControlSocket = DefaultPathControlSocket
-
-	// Global (installed) quirks files
-	PathGlobalQuirksDir = DefaultPathGlobalQuirksDir
-
-	// Local (admin-defined) quirks files
-	PathLocalQuirksDir = DefaultPathLocalQuirksDir
 
 	// Lock file
 	PathLockFile = DefaultPathLockFile
 
 	// Directory for per-device logs
-	PathDevLogDir = DefaultPathLogDir
-
-	// Main log file
-	PathMainLogFile = DefaultPathMainLogFile
+	PathLogDir = DefaultPathLogDir
 
 	// Directory that contains per-device state files
 	PathDevStateDir = DefaultPathDevStateDir
@@ -47,6 +36,18 @@ var (
 	// Path to the directory that contains the executable file.
 	// Initialized by PathInit()
 	PathExecutableDir string
+
+	// List of configuration directories.
+	// Initialized by PathInit():
+	//   DefaultPathConfDir + ":" + PathExecutableDir
+	PathConfDirList string
+
+	// List of quirks directories.
+	// Initialized by PathInit():
+	//   DefaultPathLocalQuirksDir + ":" +
+	//   DefaultPathGlobalQuirksDir + ":" +
+	//   filepath.Join(PathExecutableDir, "ipp-usb-quirks")
+	PathQuirksDirList string
 )
 
 // Default paths:
@@ -81,9 +82,6 @@ const (
 
 	// DefaultPathLogDir defines path to log directory
 	DefaultPathLogDir = "/var/log/ipp-usb"
-
-	// DefaultPathMainLogFile defines path to the main log file
-	DefaultPathMainLogFile = DefaultPathLogDir + "/main.log"
 )
 
 // PathsInit initializes paths handling.
@@ -98,6 +96,27 @@ func PathsInit() error {
 	}
 
 	PathExecutableDir = filepath.Dir(PathExecutableFile)
+
+	// Initialize derived paths
+	PathConfDirList =
+		strings.Join(
+			[]string{
+				DefaultPathConfDir,
+				PathExecutableDir,
+			},
+			string(filepath.ListSeparator),
+		)
+
+	PathQuirksDirList =
+		strings.Join(
+			[]string{
+				DefaultPathLocalQuirksDir,
+				DefaultPathGlobalQuirksDir,
+				filepath.Join(PathExecutableDir,
+					"ipp-usb-quirks"),
+			},
+			string(filepath.ListSeparator),
+		)
 
 	return nil
 }

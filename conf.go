@@ -60,9 +60,9 @@ var Conf = Configuration{
 // ConfLoad loads the program configuration
 func ConfLoad() error {
 	// Build list of configuration files
-	files := []string{
-		filepath.Join(PathConfDir, ConfFileName),
-		filepath.Join(PathExecutableDir, ConfFileName),
+	files := filepath.SplitList(PathConfDirList)
+	for i := range files {
+		files[i] = filepath.Join(files[i], ConfFileName)
 	}
 
 	// Load file by file
@@ -74,11 +74,7 @@ func ConfLoad() error {
 	}
 
 	// Load quirks
-	quirksDirs := []string{
-		PathLocalQuirksDir,
-		PathGlobalQuirksDir,
-		filepath.Join(PathExecutableDir, "ipp-usb-quirks"),
-	}
+	quirksDirs := filepath.SplitList(PathQuirksDirList)
 
 	var err error
 	Conf.Quirks, err = LoadQuirksSet(quirksDirs...)

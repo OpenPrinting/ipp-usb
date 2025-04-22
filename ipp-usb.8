@@ -29,9 +29,35 @@ check configuration and exit\. It also prints a list of all connected devices
 \fBstatus\fR
 print status of the running \fBipp\-usb\fR daemon, including information of all connected devices
 .SS "Options are"
-.TP
+.IP "\(bu" 4
 \fB\-bg\fR
+.br
 run in background (ignored in debug mode)
+.IP "\(bu" 4
+\fB\-path\-conf\-files\-srch dir1[:dir2\|\.\|\.\|\.]\fR
+.br
+List of directories where configuration files (ipp\-usb\.conf) are searched (/etc/ipp\-usb)
+.IP "\(bu" 4
+\fB\-path\-log\-dir dir\fR
+.br
+Path to the directory where log files (main\.log and per\-device \fIDEVICE\fR\.log) are written (/var/log/ipp\-usb)
+.IP "\(bu" 4
+\fB\-path\-lock\-file file\fR
+.br
+Path to the program's lock file (/var/ipp\-usb/lock/ipp\-usb\.lock)
+.IP "\(bu" 4
+\fB\-path\-dev\-state\-dir dir\fR
+.br
+Path to the directory where per\-device state files are written (/var/ipp\-usb/dev)
+.IP "\(bu" 4
+\fB\-path\-ctrl\-sock file\fR
+.br
+Path to the program's control socket (/var/ipp\-usb/ctrl)
+.IP "\(bu" 4
+\fB\-path\-quirks\-files\-srch dir1[:dir2\|\.\|\.\|\.]\fR
+.br
+List of directories where quirks files (*\.conf) is searched (/etc/ipp\-usb/quirks:/usr/share/ipp\-usb/quirks)
+.IP "" 0
 .SH "NETWORKING"
 Essentially, \fBipp\-usb\fR makes printer or scanner accessible from the network, converting network\-side HTTP operations to the USB operations\.
 .P

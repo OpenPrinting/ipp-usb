@@ -41,8 +41,31 @@ IPP printing, eSCL scanning and web console are fully supported.
 
 ### Options are
 
-   * `-bg`:
+   * `-bg`<br>
      run in background (ignored in debug mode)
+
+   * `-path-conf-files-srch dir1[:dir2...]`<br>
+     List of directories where configuration files (ipp-usb.conf)
+     are searched (/etc/ipp-usb)
+
+   * `-path-log-dir dir`<br>
+      Path to the directory where log files (main.log and per-device
+      <DEVICE>.log) are written (/var/log/ipp-usb)
+
+   * `-path-lock-file file`<br>
+     Path to the program's lock file (/var/ipp-usb/lock/ipp-usb.lock)
+
+   * `-path-dev-state-dir dir`<br>
+     Path to the directory where per-device state files are written
+     (/var/ipp-usb/dev)
+
+   * `-path-ctrl-sock file`<br>
+     Path to the program's control socket
+     (/var/ipp-usb/ctrl)
+
+   * `-path-quirks-files-srch dir1[:dir2...]`<br>
+     List of directories where quirks files (\*.conf) is searched
+     (/etc/ipp-usb/quirks:/usr/share/ipp-usb/quirks)
 
 ## NETWORKING
 

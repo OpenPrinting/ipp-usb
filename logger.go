@@ -171,12 +171,12 @@ func (l *Logger) ToFile(path string) *Logger {
 
 // ToMainFile redirects log to the main log file
 func (l *Logger) ToMainFile() *Logger {
-	return l.ToFile(PathMainLogFile)
+	return l.ToFile(filepath.Join(PathLogDir, "main.log"))
 }
 
 // ToDevFile redirects log to per-device log file
 func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
-	return l.ToFile(filepath.Join(PathDevLogDir, info.Ident()+".log"))
+	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
 }
 
 // HasDestination reports if Logger destination is already

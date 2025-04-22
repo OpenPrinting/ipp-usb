@@ -59,8 +59,10 @@ func LoadDevState(ident, comment string) *DevState {
 
 // LoadUsedPorts loads ports used by some of devices.
 //
-// The returned map contains one entry per used port. Value of this
-// entry is a human-readable string, reasonable for logging
+// The returned map contains one entry per used port. The presence
+// of entry indicates that port is in use. The associated value is
+// the human-readable string, that explains who uses the port. This
+// string is suitable for logging purposes.
 func LoadUsedPorts() (ports map[int]string) {
 	ports = make(map[int]string)
 

@@ -28,3 +28,6 @@ install: all
 
 test:
 	go test -mod=vendor
+
+clean:
+	rm -f ipp-usb tags

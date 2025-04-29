@@ -171,19 +171,20 @@ func (md *messageDecoder) decode(m *Message) error {
 // of named attributes. Collections can be nested.
 //
 // Wire format:
-//   ATTR: Tag = TagBeginCollection,            - the outer attribute that
-//         Name = "name", value - ignored         contains the collection
 //
-//   ATTR: Tag = TagMemberName, name = "",      - member name  \
-//         value - string, name of the next                     |
-//         member                                               | repeated for
-//                                                              | each member
-//   ATTR: Tag = any attribute tag, name = "",  - repeated for  |
-//         value = member value                   multi-value  /
-//                                                members
+//	ATTR: Tag = TagBeginCollection,            - the outer attribute that
+//	      Name = "name", value - ignored         contains the collection
 //
-//   ATTR: Tag = TagEndCollection, name = "",
-//         value - ignored
+//	ATTR: Tag = TagMemberName, name = "",      - member name \
+//	      value - string, name of the next                    |
+//	      member                                              | repeated for
+//	                                                          | each member
+//	ATTR: Tag = any attribute tag, name = "",  - repeated for |
+//	      value = member value                   multi-value /
+//	                                             members
+//
+//	ATTR: Tag = TagEndCollection, name = "",
+//	      value - ignored
 //
 // The format looks a bit baroque, but please note that it was added
 // in the IPP 2.0. For IPP 1.x collection looks like a single multi-value
@@ -289,9 +290,10 @@ func (md *messageDecoder) decodeCode() (Code, error) {
 // Decode a single attribute
 //
 // Wire format:
-//   1   byte:   Tag
-//   2+N bytes:  Name length (2 bytes) + name string
-//   2+N bytes:  Value length (2 bytes) + value bytes
+//
+//	1   byte:   Tag
+//	2+N bytes:  Name length (2 bytes) + name string
+//	2+N bytes:  Value length (2 bytes) + value bytes
 //
 // For the extended tag format, Tag is encoded as TagExtension and
 // 4 bytes of the actual tag value prepended to the value bytes
@@ -319,14 +321,12 @@ func (md *messageDecoder) decodeAttribute(tag Tag) (Attribute, error) {
 		}
 
 		t := binary.BigEndian.Uint32(value[:4])
-		value = value[4:]
 
 		if t > 0x7fffffff {
-			err = errors.New("Extension tag out of range")
+			err = fmt.Errorf(
+				"Extension tag 0x%8.8x out of range", t)
 			goto ERROR
 		}
-
-		tag = Tag(t)
 	}
 
 	// Unpack value

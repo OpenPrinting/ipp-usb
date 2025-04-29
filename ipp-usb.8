@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.10.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.10.1
-.TH "IPP\-USB" "8" "March 2025" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "April 2025" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -29,9 +29,35 @@ check configuration and exit\. It also prints a list of all connected devices
 \fBstatus\fR
 print status of the running \fBipp\-usb\fR daemon, including information of all connected devices
 .SS "Options are"
-.TP
+.IP "\(bu" 4
 \fB\-bg\fR
+.br
 run in background (ignored in debug mode)
+.IP "\(bu" 4
+\fB\-path\-conf\-files\-srch dir1[:dir2\|\.\|\.\|\.]\fR
+.br
+List of directories where configuration files (ipp\-usb\.conf) are searched (/etc/ipp\-usb)
+.IP "\(bu" 4
+\fB\-path\-log\-dir dir\fR
+.br
+Path to the directory where log files (main\.log and per\-device \fIDEVICE\fR\.log) are written (/var/log/ipp\-usb)
+.IP "\(bu" 4
+\fB\-path\-lock\-file file\fR
+.br
+Path to the program's lock file (/var/ipp\-usb/lock/ipp\-usb\.lock)
+.IP "\(bu" 4
+\fB\-path\-dev\-state\-dir dir\fR
+.br
+Path to the directory where per\-device state files are written (/var/ipp\-usb/dev)
+.IP "\(bu" 4
+\fB\-path\-ctrl\-sock file\fR
+.br
+Path to the program's control socket (/var/ipp\-usb/ctrl)
+.IP "\(bu" 4
+\fB\-path\-quirks\-files\-srch dir1[:dir2\|\.\|\.\|\.]\fR
+.br
+List of directories where quirks files (*\.conf) is searched (/etc/ipp\-usb/quirks:/usr/share/ipp\-usb/quirks)
+.IP "" 0
 .SH "NETWORKING"
 Essentially, \fBipp\-usb\fR makes printer or scanner accessible from the network, converting network\-side HTTP operations to the USB operations\.
 .P
@@ -238,6 +264,7 @@ Logging parameters are all in the \fB[logging]\fR section:
 Some devices, due to their firmware bugs, require special handling, called device\-specific \fBquirks\fR\. \fBipp\-usb\fR loads quirks from the \fB/usr/share/ipp\-usb/quirks/*\.conf\fR files and from the \fB/etc/ipp\-usb/quirks/*\.conf\fR files\. The \fB/etc/ipp\-usb/quirks\fR directory is for system quirks overrides or admin changes\. These files have \.INI\-file syntax with the content that looks like this:
 .IP "" 4
 .nf
+# Various HP printers \- match by bame
 [HP LaserJet MFP M28\-M31]
   http\-connection = keep\-alive
 
@@ -247,24 +274,67 @@ Some devices, due to their firmware bugs, require special handling, called devic
 [HP Inc\. HP Laser MFP 135a]
   blacklist = true
 
+# Xerox B210\. Match by HWID, as model name is not reliable
+# before reset\.
+[0924:42ea]
+  mfg        = Xerox
+  model      = B210
+  init\-reset = hard
+
+
 # Default configuration
 [*]
   http\-connection = ""
 .fi
 .IP "" 0
 .P
-For each discovered device, its model name is matched against sections of the quirks files\. Section names may contain glob\-style wildcards: \fB*\fR that matches any sequence of characters and \fB?\fR , that matches any single character\. To match one of these characters (\fB*\fR and \fB?\fR) literally, use backslash as escape\.
+Section name defines the device (or group of devices) quirks are applied to, and section body contains the applied quirks\.
 .P
-Note, the simplest way to guess the exact model name for the particular device is to use \fBipp\-usb check\fR command, which prints a list of all connected devices\.
+For each discovered device, quirks are searched by the USB HWID (Vendor:Product, in hex) and by the model name\.
 .P
-All matching sections from all quirks files are taken in consideration, and applied in priority order\. Priority is computed using the following algorithm:
-.IP "\(bu" 4
-When matching model name against section name, amount of non\-wildcard matched characters is counted, and the longer match wins
-.IP "\(bu" 4
-Otherwise, section loaded first wins\. Files are loaded in alphabetical order, sections read sequentially
+Section names may contain wildcards:
+.IP "" 4
+.nf
+`[HP OfficeJet Pro 8730]` \- match the "HP OfficeJet Pro 8730" device
+`[HP OfficeJet *]`        \- match all models with name started with
+                            the "HP OfficeJet" prefix\.
+`[0924:42ea]`             \- match the device with the USB HWID 0924:42ea
+`[0924:*]`                \- match all devices with the Vendor ID equal
+                            to 0924 (this ID owned by Xerox)\.
+.fi
 .IP "" 0
 .P
-If some parameter exist in multiple sections, used its value from the most priority section
+Model names may contain glob\-style wildcards: \fB*\fR that matches any sequence of characters and \fB?\fR , that matches any single character\. To match one of these characters (\fB*\fR and \fB?\fR) literally, use backslash as escape\.
+.P
+HWID sections may only contain a \fB*\fR wildcard in a place of the Product ID\.
+.P
+Note, the simplest way to guess the exact model name for the particular device is to use \fBipp\-usb check\fR command, which prints a list of all connected devices\. To obtain list if USB HWIDs, use the \fBlsusb\fR command\.
+.P
+If some parameter found in multiple matching sections, \fBipp\-usb\fR follows the principle: most specific match wins\.
+.P
+To be more precise, the following prioritization algorithm is used:
+.IP "\(bu" 4
+The exact HWID (non\-wildcard, i\.e\., \fB[0924:42ea]\fR) considered the most specific\.
+.IP "\(bu" 4
+The next candidates are model name match with at least one matched non\-wildcard character\. If there are multiple model name matches, amount of non\-wildcard matched characters is counted, and the longer match wins\.
+.IP "\(bu" 4
+The next candidate is the wildcard HWID match (i\.e\., \fB[0924:*]\fR)\.
+.IP "\(bu" 4
+And the least specific is the all\-wildcard model name match (i\.e\., \fB[*]\fR)\.
+.IP "" 0
+.P
+In a case of multiple matches even after applying this algorithm, the first definition wins\. Files are loaded in alphabetical order, sections read sequentially
+.P
+In another words, non\-wildcard HWID match considered most specific, model name matches are ranked by the amount of non\-wildcard matched characters, and wildcard HWID match considered less specific as any of above, because it can only be applied to all devices of the particular vendor, and the least specific is the all\-wildcard model name match, used to specify defaults\.
+.P
+Please notice that HWID\-matched quirks are loaded early and may cause some actions to be performed before the model\-name matched quirks are loaded and applied, and the model\-name matched quirks cannot withdraw these early performed actions\. It happens because some printers cannot reliably report their model name before appropriate actions is applied\. It is related to the following quirks:
+.IP "\(bu" 4
+\fBblacklist = true\fR\. Model\-name quirks will not be loaded if device is blacklisted by HWID\.
+.IP "\(bu" 4
+\fBinit\-reset = hard\fR\. Reset will be issued, even if model\-name matched quirk has a different setting\.
+.IP "\(bu" 4
+\fBmfg = name\fR and \fBmodel = name\fR\. These parameters are only available for the HWID quirks and override identification information, provided by the device, when searching quirks by the model name\.
+.IP "" 0
 .P
 The following parameters are defined:
 .IP "\(bu" 4
@@ -307,6 +377,14 @@ How to reset device during initialization\. Default is \fBnone\fR
 \fBinit\-timeout = DELAY\fR
 .br
 Timeout for HTTP requests send by the \fBipp\-usb\fR during initialization\.
+.IP "\(bu" 4
+\fBmfg = name\fR
+.br
+Overrides the USB manufacturer (vendor) name\. This quirk can only be used in the HWID section and affects searching quirks by model name\.
+.IP "\(bu" 4
+\fBmodel = name\fR
+.br
+Overrides the USB model (product) name\. This quirk can only be used in the HWID section and affects searching quirks by model name\.
 .IP "\(bu" 4
 \fBrequest\-delay = DELAY\fR
 .br

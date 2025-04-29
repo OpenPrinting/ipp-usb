@@ -59,17 +59,19 @@ func LoadDevState(ident, comment string) *DevState {
 
 // LoadUsedPorts loads ports used by some of devices.
 //
-// The returned map contains one entry per used port. Value of this
-// entry is a human-readable string, reasonable for logging
+// The returned map contains one entry per used port. The presence
+// of entry indicates that port is in use. The associated value is
+// the human-readable string, that explains who uses the port. This
+// string is suitable for logging purposes.
 func LoadUsedPorts() (ports map[int]string) {
 	ports = make(map[int]string)
 
-	// Read the PathProgStateDev (normally "/var/ipp-usb/dev")
+	// Read the PathDevStateDir (normally "/var/ipp-usb/dev")
 	// directory.
 	var files []os.FileInfo
 	var err error
 
-	dir, err := os.Open(PathProgStateDev)
+	dir, err := os.Open(PathDevStateDir)
 	if err == nil {
 		files, err = dir.Readdir(0)
 		dir.Close()
@@ -92,7 +94,7 @@ func LoadUsedPorts() (ports map[int]string) {
 			continue
 		}
 
-		path := filepath.Join(PathProgStateDev, file.Name())
+		path := filepath.Join(PathDevStateDir, file.Name())
 		ini, err := OpenIniFile(path)
 		if err != nil {
 			Log.Error('!', "%s", err)
@@ -172,7 +174,7 @@ func (state *DevState) loadTCPPort(out *int, rec *IniRecord) error {
 
 // Save updates DevState on disk
 func (state *DevState) Save() {
-	os.MkdirAll(PathProgStateDev, 0755)
+	MakeDirectory(PathDevStateDir)
 
 	var buf bytes.Buffer
 
@@ -274,7 +276,7 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 
 // devStatePath returns a path to the DevState file
 func (state *DevState) devStatePath() string {
-	return filepath.Join(PathProgStateDev, state.Ident+".state")
+	return filepath.Join(PathDevStateDir, state.Ident+".state")
 }
 
 // error creates a state-related error

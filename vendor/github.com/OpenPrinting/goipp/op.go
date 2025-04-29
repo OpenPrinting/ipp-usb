@@ -144,16 +144,14 @@ const (
 
 // String() returns a Status name, as defined by RFC 8010
 func (op Op) String() string {
-	if int(op) < len(opNames) {
-		if s := opNames[op]; s != "" {
-			return s
-		}
+	if s := opNames[op]; s != "" {
+		return s
 	}
 
 	return fmt.Sprintf("0x%4.4x", int(op))
 }
 
-var opNames = [...]string{
+var opNames = map[Op]string{
 	OpPrintJob:                        "Print-Job",
 	OpPrintURI:                        "Print-URI",
 	OpValidateJob:                     "Validate-Job",

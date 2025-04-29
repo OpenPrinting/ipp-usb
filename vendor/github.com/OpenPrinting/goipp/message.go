@@ -121,6 +121,58 @@ func NewResponse(v Version, status Status, id uint32) *Message {
 	}
 }
 
+// NewMessageWithGroups creates a new message with Groups of
+// attributes.
+//
+// Fields like m.Operation, m.Job. m.Printer... and so on will
+// be properly filled automatically.
+func NewMessageWithGroups(v Version, code Code,
+	id uint32, groups Groups) *Message {
+
+	m := &Message{
+		Version:   v,
+		Code:      code,
+		RequestID: id,
+		Groups:    groups,
+	}
+
+	for _, grp := range m.Groups {
+		switch grp.Tag {
+		case TagOperationGroup:
+			m.Operation = append(m.Operation, grp.Attrs...)
+		case TagJobGroup:
+			m.Job = append(m.Job, grp.Attrs...)
+		case TagPrinterGroup:
+			m.Printer = append(m.Printer, grp.Attrs...)
+		case TagUnsupportedGroup:
+			m.Unsupported = append(m.Unsupported, grp.Attrs...)
+		case TagSubscriptionGroup:
+			m.Subscription = append(m.Subscription, grp.Attrs...)
+		case TagEventNotificationGroup:
+			m.EventNotification = append(m.EventNotification,
+				grp.Attrs...)
+		case TagResourceGroup:
+			m.Resource = append(m.Resource, grp.Attrs...)
+		case TagDocumentGroup:
+			m.Document = append(m.Document, grp.Attrs...)
+		case TagSystemGroup:
+			m.System = append(m.System, grp.Attrs...)
+		case TagFuture11Group:
+			m.Future11 = append(m.Future11, grp.Attrs...)
+		case TagFuture12Group:
+			m.Future12 = append(m.Future12, grp.Attrs...)
+		case TagFuture13Group:
+			m.Future13 = append(m.Future13, grp.Attrs...)
+		case TagFuture14Group:
+			m.Future14 = append(m.Future14, grp.Attrs...)
+		case TagFuture15Group:
+			m.Future15 = append(m.Future15, grp.Attrs...)
+		}
+	}
+
+	return m
+}
+
 // Equal checks that two messages are equal
 func (m Message) Equal(m2 Message) bool {
 	if m.Version != m2.Version ||
@@ -129,10 +181,27 @@ func (m Message) Equal(m2 Message) bool {
 		return false
 	}
 
-	groups := m.attrGroups()
-	groups2 := m2.attrGroups()
+	groups := m.AttrGroups()
+	groups2 := m2.AttrGroups()
 
 	return groups.Equal(groups2)
+}
+
+// Similar checks that two messages are **logically** equal,
+// which means the following:
+//   - Version, Code and RequestID are equal
+//   - Groups of attributes are Similar
+func (m Message) Similar(m2 Message) bool {
+	if m.Version != m2.Version ||
+		m.Code != m2.Code ||
+		m.RequestID != m2.RequestID {
+		return false
+	}
+
+	groups := m.AttrGroups()
+	groups2 := m2.AttrGroups()
+
+	return groups.Similar(groups2)
 }
 
 // Reset the message into initial state
@@ -191,68 +260,32 @@ func (m *Message) DecodeBytesEx(data []byte, opt DecoderOptions) error {
 
 // Print pretty-prints the message. The 'request' parameter affects
 // interpretation of Message.Code: it is interpreted either
-// as Op or as Status
+// as [Op] or as [Status].
+//
+// Deprecated. Use [Formatter] instead.
 func (m *Message) Print(out io.Writer, request bool) {
-	out.Write([]byte("{\n"))
-
-	fmt.Fprintf(out, msgPrintIndent+"VERSION %s\n", m.Version)
+	f := Formatter{}
 
 	if request {
-		fmt.Fprintf(out, msgPrintIndent+"OPERATION %s\n", Op(m.Code))
+		f.FmtRequest(m)
 	} else {
-		fmt.Fprintf(out, msgPrintIndent+"STATUS %s\n", Status(m.Code))
+		f.FmtResponse(m)
 	}
 
-	for _, grp := range m.attrGroups() {
-		fmt.Fprintf(out, "\n"+msgPrintIndent+"GROUP %s\n", grp.Tag)
-		for _, attr := range grp.Attrs {
-			m.printAttribute(out, attr, 1)
-			out.Write([]byte("\n"))
-		}
-	}
-
-	out.Write([]byte("}\n"))
+	f.WriteTo(out)
 }
 
-// Pretty-print an attribute. Handles Collection attributes
-// recursively
-func (m *Message) printAttribute(out io.Writer, attr Attribute, indent int) {
-	m.printIndent(out, indent)
-	fmt.Fprintf(out, "ATTR %q", attr.Name)
-
-	tag := TagZero
-	for _, val := range attr.Values {
-		if val.T != tag {
-			fmt.Fprintf(out, " %s:", val.T)
-			tag = val.T
-		}
-
-		if collection, ok := val.V.(Collection); ok {
-			out.Write([]byte(" {\n"))
-			for _, attr2 := range collection {
-				m.printAttribute(out, attr2, indent+1)
-				out.Write([]byte("\n"))
-			}
-			m.printIndent(out, indent)
-			out.Write([]byte("}"))
-		} else {
-			fmt.Fprintf(out, " %s", val.V)
-		}
-	}
-}
-
-// Print indentation
-func (m *Message) printIndent(out io.Writer, indent int) {
-	for i := 0; i < indent; i++ {
-		out.Write([]byte(msgPrintIndent))
-	}
-}
-
-// Get attributes by group. Groups with nil Attributes are skipped,
-// but groups with non-nil are not, even if len(Attributes) == 0
+// AttrGroups returns [Message] attributes as a sequence of
+// attribute groups.
 //
-// This is a helper function for message encoder and pretty-printer
-func (m *Message) attrGroups() Groups {
+// If [Message.Groups] is set, it will be returned.
+//
+// Otherwise, [Groups] will be reconstructed from [Message.Operation],
+// [Message.Job], [Message.Printer] and so on.
+//
+// Groups with nil [Group.Attrs] will be skipped, but groups with non-nil
+// will be not, even if len(Attrs) == 0
+func (m *Message) AttrGroups() Groups {
 	// If m.Groups is set, use it
 	if m.Groups != nil {
 		return m.Groups

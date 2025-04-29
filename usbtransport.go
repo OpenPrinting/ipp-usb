@@ -32,12 +32,13 @@ type UsbTransport struct {
 	info           UsbDeviceInfo // USB device info
 	log            *Logger       // Device's own logger
 	dev            *UsbDevHandle // Underlying USB device
+	doneHardReset  bool          // True, if done hard reset
 	connPool       chan *usbConn // Pool of idle connections
 	connList       []*usbConn    // List of all connections
 	connReleased   chan struct{} // Signalled when connection released
 	shutdown       chan struct{} // Closed by Shutdown()
 	connstate      *usbConnState // Connections state tracker
-	quirks         Quirks        // Device quirks
+	quirks         *Quirks       // Device quirks
 	timeout        time.Duration // Timeout for requests (0 is none)
 	timeoutExpired uint32        // Atomic non-zero, if timeout expired
 }
@@ -59,25 +60,95 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		shutdown:     make(chan struct{}),
 	}
 
+	// Setup logging.
+	//
+	// At this stage, device identification is not yet available,
+	// so we cannot redirect logs to the device-specific log file.
+	// The logging will remain in buffered mode temporarily.
+	//
+	// Once device identification becomes available,
+	// the log will be redirected to the device's log file.
+	//
+	// If initialization fails before device identification is obtained,
+	// all buffered logs will be flushed to the main log.
+	transport.log.Cc(Console)
+	transport.log.SetLevels(Conf.LogDevice)
+
+	defer func() {
+		if !transport.log.HasDestination() {
+			transport.log.Cc(Log)
+			transport.log.ToNowhere()
+			transport.log.Flush()
+		}
+	}()
+
+	transport.log.Debug(' ', "===============================")
+	transport.log.Info('+', "Found new device. VID:PID = %4.4x:%4.4x",
+		desc.Vendor, desc.Product)
+
+	// Obtain quirks by HWID.
+	//
+	// Do it early, so we can reset the device before querying
+	// its UsbDeviceInfo. Some devices are not reliable on
+	// returning UsbDeviceInfo before reset.
+	quirks := NewQuirks()
+	quirks.PullByHWID(Conf.Quirks, desc.Vendor, desc.Product)
+	quirks.WriteLog("HWID quirks", transport.log)
+	transport.log.Nl(LogDebug)
+
+	if quirks.GetBlacklist() {
+		err = ErrBlackListed
+		dev.Close()
+		return nil, err
+	}
+
+	if quirks.GetInitReset() == QuirkResetHard {
+		transport.hardReset("init-reset = hard", false)
+	}
+
 	// Obtain device info
 	transport.info, err = dev.UsbDeviceInfo()
+
+	if err == nil && transport.info.CheckMissed() != nil {
+		// Some devices do not always reliably report USB
+		// string parameters. If this happens, try to
+		// reset the device and re-read them.
+		missed := transport.info.CheckMissed()
+		if missed != nil {
+			transport.hardReset(missed.Error(), true)
+			transport.info, err = dev.UsbDeviceInfo()
+		}
+
+		if err == nil {
+			err = transport.info.CheckMissed()
+		}
+	}
+
 	if err != nil {
 		dev.Close()
 		return nil, err
 	}
 
-	transport.log.Cc(Console)
-	transport.log.ToDevFile(transport.info)
-	transport.log.SetLevels(Conf.LogDevice)
+	// Honor mfg and model parameters from the HWID quirks, if present.
+	if mfg := quirks.GetMfg(); mfg != "" {
+		transport.info.Manufacturer = mfg
+	}
 
-	// Setup quirks
-	transport.quirks = Conf.Quirks.MatchByModelName(
-		transport.info.MfgAndProduct)
+	if model := quirks.GetModel(); model != "" {
+		transport.info.ProductName = model
+	}
+
+	// Load match-by-model quirks
+	model := transport.info.MakeAndModel()
+	transport.log.Debug(' ', "Loading quirks for model: %q", model)
+	quirks.PullByModelName(Conf.Quirks, model)
+	transport.quirks = quirks
+
+	transport.quirks.WriteLog("Device quirks", transport.log)
+	transport.log.Nl(LogDebug)
 
 	// Write device info to the log
-	log := transport.log.Begin().
-		Nl(LogDebug).
-		Debug(' ', "===============================").
+	transport.log.Begin().
 		Info('+', "%s: opened %s", transport.addr, transport.info.ProductName).
 		Debug(' ', "Device info:").
 		Debug(' ', "  USB Port:      %d", transport.info.PortNum).
@@ -85,44 +156,51 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		Debug(' ', "  Manufacturer:  %s", transport.info.Manufacturer).
 		Debug(' ', "  Product:       %s", transport.info.ProductName).
 		Debug(' ', "  SerialNumber:  %s", transport.info.SerialNumber).
-		Debug(' ', "  MfgAndProduct: %s", transport.info.MfgAndProduct).
 		Debug(' ', "  BasicCaps:     %s", transport.info.BasicCaps).
-		Nl(LogDebug)
+		Nl(LogDebug).
+		Commit()
 
-	transport.dumpQuirks(log)
-	log.Nl(LogDebug)
+	transport.dumpUSBparams(transport.log)
+	transport.log.Nl(LogDebug)
 
-	transport.dumpUSBparams(log)
-	log.Nl(LogDebug)
-
-	log.Debug(' ', "USB interfaces:")
-	log.Debug(' ', "  Config Interface Alt Class SubClass Proto")
+	transport.log.Debug(' ', "USB interfaces:")
+	transport.log.Debug(' ', "  Config Interface Alt Class SubClass Proto")
 	for _, ifdesc := range desc.IfDescs {
 		prefix := byte(' ')
 		if ifdesc.IsIppOverUsb() {
 			prefix = '*'
 		}
 
-		log.Debug(prefix,
+		transport.log.Debug(prefix,
 			"     %-3d     %-3d    %-3d %-3d    %-3d     %-3d",
 			ifdesc.Config, ifdesc.IfNum,
 			ifdesc.Alt, ifdesc.Class, ifdesc.SubClass, ifdesc.Proto)
 	}
-	log.Nl(LogDebug)
-	log.Commit()
+	transport.log.Nl(LogDebug)
 
+	// Finish with logging initialization
+	transport.log.ToDevFile(transport.info)
+	transport.log.Flush()
+
+	// We will need this variable a dozen of lines later,
+	// but have to declare it now, so we can goto ERROR
 	var maxconn uint
 
-	// Check for blacklisted device
+	// The 'blacklist' and 'init-reset' quirks were already
+	// applied by HWID, but now we have loaded quirks by
+	// model name so need to re-check and, possibly, apply.
+	//
+	// Note, transport.hardReset will prevent us from
+	// issuing an unneeded second hard-reset, but if device
+	// is blacklisted here but previously reset by the HWID,
+	// we cannot prevent that.
 	if transport.quirks.GetBlacklist() {
 		err = ErrBlackListed
 		goto ERROR
 	}
 
-	// Hard-reset the device, if needed
 	if transport.quirks.GetInitReset() == QuirkResetHard {
-		transport.log.Debug(' ', "Doing USB HARD RESET")
-		dev.Reset()
+		transport.hardReset("init-reset = hard", false)
 	}
 
 	// Configure the device
@@ -171,29 +249,17 @@ ERROR:
 	return nil, err
 }
 
-// Dump quirks to the UsbTransport's log
-func (transport *UsbTransport) dumpQuirks(log *LogMessage) {
-	log.Debug(' ', "Device quirks:")
-
-	prevMatch := ""
-	for _, q := range transport.quirks.All() {
-		val := q.RawValue
-		if _, isStr := q.Parsed.(string); isStr {
-			val = strconv.Quote(val)
-		}
-
-		if q.Match != prevMatch {
-			prevMatch = q.Match
-			log.Debug(' ', "  [%s]", q.Match)
-		}
-
-		log.Debug(' ', "    ; (%s)", q.Origin)
-		log.Debug(' ', "    %s = %s", q.Name, val)
+// hardReset performs device hard reset.
+func (transport *UsbTransport) hardReset(reason string, force bool) {
+	if !transport.doneHardReset || force {
+		transport.log.Debug(' ', "Doing USB HARD RESET: %s", reason)
+		transport.dev.Reset()
+		transport.doneHardReset = true
 	}
 }
 
 // Dump USB stack parameters to the UsbTransport's log
-func (transport *UsbTransport) dumpUSBparams(log *LogMessage) {
+func (transport *UsbTransport) dumpUSBparams(log *Logger) {
 	const usbParamsDir = "/sys/module/usbcore/parameters"
 
 	// Obtain list of parameter names (file names)
@@ -341,7 +407,7 @@ func (transport *UsbTransport) UsbDeviceInfo() UsbDeviceInfo {
 }
 
 // Quirks returns device's quirks
-func (transport *UsbTransport) Quirks() Quirks {
+func (transport *UsbTransport) Quirks() *Quirks {
 	return transport.quirks
 }
 
@@ -703,7 +769,7 @@ type usbConn struct {
 
 // Open usbConn
 func (transport *UsbTransport) openUsbConn(
-	index int, ifaddr UsbIfAddr, quirks Quirks) (*usbConn, error) {
+	index int, ifaddr UsbIfAddr, quirks *Quirks) (*usbConn, error) {
 
 	dev := transport.dev
 

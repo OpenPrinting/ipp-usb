@@ -104,7 +104,7 @@ type Logger struct {
 		LogLevel, []byte)
 
 	// Don't reexport these methods from the root message
-	Commit, Flush, Reject struct{}
+	Commit, Reject struct{}
 }
 
 // NewLogger creates new logger. Logger mode is not set,
@@ -171,12 +171,18 @@ func (l *Logger) ToFile(path string) *Logger {
 
 // ToMainFile redirects log to the main log file
 func (l *Logger) ToMainFile() *Logger {
-	return l.ToFile(PathLogFile)
+	return l.ToFile(filepath.Join(PathLogDir, "main.log"))
 }
 
 // ToDevFile redirects log to per-device log file
 func (l *Logger) ToDevFile(info UsbDeviceInfo) *Logger {
 	return l.ToFile(filepath.Join(PathLogDir, info.Ident()+".log"))
+}
+
+// HasDestination reports if Logger destination is already
+// configured (i.e., Logger.ToXXX called for this logger).
+func (l *Logger) HasDestination() bool {
+	return l.mode != loggerNoMode
 }
 
 // Cc adds Logger to send "carbon copy" to.
@@ -664,11 +670,19 @@ func (msg *LogMessage) Flush() {
 
 	// Open log file on demand
 	if msg.logger.out == nil && msg.logger.mode == loggerFile {
-		os.MkdirAll(PathLogDir, 0755)
+		MakeParentDirectory(msg.logger.path)
 		msg.logger.out, _ = os.OpenFile(msg.logger.path,
 			os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	}
 
+	// If there are still no destination, return for now.
+	//
+	// It may happen either because destination is not yet
+	// set (log.ToXXX not called) or because we've failed
+	// to open destination file.
+	//
+	// In both cases if we return now, the logger will continue
+	// to work in the buffering mode, which is desired behavior.
 	if msg.logger.out == nil {
 		return
 	}

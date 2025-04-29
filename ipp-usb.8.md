@@ -41,8 +41,31 @@ IPP printing, eSCL scanning and web console are fully supported.
 
 ### Options are
 
-   * `-bg`:
+   * `-bg`<br>
      run in background (ignored in debug mode)
+
+   * `-path-conf-files-srch dir1[:dir2...]`<br>
+     List of directories where configuration files (ipp-usb.conf)
+     are searched (/etc/ipp-usb)
+
+   * `-path-log-dir dir`<br>
+      Path to the directory where log files (main.log and per-device
+      <DEVICE>.log) are written (/var/log/ipp-usb)
+
+   * `-path-lock-file file`<br>
+     Path to the program's lock file (/var/ipp-usb/lock/ipp-usb.lock)
+
+   * `-path-dev-state-dir dir`<br>
+     Path to the directory where per-device state files are written
+     (/var/ipp-usb/dev)
+
+   * `-path-ctrl-sock file`<br>
+     Path to the program's control socket
+     (/var/ipp-usb/ctrl)
+
+   * `-path-quirks-files-srch dir1[:dir2...]`<br>
+     List of directories where quirks files (\*.conf) is searched
+     (/etc/ipp-usb/quirks:/usr/share/ipp-usb/quirks)
 
 ## NETWORKING
 
@@ -306,12 +329,14 @@ Logging parameters are all in the `[logging]` section:
 
 ### Quirks
 
-Some devices, due to their firmware bugs, require special handling,
-called device-specific **quirks**. `ipp-usb` loads quirks from the
-`/usr/share/ipp-usb/quirks/*.conf` files and from the `/etc/ipp-usb/quirks/*.conf`
-files. The `/etc/ipp-usb/quirks` directory is for system quirks overrides or
-admin changes. These files have .INI-file syntax with the content that looks like this:
+Some devices, due to their firmware bugs, require special handling, called
+device-specific **quirks**. `ipp-usb` loads quirks from the
+`/usr/share/ipp-usb/quirks/*.conf` files and from the
+`/etc/ipp-usb/quirks/*.conf` files. The `/etc/ipp-usb/quirks` directory is for
+system quirks overrides or admin changes. These files have .INI-file syntax
+with the content that looks like this:
 
+    # Various HP printers - match by bame
     [HP LaserJet MFP M28-M31]
       http-connection = keep-alive
 
@@ -321,30 +346,82 @@ admin changes. These files have .INI-file syntax with the content that looks lik
     [HP Inc. HP Laser MFP 135a]
       blacklist = true
 
+    # Xerox B210. Match by HWID, as model name is not reliable
+    # before reset.
+    [0924:42ea]
+      mfg        = Xerox
+      model      = B210
+      init-reset = hard
+
+
     # Default configuration
     [*]
       http-connection = ""
 
-For each discovered device, its model name is matched against sections of the
-quirks files. Section names may contain glob-style wildcards: `*` that matches
-any sequence of characters and `?` , that matches any single character. To
-match one of these characters (`*` and `?`) literally, use backslash as escape.
+Section name defines the device (or group of devices) quirks are
+applied to, and section body contains the applied quirks.
+
+For each discovered device, quirks are searched by the USB HWID
+(Vendor:Product, in hex) and by the model name.
+
+Section names may contain wildcards:
+
+    `[HP OfficeJet Pro 8730]` - match the "HP OfficeJet Pro 8730" device
+    `[HP OfficeJet *]`        - match all models with name started with
+                                the "HP OfficeJet" prefix.
+    `[0924:42ea]`             - match the device with the USB HWID 0924:42ea
+    `[0924:*]`                - match all devices with the Vendor ID equal
+                                to 0924 (this ID owned by Xerox).
+
+Model names may contain glob-style wildcards: `*` that matches any sequence of
+characters and `?` , that matches any single character. To match one of these
+characters (`*` and `?`) literally, use backslash as escape.
+
+HWID sections may only contain a `*` wildcard in a place of the Product ID.
 
 Note, the simplest way to guess the exact model name for the particular
 device is to use `ipp-usb check` command, which prints a list of all
-connected devices.
+connected devices. To obtain list if USB HWIDs, use the `lsusb` command.
 
-All matching sections from all quirks files are taken in consideration,
-and applied in priority order. Priority is computed using the following
-algorithm:
+If some parameter found in multiple matching sections, `ipp-usb` follows the
+principle: most specific match wins.
 
-* When matching model name against section name, amount of non-wildcard
-matched characters is counted, and the longer match wins
-* Otherwise, section loaded first wins. Files are loaded in alphabetical
-order, sections read sequentially
+To be more precise, the following prioritization algorithm is used:
 
-If some parameter exist in multiple sections, used its value from the
-most priority section
+* The exact HWID (non-wildcard, i.e., `[0924:42ea]`) considered the most
+specific.
+* The next candidates are model name match with at least one matched
+non-wildcard character. If there are multiple model name matches, amount
+of non-wildcard matched characters is counted, and the longer match wins.
+* The next candidate is the wildcard HWID match (i.e., `[0924:*]`).
+* And the least specific is the all-wildcard model name match (i.e., `[*]`).
+
+In a case of multiple matches even after applying this algorithm, the first
+definition wins. Files are loaded in alphabetical order, sections  read
+sequentially
+
+In another words, non-wildcard HWID match considered most specific, model name
+matches are ranked by the amount of non-wildcard matched characters, and
+wildcard HWID match considered less specific as any of above, because it can
+only be applied to all devices of the particular vendor, and the least
+specific is the all-wildcard model name match, used to specify defaults.
+
+Please notice that HWID-matched quirks are loaded early and may cause some
+actions to be performed before the model-name matched quirks are loaded and
+applied, and the model-name matched quirks cannot withdraw these early
+performed actions. It happens because some printers cannot reliably report
+their model name before appropriate actions is applied. It is related to
+the following quirks:
+
+   * `blacklist = true`. Model-name quirks will not be loaded if device is
+     blacklisted by HWID.
+
+   * `init-reset = hard`. Reset will be issued, even if model-name matched
+     quirk has a different setting.
+
+   * `mfg = name` and `model = name`. These parameters are only available
+     for the HWID quirks and override identification information, provided
+     by the device, when searching quirks by the model name.
 
 The following parameters are defined:
 
@@ -393,6 +470,16 @@ The following parameters are defined:
 
    * `init-timeout = DELAY`<br>
      Timeout for HTTP requests send by the `ipp-usb` during initialization.
+
+   * `mfg = name`<br>
+     Overrides the USB manufacturer (vendor) name. This quirk can only
+     be used in the HWID section and affects searching quirks by model
+     name.
+
+   * `model = name`<br>
+     Overrides the USB model (product) name. This quirk can only
+     be used in the HWID section and affects searching quirks by model
+     name.
 
    * `request-delay = DELAY`<br>
      Delay between subsequent HTTP requests, sent to device (this is not

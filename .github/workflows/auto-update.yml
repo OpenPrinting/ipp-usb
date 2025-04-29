@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Run desktop-snaps action (Snapcraft)
-        if: ${{ github.event_name == 'schedule'  github.event.inputs.workflow_choice == 'snapcraft'  github.event.inputs.workflow_choice == 'both' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.workflow_choice == 'snapcraft' || github.event.inputs.workflow_choice == 'both' }}
         uses: ubuntu/desktop-snaps@stable
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -31,7 +31,7 @@ jobs:
           yaml-path: 'snap/snapcraft.yaml'
 
       - name: Run desktop-snaps action (Rockcraft)
-        if: ${{ github.event_name == 'schedule'  github.event.inputs.workflow_choice == 'rockcraft'  github.event.inputs.workflow_choice == 'both' }}
+        if: ${{ github.event_name == 'schedule' || github.event.inputs.workflow_choice == 'rockcraft' || github.event.inputs.workflow_choice == 'both' }}
         uses: ubuntu/desktop-snaps@stable
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

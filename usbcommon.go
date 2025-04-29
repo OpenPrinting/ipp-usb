@@ -10,6 +10,7 @@ package main
 
 import (
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -135,6 +136,8 @@ func (list *UsbIfAddrList) Add(addr UsbIfAddr) {
 // UsbDeviceDesc represents an IPP-over-USB device descriptor
 type UsbDeviceDesc struct {
 	UsbAddr               // Device address
+	Vendor  uint16        // USB Vendor ID
+	Product uint16        // USB Device ID
 	Config  int           // IPP-over-USB configuration
 	IfAddrs UsbIfAddrList // IPP-over-USB interfaces
 	IfDescs []UsbIfDesc   // Descriptors of all interfaces
@@ -195,9 +198,6 @@ type UsbDeviceInfo struct {
 	ProductName  string          // Product name
 	PortNum      int             // USB port number
 	BasicCaps    UsbIppBasicCaps // Device basic capabilities
-
-	// Precomputed fields
-	MfgAndProduct string // Product with Manufacturer prefix, if needed
 }
 
 // UsbIppBasicCaps represents device basic capabilities bits,
@@ -236,22 +236,55 @@ func (caps UsbIppBasicCaps) String() string {
 	return strings.Join(s, ",")
 }
 
-// FixUp fixes up precomputed fields
-func (info *UsbDeviceInfo) FixUp() {
+// CheckMissed return a error, if UsbDeviceInfo misses some
+// essential parameters.
+//
+// It check for the following parameters:
+//
+//   - Manufacturer
+//   - ProductName
+//   - SerialNumber
+//
+// If some of them missed, the appropriate error is returned.
+func (info UsbDeviceInfo) CheckMissed() error {
+	switch {
+	case info.Manufacturer == "":
+		return errors.New("missed Manufacturer string")
+	case info.ProductName == "":
+		return errors.New("missed ProductName string")
+	case info.SerialNumber == "":
+		return errors.New("missed SerialNumber string")
+	}
+
+	return nil
+}
+
+// MakeAndModel returns device Make and Model as a single
+// string
+func (info UsbDeviceInfo) MakeAndModel() string {
 	mfg := strings.TrimSpace(info.Manufacturer)
 	prod := strings.TrimSpace(info.ProductName)
 
-	info.MfgAndProduct = prod
-	if !strings.HasPrefix(prod, mfg) {
-		info.MfgAndProduct = mfg + " " + prod
+	makeModel := prod
+	if mfg != "" && !strings.HasPrefix(prod, mfg) {
+		makeModel = mfg + " " + prod
 	}
+
+	return makeModel
 }
 
 // Ident returns device identification string, suitable as
 // persistent state identifier
 func (info UsbDeviceInfo) Ident() string {
-	id := fmt.Sprintf("%4.4x-%4.4x-%s-%s",
-		info.Vendor, info.Product, info.SerialNumber, info.MfgAndProduct)
+	id := fmt.Sprintf("%4.4x-%4.4x", info.Vendor, info.Product)
+
+	if info.SerialNumber != "" {
+		id += "-" + info.SerialNumber
+	}
+
+	if model := info.MakeAndModel(); model != "" {
+		id += "-" + model
+	}
 
 	id = strings.Map(func(c rune) rune {
 		switch {
@@ -265,12 +298,6 @@ func (info UsbDeviceInfo) Ident() string {
 		return c
 	}, id)
 	return id
-}
-
-// DNSSdName generates device DNS-SD name in a case it is not available
-// from IPP or eSCL
-func (info UsbDeviceInfo) DNSSdName() string {
-	return info.MfgAndProduct
 }
 
 // UUID generates device UUID in a case it is not available
@@ -303,5 +330,5 @@ func (info UsbDeviceInfo) UUID() string {
 
 // Comment returns a short comment, describing a device
 func (info UsbDeviceInfo) Comment() string {
-	return info.MfgAndProduct + " serial=" + info.SerialNumber
+	return info.MakeAndModel() + " serial=" + info.SerialNumber
 }

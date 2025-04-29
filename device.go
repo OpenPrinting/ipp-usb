@@ -45,7 +45,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var dnssdServices DNSSdServices
 	var log *LogMessage
 	var hwid string
-	var quirks Quirks
+	var quirks *Quirks
 	var httpstatus int
 	var canPrint bool
 	var canScan bool
@@ -125,7 +125,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	if ippinfo != nil {
 		dnssdName = ippinfo.DNSSdName
 	} else {
-		dnssdName = info.DNSSdName()
+		dnssdName = info.MakeAndModel()
 	}
 
 	// Update device state, if name changed

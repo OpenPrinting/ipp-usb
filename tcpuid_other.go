@@ -1,3 +1,4 @@
+//go:build !linux
 // +build !linux
 
 /* ipp-usb - HTTP reverse proxy, backed by IPP-over-USB connection to device

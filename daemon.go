@@ -43,12 +43,6 @@ func CloseStdInOutErr() error {
 
 // Daemon runs ipp-usb program in background
 func Daemon() error {
-	// Obtain path to program's executable
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-
 	// Create stdout/stderr pipes
 	rstdout, wstdout, err := os.Pipe()
 	if err != nil {
@@ -82,7 +76,7 @@ func Daemon() error {
 	}
 
 	// Start new process
-	proc, err := os.StartProcess(exe, args, attr)
+	proc, err := os.StartProcess(PathExecutableFile, args, attr)
 	if err != nil {
 		return err
 	}

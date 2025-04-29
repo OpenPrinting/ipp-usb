@@ -14,10 +14,11 @@ type PaperSize struct {
 }
 
 // Standard paper sizes
-//                  US name      US inches   US mm           ISO mm
-//   "legal-A4"     A, Legal     8.5 x 14    215.9 x 355.6   A4: 210 x 297
-//   "tabloid-A3"   B, Tabloid   11 x 17     279.4 x 431.8   A3: 297 x 420
-//   "isoC-A2"      C            17 × 22     431.8 × 558.8   A2: 420 x 594
+//
+//	               US name      US inches   US mm           ISO mm
+//	"legal-A4"     A, Legal     8.5 x 14    215.9 x 355.6   A4: 210 x 297
+//	"tabloid-A3"   B, Tabloid   11 x 17     279.4 x 431.8   A3: 297 x 420
+//	"isoC-A2"      C            17 × 22     431.8 × 558.8   A2: 420 x 594
 //
 // Please note, Apple in the "Bonjour Printing Specification"
 // incorrectly states paper sizes as 9x14, 13x19 and 18x24 inches
@@ -31,8 +32,8 @@ var (
 )
 
 // Less checks that p is less that p2, which means:
-//   * Either p.Width or p.Height is less that p2.Width or p2.Heigh
-//   * Neither of p.Width or p.Height is greater that p2.Width or p2.Heigh
+//   - Either p.Width or p.Height is less that p2.Width or p2.Heigh
+//   - Neither of p.Width or p.Height is greater that p2.Width or p2.Heigh
 func (p PaperSize) Less(p2 PaperSize) bool {
 	return (p.Width < p2.Width && p.Height <= p2.Height) ||
 		(p.Height < p2.Height && p.Width <= p2.Width)
@@ -40,11 +41,12 @@ func (p PaperSize) Less(p2 PaperSize) bool {
 
 // Classify paper size according to Apple Bonjour rules
 // Returns:
-//     ">isoC-A2" for paper larger that C or A2
-//     "isoC-A2" for C or A2 paper
-//     "tabloid-A3" for Tabloid or A3 paper
-//     "legal-A4" for Legal or A4 paper
-//     "<legal-A4" for paper smaller that Legal or A4
+//
+//	">isoC-A2" for paper larger that C or A2
+//	"isoC-A2" for C or A2 paper
+//	"tabloid-A3" for Tabloid or A3 paper
+//	"legal-A4" for Legal or A4 paper
+//	"<legal-A4" for paper smaller that Legal or A4
 func (p PaperSize) Classify() string {
 	switch {
 	case PaperC.Less(p) || PaperA2.Less(p):

@@ -77,16 +77,14 @@ const (
 
 // String() returns a Status name, as defined by RFC 8010
 func (status Status) String() string {
-	if int(status) < len(statusNames) {
-		if s := statusNames[status]; s != "" {
-			return s
-		}
+	if s := statusNames[status]; s != "" {
+		return s
 	}
 
 	return fmt.Sprintf("0x%4.4x", int(status))
 }
 
-var statusNames = [...]string{
+var statusNames = map[Status]string{
 	StatusOk:                              "successful-ok",
 	StatusOkIgnoredOrSubstituted:          "successful-ok-ignored-or-substituted-attributes",
 	StatusOkConflicting:                   "successful-ok-conflicting-attributes",

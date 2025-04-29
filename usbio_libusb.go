@@ -339,6 +339,8 @@ func libusbBuildUsbDeviceDesc(dev *C.libusb_device) (UsbDeviceDesc, error) {
 	desc.Bus = int(C.libusb_get_bus_number(dev))
 	desc.Address = int(C.libusb_get_device_address(dev))
 	desc.Config = -1
+	desc.Vendor = uint16(cDesc.idVendor)
+	desc.Product = uint16(cDesc.idProduct)
 
 	// Roll over configs/interfaces/alt settings/endpoins
 	for cfgNum := 0; cfgNum < int(cDesc.bNumConfigurations); cfgNum++ {
@@ -623,8 +625,6 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 
 	info.PortNum = int(C.libusb_get_port_number(dev))
 
-	info.FixUp()
-
 	return info, nil
 }
 
@@ -676,7 +676,7 @@ func (devhandle *UsbDevHandle) usbIppBasicCaps() (caps UsbIppBasicCaps) {
 
 // OpenUsbInterface opens an interface
 func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr,
-	quirks Quirks) (*UsbInterface, error) {
+	quirks *Quirks) (*UsbInterface, error) {
 
 	// Claim the interface
 	rc := C.libusb_claim_interface(
@@ -713,7 +713,7 @@ func (devhandle *UsbDevHandle) OpenUsbInterface(addr UsbIfAddr,
 type UsbInterface struct {
 	devhandle *UsbDevHandle // Device handle
 	addr      UsbIfAddr     // Interface address
-	quirks    Quirks        // Device quirks
+	quirks    *Quirks       // Device quirks
 }
 
 // Close the interface

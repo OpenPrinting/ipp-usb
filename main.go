@@ -30,19 +30,43 @@ Modes are:
 
 Options are
     -bg         - run in background (ignored in debug mode)
+
+    -path-conf-files-srch dir1[:dir2...]
+        List of directories where configuration files (ipp-usb.conf)
+	are searched (%s)
+
+    -path-log-dir dir
+        Path to the directory where log files (main.log and per-device
+	<DEVICE>.log) are written (%s)
+
+    -path-lock-file file
+        Path to the program's lock file (%s)
+
+    -path-dev-state-dir dir
+        Path to the directory where per-device state files are written
+	(%s)
+
+    -path-ctrl-sock file
+        Path to the program's control socket
+	(%s)
+
+    -path-quirks-files-srch dir1[:dir2...]
+        List of directories where quirks files (*.conf) is searched
+	(%s)
 `
 
 // RunMode represents the program run mode
 type RunMode int
 
 // Run modes:
-//   RunStandalone - run forever, automatically discover IPP-over-USB
-//                   devices and serve them all
-//   RunUdev       - like RunStandalone, but exit when last IPP-over-USB
-//                   device is disconnected
-//   RunDebug      - logs duplicated on console, -bg option is ignored
-//   RunCheck      - check configuration and exit
-//   RunStatus     - print ipp-usb status and exit
+//
+//	RunStandalone - run forever, automatically discover IPP-over-USB
+//	                devices and serve them all
+//	RunUdev       - like RunStandalone, but exit when last IPP-over-USB
+//	                device is disconnected
+//	RunDebug      - logs duplicated on console, -bg option is ignored
+//	RunCheck      - check configuration and exit
+//	RunStatus     - print ipp-usb status and exit
 const (
 	RunDefault RunMode = iota
 	RunStandalone
@@ -80,7 +104,15 @@ type RunParameters struct {
 
 // usage prints detailed usage and exits
 func usage() {
-	fmt.Printf(usageText, os.Args[0])
+	fmt.Printf(usageText,
+		os.Args[0],
+		PathConfDirList,
+		PathLogDir,
+		PathLockFile,
+		PathDevStateDir,
+		PathControlSocket,
+		PathQuirksDirList,
+	)
 	os.Exit(0)
 }
 
@@ -109,7 +141,10 @@ func parseArgv() (params RunParameters) {
 	params.Mode = RunDebug
 
 	modes := 0
-	for _, arg := range os.Args[1:] {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		var optarg *string
+
 		switch arg {
 		case "-h", "-help", "--help":
 			usage()
@@ -130,8 +165,37 @@ func parseArgv() (params RunParameters) {
 			modes++
 		case "-bg":
 			params.Background = true
+
+		case "-path-log-dir":
+			optarg = &PathLogDir
+
+		case "-path-lock-file":
+			optarg = &PathLockFile
+
+		case "-path-dev-state-dir":
+			optarg = &PathDevStateDir
+
+		case "-path-conf-files-srch":
+			optarg = &PathConfDirList
+
+		case "-path-ctrl-sock":
+			optarg = &PathControlSocket
+
+		case "-path-quirks-files-srch":
+			optarg = &PathQuirksDirList
+
 		default:
 			usageError("Invalid argument %s", arg)
+		}
+
+		if optarg != nil {
+			if i+1 == len(os.Args) {
+				usageError(
+					"Option requires an argument: %s", arg)
+			}
+
+			i++
+			*optarg = os.Args[i]
 		}
 	}
 
@@ -174,6 +238,10 @@ func printStatus() {
 // The main function
 func main() {
 	var err error
+
+	// Initialize paths
+	err = PathsInit()
+	InitLog.Check(err)
 
 	// Parse arguments
 	params := parseArgv()
@@ -229,7 +297,7 @@ func main() {
 				fmt.Fprintf(&buf, "%3d. %s", i+1, dev.UsbAddr)
 				if info, err := dev.GetUsbDeviceInfo(); err == nil {
 					fmt.Fprintf(&buf, "  %4.4x:%.4x  %q",
-						info.Vendor, info.Product, info.MfgAndProduct)
+						info.Vendor, info.Product, info.MakeAndModel())
 				}
 
 				InitLog.Info(0, " %s", buf.String())
@@ -262,7 +330,7 @@ func main() {
 
 	// Prevent multiple copies of ipp-usb from being running
 	// in a same time
-	os.MkdirAll(PathLockDir, 0755)
+	MakeParentDirectory(PathLockFile)
 	lock, err := os.OpenFile(PathLockFile,
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	InitLog.Check(err)

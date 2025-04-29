@@ -9,6 +9,7 @@
 package goipp
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -41,7 +42,7 @@ func (me *messageEncoder) encode(m *Message) error {
 	}
 
 	// Encode attributes
-	for _, grp := range m.attrGroups() {
+	for _, grp := range m.AttrGroups() {
 		err = me.encodeTag(grp.Tag)
 		if err == nil {
 			for _, attr := range grp.Attrs {
@@ -89,18 +90,12 @@ func (me *messageEncoder) encodeAttr(attr Attribute, checkTag bool) error {
 				return fmt.Errorf("Tag %s cannot be used with value", tag)
 			}
 
-			if uint(tag)&0x80000000 != 0 {
-				return fmt.Errorf("Tag %s exceeds extension tag range", tag)
+			if uint(tag) >= 0x100 {
+				return fmt.Errorf("Tag %s out of range", tag)
 			}
 		}
 
-		var err error
-		if tag >= 0x100 {
-			err = me.encodeTag(TagExtension)
-		} else {
-			err = me.encodeTag(tag)
-		}
-
+		err := me.encodeTag(tag)
 		if err != nil {
 			return err
 		}
@@ -167,30 +162,33 @@ func (me *messageEncoder) encodeValue(tag Tag, v Value) error {
 			tag, tagType, v.Type())
 	}
 
-	// Encode the value
-	//
-	// If tag >= 0x100, tag is replaced with TagExtension, and actual
-	// tag value prepended to the data bytes. See RFC 8010, 3.5.2 for
-	// details
+	// Convert Value to bytes in wire representation.
 	data, err := v.encode()
 	if err != nil {
 		return err
 	}
 
-	valueLen := len(data)
-	if tag >= 0x100 {
-		valueLen += 4 // Prepend extension tag value to the data
-	}
-
-	if valueLen > math.MaxInt16 {
+	if len(data) > math.MaxInt16 {
 		return fmt.Errorf("Attribute value exceeds %d bytes",
 			math.MaxInt16)
 	}
 
-	err = me.encodeU16(uint16(valueLen))
-	if err == nil && tag >= 0x100 {
-		err = me.encodeU32(uint32(tag))
+	// TagExtension encoding rules enforcement.
+	if tag == TagExtension {
+		if len(data) < 4 {
+			return fmt.Errorf(
+				"Extension tag truncated (%d bytes)", len(data))
+		}
+
+		t := binary.BigEndian.Uint32(data)
+		if t > 0x7fffffff {
+			return fmt.Errorf(
+				"Extension tag 0x%8.8x out of range", t)
+		}
 	}
+
+	// Encode the value
+	err = me.encodeU16(uint16(len(data)))
 	if err == nil {
 		err = me.write(data)
 	}
@@ -214,7 +212,8 @@ func (me *messageEncoder) encodeCollection(tag Tag, collection Collection) error
 
 		err := me.encodeAttr(attrName, false)
 		if err == nil {
-			err = me.encodeAttr(Attribute{Name: "", Values: attr.Values}, true)
+			err = me.encodeAttr(
+				Attribute{Name: "", Values: attr.Values}, true)
 		}
 
 		if err != nil {

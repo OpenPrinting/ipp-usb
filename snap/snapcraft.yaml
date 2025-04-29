@@ -16,6 +16,7 @@ architectures:
   - build-on: amd64
   - build-on: arm64
   - build-on: armhf
+  - build-on: riscv64
 
 apps:
   ipp-usb-server:
@@ -31,7 +32,7 @@ parts:
     plugin: go
     source: https://github.com/OpenPrinting/goipp.git
     source-type: git
-    source-tag: v1.1.0
+    source-tag: 'v1.2.0'
     source-depth: 1
 # ext:updatesnap
 #   version-format:
@@ -105,4 +106,3 @@ parts:
     prime:
       - scripts/
     after: [ipp-usb]
-    

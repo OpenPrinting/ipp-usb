@@ -12,8 +12,34 @@ import (
 	"fmt"
 )
 
-// Tag represents a tag used in a binary representation
-// of the IPP message
+// Tag represents a tag used in the binary representation of an IPP message.
+//
+// Normally, a Tag is a single-byte value ranging from 0x00 to 0xff.
+//
+// However, IPP also provides an extension tag mechanism that supports
+// 32-bit tags. When using this mechanism, the tag is set to [TagExtension],
+// and the actual 32-bit tag value is encoded as a big-endian integer
+// in the attribute value.
+//
+// This mechanism is described in RFC 8010, Section 3.5.2.
+//
+// To send an [Attribute] with an extended tag value:
+//
+//   - Set the value tag to TagExtension
+//   - Use [Binary] to represent the Attribute value
+//   - Encode the extended tag value as a big-endian integer in the first
+//     4 bytes of the attribute value
+//   - Note that the extended tag value must be within the allowed range
+//     (0x00000000 to 0x7fffffff, inclusive)
+//
+// The goipp library enforces these rules during message encoding and decoding.
+//
+// Note: This API has changed since version 1.1.0 of this library.
+// Previously, the library automatically converted tags with values exceeding
+// single-byte range into extended tag representation. However, this caused
+// issues during reception because automatically converted tags with extended
+// representation format but smaller values became indistinguishable from
+// normal tags with the same value, despite requiring different handling.
 type Tag int
 
 // Tag values
@@ -92,7 +118,7 @@ func (tag Tag) Type() Type {
 		return TypeBoolean
 
 	case TagUnsupportedValue, TagDefault, TagUnknown, TagNotSettable,
-		TagDeleteAttr, TagAdminDefine:
+		TagNoValue, TagDeleteAttr, TagAdminDefine:
 		// These tags not expected to have value
 		return TypeVoid
 
@@ -118,6 +144,9 @@ func (tag Tag) Type() Type {
 	case TagEndCollection:
 		return TypeVoid
 
+	case TagExtension:
+		return TypeBinary
+
 	default:
 		return TypeBinary
 	}
@@ -132,7 +161,7 @@ func (tag Tag) String() string {
 	}
 
 	if tag < 0x100 {
-		return fmt.Sprintf("0x%2.2x", uint(tag))
+		return fmt.Sprintf("0x%2.2x", uint32(tag))
 	}
 
 	return fmt.Sprintf("0x%8.8x", uint(tag))
@@ -180,4 +209,5 @@ var tagNames = [...]string{
 	TagLanguage:         "naturalLanguage",
 	TagMimeType:         "mimeMediaType",
 	TagMemberName:       "memberAttrName",
+	TagExtension:        "extension",
 }

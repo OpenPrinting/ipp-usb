@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/OpenPrinting/goipp"
@@ -35,7 +36,7 @@ type IppPrinterInfo struct {
 //
 // Discovered services will be added to the services collection
 func IppService(log *LogMessage, services *DNSSdServices,
-	port int, usbinfo UsbDeviceInfo, quirks Quirks,
+	port int, usbinfo UsbDeviceInfo, quirks *Quirks,
 	c *http.Client) (ippinfo *IppPrinterInfo, httpstatus int, err error) {
 
 	// Query printer attributes
@@ -46,7 +47,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	}
 
 	// Decode IPP service info
-	attrs := newIppDecoder(msg)
+	attrs := newIppAttrs(msg.Printer)
 	ippinfo, ippSvc := attrs.decode(usbinfo)
 
 	// Check for fax support
@@ -107,7 +108,7 @@ func IppService(log *LogMessage, services *DNSSdServices,
 //  3. It is not an IPP error response
 //
 // Otherwise, the appropriate error is generated and returned
-func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks Quirks,
+func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 	uri string) (msg *goipp.Message, httpstatus int, err error) {
 
 	// Query printer attributes
@@ -205,18 +206,40 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks Quirks,
 // enrolled into a map for convenient access
 type ippAttrs map[string]goipp.Values
 
-// Create new ippAttrs
-func newIppDecoder(msg *goipp.Message) ippAttrs {
+// Create new ippAttrs from the goipp.Attributes
+func newIppAttrs(input goipp.Attributes) ippAttrs {
 	attrs := make(ippAttrs)
 
 	// Note, we move from the end of list to the beginning, so
 	// in a case of duplicated attributes, first occurrence wins
-	for i := len(msg.Printer) - 1; i >= 0; i-- {
-		attr := msg.Printer[i]
+	for i := len(input) - 1; i >= 0; i-- {
+		attr := input[i]
 		attrs[attr.Name] = attr.Values
 	}
 
 	return attrs
+}
+
+// export returns content of the ippAttrs as goipp.Attributes
+// This function is intended mostly for testing purposes.
+func (attrs ippAttrs) export() goipp.Attributes {
+	ret := make(goipp.Attributes, 0, len(attrs))
+
+	// Export map as slice of attributes
+	for name, values := range attrs {
+		attr := goipp.Attribute{
+			Name:   name,
+			Values: values,
+		}
+		ret = append(ret, attr)
+	}
+
+	// Sort resulting slice by name so result will be deterministic.
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Name < ret[j].Name
+	})
+
+	return ret
 }
 
 // Decode printer attributes and build TXT record for IPP service
@@ -224,8 +247,8 @@ func newIppDecoder(msg *goipp.Message) ippAttrs {
 // This is where information comes from:
 //
 //	DNS-SD name: "printer-dns-sd-name" with fallback to "printer-info",
-//	             "printer-make-and-model" and finally to MfgAndProduct
-//	             from the UsbDeviceInfo
+//	             "printer-make-and-model" and finally to the
+//	             UsbDeviceInfo.MakeAndModel
 //
 //	TXT fields:
 //	  air:              hardcoded as "none"
@@ -273,7 +296,7 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 		ippinfo.DNSSdName = attrs.strSingle("printer-make-and-model")
 	}
 	if ippinfo.DNSSdName == "" {
-		ippinfo.DNSSdName = usbinfo.MfgAndProduct
+		ippinfo.DNSSdName = usbinfo.MakeAndModel()
 	}
 
 	// Obtain UUID
@@ -445,13 +468,69 @@ func (attrs ippAttrs) strBrackets(name string) string {
 
 // Get attribute's []string value by attribute name
 func (attrs ippAttrs) getStrings(name string) []string {
-	vals := attrs.getAttr(goipp.TypeString, name)
-	strs := make([]string, len(vals))
-	for i := range vals {
-		strs[i] = string(vals[i].(goipp.String))
+	// Obtain attribute values.
+	vals := attrs[name]
+	if vals == nil {
+		return nil
 	}
 
-	return strs
+	// Classify available strings by language
+	langsInOrder := make([]string, 0, len(vals))
+	stringsByLang := make(map[string][]string, len(vals))
+	stringsWithoutLang := make([]string, 0, len(vals))
+
+	for i := range vals {
+		switch val := vals[i].V.(type) {
+		case goipp.String:
+			stringsWithoutLang = append(stringsWithoutLang,
+				string(val))
+		case goipp.TextWithLang:
+			lang := strings.ToLower(val.Lang)
+
+			strings := stringsByLang[lang]
+			stringsByLang[lang] = append(strings, val.Text)
+
+			if strings == nil {
+				langsInOrder = append(langsInOrder, lang)
+			}
+		}
+	}
+
+	// If we have goipp.String values, just use them
+	if len(stringsWithoutLang) != 0 {
+		return stringsWithoutLang
+	}
+
+	// Choose the most appropriate language
+	if len(langsInOrder) == 0 {
+		// No strings, return nil
+		return nil
+	}
+
+	if len(langsInOrder) == 1 {
+		// We have only one language, use it
+		return stringsByLang[langsInOrder[0]]
+	}
+
+	if strings := stringsByLang["en"]; strings != nil {
+		// Use "en" if available
+		return strings
+	}
+
+	if strings := stringsByLang["en-us"]; strings != nil {
+		// Use "en-us"
+		return strings
+	}
+
+	for _, lang := range langsInOrder {
+		// Use the first variant of "en-" in the list.
+		if strings.HasPrefix(lang, "en") {
+			return stringsByLang[lang]
+		}
+	}
+
+	// Fallback to the first language in the list
+	return stringsByLang[langsInOrder[0]]
 }
 
 // Get boolean attribute. Returns "F" or "T" if attribute is found,
@@ -470,12 +549,13 @@ func (attrs ippAttrs) getBool(name string) string {
 // Get attribute's value by attribute name
 // Value type is checked and enforced
 func (attrs ippAttrs) getAttr(t goipp.Type, name string) []goipp.Value {
-
 	v, ok := attrs[name]
 	if ok && v[0].V.Type() == t {
 		var vals []goipp.Value
 		for i := range v {
-			vals = append(vals, v[i].V)
+			if v[i].V.Type() == t {
+				vals = append(vals, v[i].V)
+			}
 		}
 		return vals
 	}

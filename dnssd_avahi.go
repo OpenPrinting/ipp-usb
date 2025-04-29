@@ -1,3 +1,4 @@
+//go:build linux || freebsd
 // +build linux freebsd
 
 /* ipp-usb - HTTP reverse proxy, backed by IPP-over-USB connection to device

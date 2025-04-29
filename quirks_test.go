@@ -9,29 +9,326 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 )
+
+// TestQuirksPrioritization tests that quirks with the same name,
+// defined in the different places, are properly prioritized.
+func TestQuirksPrioritization(t *testing.T) {
+	type variable struct {
+		name, value string
+	}
+
+	type section struct {
+		name string
+		vars []variable
+	}
+
+	type expectation struct {
+		hwid        string
+		model       string
+		name, value string
+	}
+
+	type testData struct {
+		sections []section
+		expected []expectation
+	}
+
+	tests := []testData{
+		{
+			// More specific match wins
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+
+				{
+					name: "test printer",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					model: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// More specific match wins.
+			// The same as above, reordered
+			sections: []section{
+				{
+					name: "test printer",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					model: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// Equal match. The first match wins.
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					model: "test printer",
+					name:  "blacklist",
+					value: "false",
+				},
+			},
+		},
+
+		{
+			// Equal mptch. The first match wins.
+			// The same as above, reordered
+			sections: []section{
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "false"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"blacklist", "true"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					model: "test printer",
+					name:  "blacklist",
+					value: "true",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Exact HWID match wins
+			sections: []section{
+				{
+					name: "1234:5678",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "10",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Non-default model name match wins over wildcard HWID match.
+			sections: []section{
+				{
+					name: "1234:*",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "test *",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "20",
+				},
+			},
+		},
+
+		{
+			// HWID match vs model name match
+			// Wildcard HWID match wins over default model name match.
+			sections: []section{
+				{
+					name: "1234:*",
+					vars: []variable{
+						{"init-timeout", "10"},
+					},
+				},
+
+				{
+					name: "*",
+					vars: []variable{
+						{"init-timeout", "20"},
+					},
+				},
+			},
+
+			expected: []expectation{
+				{
+					hwid:  "1234:5678",
+					model: "test printer",
+					name:  "init-timeout",
+					value: "10",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		// Populate the QuirksDb
+		qdb := QuirksDb{}
+		loadOrder := 0
+
+		for _, s := range test.sections {
+			quirks := NewQuirks()
+
+			for _, v := range s.vars {
+				q := &Quirk{
+					Origin:    "test",
+					Match:     s.name,
+					MatchHWID: ParseHWIDPattern(s.name),
+					Name:      v.name,
+					RawValue:  v.value,
+					LoadOrder: loadOrder,
+				}
+				loadOrder++
+
+				quirks.put(q)
+			}
+
+			qdb.Add(quirks)
+		}
+
+		// Test lookups against expectations
+		for _, ex := range test.expected {
+			// Lookup quirks data based
+			quirks := NewQuirks()
+			if hwid := ParseHWIDPattern(ex.hwid); hwid != nil {
+				quirks.PullByHWID(qdb, hwid.vid, hwid.pid)
+			}
+			if ex.model != "" {
+				quirks.PullByModelName(qdb, ex.model)
+			}
+
+			q := quirks.Get(ex.name)
+			if q != nil && q.RawValue == ex.value {
+				continue
+			}
+
+			// Write error log
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, "quirks base:\n")
+			for _, s := range test.sections {
+				fmt.Fprintf(&buf, "  [%s]\n", s.name)
+				for _, v := range s.vars {
+					fmt.Fprintf(&buf, "    %s = %s\n",
+						v.name, v.value)
+				}
+			}
+			fmt.Fprintf(&buf, "\n")
+
+			fmt.Fprintf(&buf, "quirks query:\n")
+			if ex.hwid != "" {
+				fmt.Fprintf(&buf, "  hwid:     %s\n", ex.hwid)
+			}
+			if ex.model != "" {
+				fmt.Fprintf(&buf, "  model:    %s\n", ex.model)
+			}
+			fmt.Fprintf(&buf, "  quirk:    %s\n", ex.name)
+			fmt.Fprintf(&buf, "  expected: %s\n", ex.value)
+			present := "nil"
+			if q != nil {
+				present = q.RawValue
+			}
+			fmt.Fprintf(&buf, "  present:  %s\n", present)
+
+			t.Errorf("TestQuirksPrioritization failed:\n%s", &buf)
+		}
+	}
+}
 
 // TestQuirksLookup tests lookup of various parameters
 func TestQuirksLookup(t *testing.T) {
 	const path = "testdata/quirks"
 
 	// Load quirks
-	qset, err := LoadQuirksSet(path)
+	qdb, err := LoadQuirksSet(path)
 	if err != nil {
 		t.Fatalf("LoadQuirksSet(%q): %s", path, err)
 	}
 
 	// Test loaded values against expected
 	type testData struct {
-		model  string                   // Model name
-		param  string                   // Parameter (quirk) name
-		get    func(Quirks) interface{} // Lookup function
-		match  string                   // Expected match
-		value  interface{}              // Expected value
-		origin string                   // Expected origin
+		model  string                    // Model name
+		param  string                    // Parameter (quirk) name
+		get    func(*Quirks) interface{} // Lookup function
+		match  string                    // Expected match
+		value  interface{}               // Expected value
+		origin string                    // Expected origin
 	}
 
 	tests := []testData{
@@ -39,7 +336,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmBlacklist,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetBlacklist()
 			},
 			match:  "*",
@@ -50,7 +347,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmBuggyIppResponses,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetBuggyIppRsp()
 			},
 			match:  "*",
@@ -61,7 +358,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmDisableFax,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetDisableFax()
 			},
 			match:  "*",
@@ -72,7 +369,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmIgnoreIppStatus,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetIgnoreIppStatus()
 			},
 			match:  "*",
@@ -83,7 +380,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitDelay()
 			},
 			match:  "*",
@@ -94,7 +391,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitRetryPartial,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitRetryPartial()
 			},
 			match:  "*",
@@ -105,7 +402,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitReset,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitReset()
 			},
 			match:  "*",
@@ -116,7 +413,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmInitTimeout,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetInitTimeout()
 			},
 			match:  "*",
@@ -127,7 +424,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmRequestDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetRequestDelay()
 			},
 			match:  "*",
@@ -138,7 +435,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmUsbMaxInterfaces,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetUsbMaxInterfaces()
 			},
 			match:  "*",
@@ -149,7 +446,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmZlpRecvHack,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetZlpRecvHack()
 			},
 			match:  "*",
@@ -160,7 +457,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "Unknown Device",
 			param: QuirkNmZlpSend,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetZlpSend()
 			},
 			match:  "*",
@@ -172,7 +469,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "HP ScanJet Pro 4500 fn1",
 			param: QuirkNmUsbMaxInterfaces,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetUsbMaxInterfaces()
 			},
 			match:  "HP ScanJet Pro 4500 fn1",
@@ -183,7 +480,7 @@ func TestQuirksLookup(t *testing.T) {
 		{
 			model: "HP ScanJet Pro 4500 fn1",
 			param: QuirkNmRequestDelay,
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				return quirks.GetRequestDelay()
 			},
 			match:  "*",
@@ -197,7 +494,7 @@ func TestQuirksLookup(t *testing.T) {
 			// default value.
 			model: "HP OfficeJet Pro 8730",
 			param: "http-connection",
-			get: func(quirks Quirks) interface{} {
+			get: func(quirks *Quirks) interface{} {
 				q := quirks.Get("http-connection")
 				return q.Parsed
 			},
@@ -208,7 +505,8 @@ func TestQuirksLookup(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		quirks := qset.MatchByModelName(test.model)
+		quirks := NewQuirks()
+		quirks.PullByModelName(qdb, test.model)
 		q := quirks.Get(test.param)
 		v := test.get(quirks)
 
@@ -417,7 +715,7 @@ func TestQuirksParsers(t *testing.T) {
 	}
 }
 
-// TestQuirksSetLoad tests LoadQuirksSet
+// TestLoadQuirksSet tests LoadQuirksSet function.
 func TestQuirksSetLoad(t *testing.T) {
 	const path = "testdata/quirks"
 	const badPath = path + "-not-exist"

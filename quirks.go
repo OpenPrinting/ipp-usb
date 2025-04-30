@@ -521,7 +521,7 @@ func (quirks *Quirks) GetUsbMaxInterfaces() uint {
 // GetUsbSendDelayThreshold returns effective "usb-send-delay-threshold"
 // parameter taking the whole set into consideration.
 func (quirks *Quirks) GetUsbSendDelayThreshold() uint {
-	return quirks.Get(QuirkNmUsbSendDelay).Parsed.(uint)
+	return quirks.Get(QuirkNmUsbSendDelayThreshold).Parsed.(uint)
 }
 
 // GetUsbSendDelay returns effective "usb-send-delay" parameter

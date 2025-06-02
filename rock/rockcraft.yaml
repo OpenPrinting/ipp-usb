@@ -86,7 +86,7 @@ parts:
     plugin: autotools
     source: https://github.com/libusb/libusb.git
     source-type: git
-    source-tag: 'v1.0.28'
+    source-tag: 'v1.0.29'
     source-depth: 1
 # ext:updatesnap
 #   version-format:

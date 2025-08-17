@@ -268,7 +268,7 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 	}
 
 	// Give up and return an error
-	err := state.error("failed to allocate HTTP port", state.Ident)
+	err := state.error("failed to allocate HTTP port")
 	Log.Error('!', "STATE PORT: %s", err)
 
 	return nil, err

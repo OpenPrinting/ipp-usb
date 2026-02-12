@@ -10,12 +10,11 @@ mkdir -p $SNAP_COMMON/var/lock || :
 mkdir -p $SNAP_COMMON/var/dev || :
 mkdir -p $SNAP_COMMON/quirks || :
 
-# Put config files in place
+# Put config file in place
 #
 # Do not overwrite files and ignore errors, to not reset user configuration
 # when running as root and to not have ugly error messages when running as
 # non-root.
-yes no | cp -i $SNAP/usr/share/ipp-usb/quirks/* $SNAP_COMMON/quirks >/dev/null 2>&1 || :
 if [ ! -f $SNAP_COMMON/etc/ipp-usb.conf ]; then
     cp $SNAP/etc/ipp-usb.conf $SNAP_COMMON/etc/ >/dev/null 2>&1 || :
 fi

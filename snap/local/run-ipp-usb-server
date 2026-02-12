@@ -9,8 +9,7 @@ mkdir -p $SNAP_COMMON/var/lock
 mkdir -p $SNAP_COMMON/var/dev
 mkdir -p $SNAP_COMMON/quirks
 
-# Put config files in place
-cp $SNAP/usr/share/ipp-usb/quirks/* $SNAP_COMMON/quirks
+# Put config file in place
 if [ ! -f $SNAP_COMMON/etc/ipp-usb.conf ]; then
     cp $SNAP/etc/ipp-usb.conf $SNAP_COMMON/etc/
 fi

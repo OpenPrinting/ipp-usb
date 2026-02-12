@@ -58,9 +58,10 @@ parts:
       # Not only the config file ipp-usb.conf will be put into a user-editable
       # space but also the quirks file, so that the user can add and debug
       # quirks
-      perl -p -i -e 's:/etc/:/var/snap/ipp-usb/common/etc/:' paths.go
+      perl -p -i -e 's:/etc/ipp-usb/quirks:/var/snap/ipp-usb/common/quirks:' paths.go
+      perl -p -i -e 's:/etc/ipp-usb:/var/snap/ipp-usb/common/etc:' paths.go
       perl -p -i -e 's:/var/ipp-usb:/var/snap/ipp-usb/common/var:' paths.go
-      perl -p -i -e 's:/usr/share/ipp-usb/quirks:/var/snap/hplip-printer-app/common/quirks:' paths.go
+      perl -p -i -e 's:/usr/share/ipp-usb/quirks:/snap/ipp-usb/usr/share/ipp-usb/quirks:' paths.go
       perl -p -i -e 's:/var/log/ipp-usb:/var/snap/ipp-usb/common/var/log:' paths.go
       # Build the executable
       craftctl default

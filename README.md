@@ -235,37 +235,37 @@ start ipp-usb when needed.
   sudo snap install docker
 ```
 
-#### **Running the `ipp-usb` Container with Persistent Storage**  
+#### **Running the `ipp-usb` Container with Persistent Storage**
 
-To run the `ipp-usb` container while ensuring that its state persists across restarts, follow these steps.  
+To run the `ipp-usb` container while ensuring that its state persists across restarts, follow these steps.
 
-#### **1. Pull the `ipp-usb` Docker Image**  
-The latest image is available on the GitHub Container Registry. Pull it using:  
+#### **1. Pull the `ipp-usb` Docker Image**
+The latest image is available on the GitHub Container Registry. Pull it using:
 ```sh
 sudo docker pull ghcr.io/openprinting/ipp-usb:latest
 ```
 
-#### **2. Create Persistent Storage Volumes**  
-To ensure that configuration settings and printer state persist across container restarts, create two Docker volumes:  
+#### **2. Create Persistent Storage Volumes**
+To ensure that configuration settings and printer state persist across container restarts, create two Docker volumes:
 
 ```sh
 sudo docker volume create ipp-usb-state
 sudo docker volume create ipp-usb-conf
-```  
+```
 
-These volumes store:  
+These volumes store:
 
-- **`ipp-usb-state` (`/var/ipp-usb/`)**  
-  - Device state files (`/var/ipp-usb/dev/`) – Ensures stable TCP port allocation and DNS-SD name resolution.  
-  - Lock files (`/var/ipp-usb/lock/`) – Prevents multiple instances from running simultaneously.  
-  - Log files (`/var/log/ipp-usb/`) – Can be optionally mounted if needed for debugging.  
+- **`ipp-usb-state` (`/var/ipp-usb/`)**
+  - Device state files (`/var/ipp-usb/dev/`) – Ensures stable TCP port allocation and DNS-SD name resolution.
+  - Lock files (`/var/ipp-usb/lock/`) – Prevents multiple instances from running simultaneously.
+  - Log files (`/var/log/ipp-usb/`) – Can be optionally mounted if needed for debugging.
 
-- **`ipp-usb-conf` (`/etc/ipp-usb/`)**  
-  - Configuration file (`/etc/ipp-usb/ipp-usb.conf`) – Stores user-defined settings.  
-  - Quirks files (`/etc/ipp-usb/quirks/`) – Contains printer-specific workarounds.  
+- **`ipp-usb-conf` (`/etc/ipp-usb/`)**
+  - Configuration file (`/etc/ipp-usb/ipp-usb.conf`) – Stores user-defined settings.
+  - Quirks files (`/etc/ipp-usb/quirks/`) – Contains printer-specific workarounds.
 
-#### **3. Run the Container with Required Mounts**  
-Start the container with appropriate options:  
+#### **3. Run the Container with Required Mounts**
+Start the container with appropriate options:
 
 ```sh
 sudo docker run -d --network host \
@@ -277,11 +277,11 @@ sudo docker run -d --network host \
     ghcr.io/openprinting/ipp-usb:latest
 ```
 
-- **`--network host`** → Uses the host’s network to enable proper IPP-over-USB and Avahi service discovery.  
-- **`-v /dev/bus/usb:/dev/bus/usb:ro`** → Grants read-only access to USB devices for printer detection.  
-- **`-v ipp-usb-state:/var/ipp-usb`** → Mounts the persistent storage volume for printer state, lock files, and logs.  
-- **`-v ipp-usb-conf:/etc/ipp-usb`** → Ensures configuration and quirks files persist across reboots.  
-- **`--device-cgroup-rule='c 189:* rmw'`** → Grants read, write, and management permissions for USB printers inside the container.  
+- **`--network host`** → Uses the host’s network to enable proper IPP-over-USB and Avahi service discovery.
+- **`-v /dev/bus/usb:/dev/bus/usb:ro`** → Grants read-only access to USB devices for printer detection.
+- **`-v ipp-usb-state:/var/ipp-usb`** → Mounts the persistent storage volume for printer state, lock files, and logs.
+- **`-v ipp-usb-conf:/etc/ipp-usb`** → Ensures configuration and quirks files persist across reboots.
+- **`--device-cgroup-rule='c 189:* rmw'`** → Grants read, write, and management permissions for USB printers inside the container.
 
 
 ### Building and Running `ipp-usb` Locally
@@ -298,43 +298,43 @@ sudo docker run -d --network host \
   sudo snap install rockcraft --classic
 ```
 
-**To Build and Run the `ipp-usb` Rock Image Locally, follow these steps** 
+**To Build and Run the `ipp-usb` Rock Image Locally, follow these steps**
 
-#### **1. Build the `ipp-usb` Rock Image**  
-The first step is to build the Rock image from the `rockcraft.yaml` configuration file. This image will include all required dependencies and configurations for `ipp-usb`.  
+#### **1. Build the `ipp-usb` Rock Image**
+The first step is to build the Rock image from the `rockcraft.yaml` configuration file. This image will include all required dependencies and configurations for `ipp-usb`.
 
-Navigate to the directory containing `rockcraft.yaml` and run:  
+Navigate to the directory containing `rockcraft.yaml` and run:
 ```sh
   rockcraft pack -v
-```  
+```
 
-#### **2. Convert the Rock Image to a Docker Image**  
-Once the `.rock` file is built, convert it into a Docker image using:  
+#### **2. Convert the Rock Image to a Docker Image**
+Once the `.rock` file is built, convert it into a Docker image using:
 ```sh
 sudo rockcraft.skopeo --insecure-policy copy oci-archive:<rock_image> docker-daemon:ipp-usb:latest
-```  
+```
 
-#### **3. Create Persistent Storage Volumes**  
-To ensure that configuration settings and printer state persist across container restarts, create two Docker volumes:  
+#### **3. Create Persistent Storage Volumes**
+To ensure that configuration settings and printer state persist across container restarts, create two Docker volumes:
 
 ```sh
 sudo docker volume create ipp-usb-state
 sudo docker volume create ipp-usb-conf
-```  
+```
 
-These volumes store:  
+These volumes store:
 
-- **`ipp-usb-state` (`/var/ipp-usb/`)**  
-  - Device state files (`/var/ipp-usb/dev/`) – Ensures stable TCP port allocation and DNS-SD name resolution.  
-  - Lock files (`/var/ipp-usb/lock/`) – Prevents multiple instances from running simultaneously.  
-  - Log files (`/var/log/ipp-usb/`) – Can be optionally mounted if needed for debugging.  
+- **`ipp-usb-state` (`/var/ipp-usb/`)**
+  - Device state files (`/var/ipp-usb/dev/`) – Ensures stable TCP port allocation and DNS-SD name resolution.
+  - Lock files (`/var/ipp-usb/lock/`) – Prevents multiple instances from running simultaneously.
+  - Log files (`/var/log/ipp-usb/`) – Can be optionally mounted if needed for debugging.
 
-- **`ipp-usb-conf` (`/etc/ipp-usb/`)**  
-  - Configuration file (`/etc/ipp-usb/ipp-usb.conf`) – Stores user-defined settings.  
-  - Quirks files (`/etc/ipp-usb/quirks/`) – Contains printer-specific workarounds.  
+- **`ipp-usb-conf` (`/etc/ipp-usb/`)**
+  - Configuration file (`/etc/ipp-usb/ipp-usb.conf`) – Stores user-defined settings.
+  - Quirks files (`/etc/ipp-usb/quirks/`) – Contains printer-specific workarounds.
 
-#### **4. Run the Container with Required Mounts**  
-Start the container with appropriate options:  
+#### **4. Run the Container with Required Mounts**
+Start the container with appropriate options:
 
 ```sh
 sudo docker run -d --network host \
@@ -346,11 +346,11 @@ sudo docker run -d --network host \
     ipp-usb:latest
 ```
 
-- **`--network host`** → Uses the host’s network to enable proper IPP-over-USB and Avahi service discovery.  
-- **`-v /dev/bus/usb:/dev/bus/usb:ro`** → Grants read-only access to USB devices for printer detection.  
-- **`-v ipp-usb-state:/var/ipp-usb`** → Mounts the persistent storage volume for printer state, lock files, and logs.  
-- **`-v ipp-usb-conf:/etc/ipp-usb`** → Ensures configuration and quirks files persist across reboots.  
-- **`--device-cgroup-rule='c 189:* rmw'`** → Grants read, write, and management permissions for USB printers inside the container.  
+- **`--network host`** → Uses the host’s network to enable proper IPP-over-USB and Avahi service discovery.
+- **`-v /dev/bus/usb:/dev/bus/usb:ro`** → Grants read-only access to USB devices for printer detection.
+- **`-v ipp-usb-state:/var/ipp-usb`** → Mounts the persistent storage volume for printer state, lock files, and logs.
+- **`-v ipp-usb-conf:/etc/ipp-usb`** → Ensures configuration and quirks files persist across reboots.
+- **`--device-cgroup-rule='c 189:* rmw'`** → Grants read, write, and management permissions for USB printers inside the container.
 
 ### Accessing the Container Shell
 
@@ -360,103 +360,103 @@ To enter the running `ipp-usb` container and access a shell inside it, use:
 ```
 This allows you to inspect logs, debug issues, or manually run commands inside the container.
 
-### Configuration  
+### Configuration
 
-The `ipp-usb` container uses a configuration file located at:  
+The `ipp-usb` container uses a configuration file located at:
 ```sh
 /etc/ipp-usb/ipp-usb.conf
 ```
-By default, the container uses the built-in configuration, which can be modified from inside the container. 
+By default, the container uses the built-in configuration, which can be modified from inside the container.
 
-**Modifying the Configuration File Inside the Container**  
+**Modifying the Configuration File Inside the Container**
 
-#### **1. Enter the Running Container**  
-Use the following command to access the container’s shell:  
+#### **1. Enter the Running Container**
+Use the following command to access the container’s shell:
 ```sh
 sudo docker exec -it ipp-usb bash
 ```
 
-#### **2. Open the Configuration File in Nano**  
-Once inside the container, open the configuration file using `nano`:  
+#### **2. Open the Configuration File in Nano**
+Once inside the container, open the configuration file using `nano`:
 ```sh
 nano /etc/ipp-usb/ipp-usb.conf
 ```
 
-#### **3. Edit and Save the File**  
-- Make the necessary changes to the file.  
-- Press `CTRL + X`, then `Y`, and hit `Enter` to save the changes.  
+#### **3. Edit and Save the File**
+- Make the necessary changes to the file.
+- Press `CTRL + X`, then `Y`, and hit `Enter` to save the changes.
 
-#### **4. Restart the Container to Apply Changes**  
-Exit the container and restart it to apply the updated configuration:  
+#### **4. Restart the Container to Apply Changes**
+Exit the container and restart it to apply the updated configuration:
 ```sh
 sudo docker restart ipp-usb
 ```
 
-### **Viewing Logs in the `ipp-usb` Container**  
+### **Viewing Logs in the `ipp-usb` Container**
 
-The `ipp-usb` container logs important events and errors to `/var/log/ipp-usb/`. Logs are categorized into:  
+The `ipp-usb` container logs important events and errors to `/var/log/ipp-usb/`. Logs are categorized into:
 
-- **Main log file:** `/var/log/ipp-usb/main.log` → Captures overall service activity, including errors and general events.  
-- **Per-device logs:** `/var/log/ipp-usb/<DEVICE>.log` → Individual log files for each detected printer, helpful for troubleshooting device-specific issues.  
+- **Main log file:** `/var/log/ipp-usb/main.log` → Captures overall service activity, including errors and general events.
+- **Per-device logs:** `/var/log/ipp-usb/<DEVICE>.log` → Individual log files for each detected printer, helpful for troubleshooting device-specific issues.
 
-#### **1. Using Docker Logs**  
+#### **1. Using Docker Logs**
 
-To view real-time logs from the running container, use:  
+To view real-time logs from the running container, use:
 ```sh
 sudo docker logs -f ipp-usb
-```  
-- The `-f` flag follows the logs in real-time.  
-- Replace `ipp-usb` with your actual container name if different.  
+```
+- The `-f` flag follows the logs in real-time.
+- Replace `ipp-usb` with your actual container name if different.
 
-#### **2. Viewing Logs Inside the Container**  
+#### **2. Viewing Logs Inside the Container**
 
-If you need to inspect logs manually, first enter the container shell:  
+If you need to inspect logs manually, first enter the container shell:
 ```sh
 sudo docker exec -it ipp-usb bash
-```  
+```
 
-Once inside the container, you can use the following commands:  
+Once inside the container, you can use the following commands:
 
-#### **2.1 Monitor Logs in Real-Time**  
+#### **2.1 Monitor Logs in Real-Time**
 
-- **Main log file:**  
+- **Main log file:**
   ```sh
   tail -f /var/log/ipp-usb/main.log
-  ```  
-  This continuously displays new log entries for the entire service.  
+  ```
+  This continuously displays new log entries for the entire service.
 
-- **Per-device log file (Replace `<DEVICE>` with your printer's identifier):**  
+- **Per-device log file (Replace `<DEVICE>` with your printer's identifier):**
   ```sh
   tail -f /var/log/ipp-usb/<DEVICE>.log
-  ```  
+  ```
 
-#### **2.2 Display Full Log Files**  
+#### **2.2 Display Full Log Files**
 
-- **Show full contents of the main log file:**  
+- **Show full contents of the main log file:**
   ```sh
   cat /var/log/ipp-usb/main.log
-  ```  
+  ```
 
-- **Show logs for a specific device:**  
+- **Show logs for a specific device:**
   ```sh
   cat /var/log/ipp-usb/<DEVICE>.log
-  ```  
+  ```
 
-#### **2.3 List Available Device Logs**  
+#### **2.3 List Available Device Logs**
 
-To see all available per-device log files, run:  
+To see all available per-device log files, run:
 ```sh
 ls /var/log/ipp-usb/
-```  
+```
 
-#### **3. Persisting Logs Across Container Restarts**  
+#### **3. Persisting Logs Across Container Restarts**
 
-If you want logs to persist across container restarts, you should mount the log directory using a Docker volume or a host directory.  
+If you want logs to persist across container restarts, you should mount the log directory using a Docker volume or a host directory.
 
-**Required Docker Flags for Log Persistence:**  
-- `-v <volume-name>:/var/log/ipp-usb` → Mounts a Docker volume for log persistence.  
-- **or**  
-- `-v <host-directory>:/var/log/ipp-usb` → Mounts a host directory to retain logs outside the container.  
+**Required Docker Flags for Log Persistence:**
+- `-v <volume-name>:/var/log/ipp-usb` → Mounts a Docker volume for log persistence.
+- **or**
+- `-v <host-directory>:/var/log/ipp-usb` → Mounts a host directory to retain logs outside the container.
 
 These options ensure that logs remain available even after the container stops or is recreated, allowing for easier troubleshooting and auditing.
 

@@ -263,6 +263,12 @@ func (info UsbDeviceInfo) CheckMissed() error {
 // string
 func (info UsbDeviceInfo) MakeAndModel() string {
 	mfg := strings.TrimSpace(info.Manufacturer)
+
+	// Fix: Hewlett-Packard HP LaserJet 1020
+	if mfg == "Hewlett-Packard" {
+		mfg = "HP"
+	}
+
 	prod := strings.TrimSpace(info.ProductName)
 
 	makeModel := prod

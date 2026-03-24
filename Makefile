@@ -9,7 +9,7 @@ ifeq ($(PREFIX),/)
 endif
 
 all:
-	-gotags -R . > tags
+	-ctags -R
 	go build -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor
 
 man:	$(MANPAGE)

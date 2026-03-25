@@ -611,15 +611,27 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 	}
 
 	for _, s := range strings {
-		rc := C.libusb_get_string_descriptor_ascii(
-			(*C.libusb_device_handle)(devhandle),
-			s.idx,
-			(*C.uchar)(unsafe.Pointer(&buf[0])),
-			C.int(len(buf)),
-		)
+		// Some devices (notably the "Pantum BP5100DN series") may
+		// fail to return a string descriptor on the first attempt.
+		//
+		// Investigation revealed that the request for language IDs,
+		// implicitly performed by libusb_get_string_descriptor_ascii,
+		// returns a malformed packet. This causes libusb to fail
+		// with LIBUSB_ERROR_IO.
+		//
+		// As a workaround, we retry several times before giving up.
+		for i := 0; i < 3; i++ {
+			rc := C.libusb_get_string_descriptor_ascii(
+				(*C.libusb_device_handle)(devhandle),
+				s.idx,
+				(*C.uchar)(unsafe.Pointer(&buf[0])),
+				C.int(len(buf)),
+			)
 
-		if rc > 0 {
-			*s.str = string(buf[:rc])
+			if rc > 0 {
+				*s.str = string(buf[:rc])
+				break
+			}
 		}
 	}
 

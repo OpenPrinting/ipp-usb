@@ -290,10 +290,10 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	// Obtain DNSSdName
 	ippinfo.DNSSdName = attrs.strSingle("printer-dns-sd-name")
 	if ippinfo.DNSSdName == "" {
-		ippinfo.DNSSdName = attrs.strSingle("printer-info")
+		ippinfo.DNSSdName = attrs.strSingle("printer-make-and-model")
 	}
 	if ippinfo.DNSSdName == "" {
-		ippinfo.DNSSdName = attrs.strSingle("printer-make-and-model")
+		ippinfo.DNSSdName = attrs.strSingle("printer-info")
 	}
 	if ippinfo.DNSSdName == "" {
 		ippinfo.DNSSdName = usbinfo.MakeAndModel()

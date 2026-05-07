@@ -89,7 +89,7 @@ func StatusFormat() []byte {
 		buf.WriteString(" not found\n")
 	} else {
 		buf.WriteString("\n")
-		fmt.Fprintf(buf, " Num  Device              Vndr:Prod  Port  Model\n")
+		fmt.Fprintf(buf, " Num  Device              Vndr:Prod  Port  Serial              Model\n")
 		for i, status := range devs {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
@@ -98,9 +98,11 @@ func StatusFormat() []byte {
 				s = strconv.Itoa(status.HTTPPort)
 			}
 
-			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %q\n",
+			serial := info.SerialNumber
+
+			fmt.Fprintf(buf, " %3d. %s  %4.4x:%.4x  %-5s %-18s %q\n",
 				i+1, status.desc.UsbAddr,
-				info.Vendor, info.Product, s,
+				info.Vendor, info.Product, s, serial,
 				info.MakeAndModel())
 
 			s = "OK"

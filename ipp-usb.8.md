@@ -438,6 +438,17 @@ The following parameters are defined:
    * `disable-fax = true | false`<br>
      If `true`, the matching device's fax capability is ignored.
 
+   * `escl-auto-release = true | false`<br>
+     If `true`, ipp-usb remembers an eSCL scan job after the device
+     returns `404 Not Found` for
+     `GET /eSCL/ScanJobs/<id>/NextDocument`. If the client then asks
+     for scanner status, ipp-usb forwards that request first and releases
+     the job afterwards. If the client asks for scanner capabilities or
+     tries to start another scan without deleting that job, ipp-usb releases
+     the job first by sending `DELETE /eSCL/ScanJobs/<id>`. If the client
+     sends its own `DELETE` after ipp-usb already released the job,
+     ipp-usb responds with `200 OK` locally.
+
    * `http-XXX = YYY`<br>
      Set XXX header of the HTTP requests forwarded to device to YYY.
      If YYY is empty string, XXX header is removed.

@@ -350,6 +350,10 @@ Some devices send buggy (malformed) IPP responses that violate IPP specification
 .br
 If \fBtrue\fR, the matching device's fax capability is ignored\.
 .IP "\(bu" 4
+\fBescl\-auto\-release = true | false\fR
+.br
+If \fBtrue\fR, ipp\-usb remembers an eSCL scan job after the device returns \fB404 Not Found\fR for \fBGET /eSCL/ScanJobs/<id>/NextDocument\fR\. If the client then asks for scanner status, ipp\-usb forwards that request first and releases the job afterwards\. If the client asks for scanner capabilities or tries to start another scan without deleting that job, ipp\-usb releases the job first by sending \fBDELETE /eSCL/ScanJobs/<id>\fR\. If the client sends its own \fBDELETE\fR after ipp\-usb already released the job, ipp\-usb responds with \fB200 OK\fR locally\.
+.IP "\(bu" 4
 \fBhttp\-XXX = YYY\fR
 .br
 Set XXX header of the HTTP requests forwarded to device to YYY\. If YYY is empty string, XXX header is removed\.

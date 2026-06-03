@@ -368,6 +368,17 @@ func TestQuirksLookup(t *testing.T) {
 
 		{
 			model: "Unknown Device",
+			param: QuirkNmEsclAutoRelease,
+			get: func(quirks *Quirks) interface{} {
+				return quirks.GetEsclAutoRelease()
+			},
+			match:  "*",
+			value:  false,
+			origin: "default",
+		},
+
+		{
+			model: "Unknown Device",
 			param: QuirkNmIgnoreIppStatus,
 			get: func(quirks *Quirks) interface{} {
 				return quirks.GetIgnoreIppStatus()

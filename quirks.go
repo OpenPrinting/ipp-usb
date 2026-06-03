@@ -39,6 +39,7 @@ const (
 	QuirkNmBlacklist             = "blacklist"
 	QuirkNmBuggyIppResponses     = "buggy-ipp-responses"
 	QuirkNmDisableFax            = "disable-fax"
+	QuirkNmEsclAutoRelease       = "escl-auto-release"
 	QuirkNmIgnoreIppStatus       = "ignore-ipp-status"
 	QuirkNmInitDelay             = "init-delay"
 	QuirkNmInitReset             = "init-reset"
@@ -60,6 +61,7 @@ var quirkParse = map[string]func(*Quirk) error{
 	QuirkNmBlacklist:             (*Quirk).parseBool,
 	QuirkNmBuggyIppResponses:     (*Quirk).parseQuirkBuggyIppRsp,
 	QuirkNmDisableFax:            (*Quirk).parseBool,
+	QuirkNmEsclAutoRelease:       (*Quirk).parseBool,
 	QuirkNmIgnoreIppStatus:       (*Quirk).parseBool,
 	QuirkNmInitDelay:             (*Quirk).parseDuration,
 	QuirkNmInitReset:             (*Quirk).parseQuirkResetMethod,
@@ -81,6 +83,7 @@ var quirkDefaultStrings = map[string]string{
 	QuirkNmBlacklist:             "false",
 	QuirkNmBuggyIppResponses:     "reject",
 	QuirkNmDisableFax:            "false",
+	QuirkNmEsclAutoRelease:       "false",
 	QuirkNmIgnoreIppStatus:       "false",
 	QuirkNmInitDelay:             "0",
 	QuirkNmInitReset:             "none",
@@ -462,6 +465,12 @@ func (quirks *Quirks) GetBuggyIppRsp() QuirkBuggyIppRsp {
 // taking the whole set into consideration.
 func (quirks *Quirks) GetDisableFax() bool {
 	return quirks.Get(QuirkNmDisableFax).Parsed.(bool)
+}
+
+// GetEsclAutoRelease returns effective "escl-auto-release" parameter,
+// taking the whole set into consideration.
+func (quirks *Quirks) GetEsclAutoRelease() bool {
+	return quirks.Get(QuirkNmEsclAutoRelease).Parsed.(bool)
 }
 
 // GetIgnoreIppStatus returns effective "ignore-ipp-status" parameter,

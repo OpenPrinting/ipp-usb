@@ -542,10 +542,27 @@ func (devhandle *UsbDevHandle) currentInterfaces() ([]int, error) {
 			return nil, UsbError{"libusb_get_configuration", UsbErrCode(rc)}
 		}
 
+		// If bConfigurationValue matches the wanted configuration
+		// value, we are done
 		if conf.bConfigurationValue == C.uint8_t(config) {
 			break
 		}
 
+		// If we have only one configuration, we are done too.
+		//
+		// This may happen if the device is not configured, or if
+		// the firmware returns an incorrect number for the current
+		// configuration.
+		//
+		// This weird behavior has been seen in the wild for some
+		// HP LaserJet Enterprise M406 devices. So, as a last resort,
+		// assume that if only one configuration exists, it is the
+		// current configuration, regardless of its bConfigurationValue.
+		if cDesc.bNumConfigurations == 1 {
+			break
+		}
+
+		// Throw away mismatching configuration and continue
 		C.libusb_free_config_descriptor(conf)
 		conf = nil
 	}

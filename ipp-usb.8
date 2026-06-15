@@ -1,6 +1,6 @@
 .\" generated with Ronn-NG/v0.10.1
 .\" http://github.com/apjanke/ronn-ng/tree/0.10.1
-.TH "IPP\-USB" "8" "April 2025" "" "ipp-usb.8"
+.TH "IPP\-USB" "8" "June 2026" "" "ipp-usb.8"
 .SH "NAME"
 \fBipp\-usb\fR \- Daemon for IPP over USB printer support
 .SH "DESCRIPTION"
@@ -349,6 +349,10 @@ Some devices send buggy (malformed) IPP responses that violate IPP specification
 \fBdisable\-fax = true | false\fR
 .br
 If \fBtrue\fR, the matching device's fax capability is ignored\.
+.IP "\(bu" 4
+\fBdisable\-scan = true | false\fR
+.br
+If \fBtrue\fR, the matching device's scan capability is ignored\.
 .IP "\(bu" 4
 \fBhttp\-XXX = YYY\fR
 .br

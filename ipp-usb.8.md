@@ -438,6 +438,9 @@ The following parameters are defined:
    * `disable-fax = true | false`<br>
      If `true`, the matching device's fax capability is ignored.
 
+   * `disable-scan = true | false`<br>
+     If `true`, the matching device's scan capability is ignored.
+
    * `http-XXX = YYY`<br>
      Set XXX header of the HTTP requests forwarded to device to YYY.
      If YYY is empty string, XXX header is removed.

@@ -69,6 +69,10 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	canPrint = info.BasicCaps&UsbIppBasicCapsPrint != 0
 	canScan = info.BasicCaps&UsbIppBasicCapsScan != 0
 
+	if quirks.GetDisableScan() {
+		canScan = false
+	}
+
 	// Load persistent state
 	dev.State = LoadDevState(info.Ident(), info.Comment())
 

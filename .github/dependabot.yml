@@ -1,0 +1,26 @@
+# Dependabot keeps the CI action pins and the Go dependencies current.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # GitHub Actions used by the workflows (checkout, setup-go, codeql, ...).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+      - github-actions
+
+  # Go module dependencies.  The repo vendors its deps, so Dependabot also
+  # refreshes the vendor/ tree when it bumps a module.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+    labels:
+      - dependencies
+      - go

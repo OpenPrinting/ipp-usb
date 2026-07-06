@@ -2,6 +2,9 @@
 
 ![GitHub](https://img.shields.io/github/license/OpenPrinting/ipp-usb)
 [![Go Report Card](https://goreportcard.com/badge/github.com/OpenPrinting/ipp-usb)](https://goreportcard.com/badge/github.com/OpenPrinting/ipp-usb)
+[![Build and Test](https://github.com/OpenPrinting/ipp-usb/actions/workflows/build.yml/badge.svg)](https://github.com/OpenPrinting/ipp-usb/actions/workflows/build.yml)
+[![Lint](https://github.com/OpenPrinting/ipp-usb/actions/workflows/lint.yml/badge.svg)](https://github.com/OpenPrinting/ipp-usb/actions/workflows/lint.yml)
+[![CodeQL](https://github.com/OpenPrinting/ipp-usb/actions/workflows/codeql.yml/badge.svg)](https://github.com/OpenPrinting/ipp-usb/actions/workflows/codeql.yml)
 
 ## Introduction
 

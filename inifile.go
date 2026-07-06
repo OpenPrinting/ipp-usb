@@ -148,7 +148,7 @@ func (ini *IniFile) Next() (*IniRecord, error) {
 			c, token, err = ini.token('=', false)
 			if err == nil && c == '=' {
 				ini.rec.Key = token
-				c, token, err = ini.token(-1, true)
+				_, token, err = ini.token(-1, true)
 				if err == nil {
 					ini.rec.Value = token
 					ini.rec.Type = IniRecordKeyVal
@@ -514,7 +514,7 @@ func (rec *IniRecord) LoadSize(out *int64) error {
 		return rec.errBadValue("%q: invalid size", rec.Value)
 	}
 
-	if sz > uint64(math.MaxInt64/units) {
+	if sz > math.MaxInt64/units {
 		return rec.errBadValue("size too large")
 	}
 

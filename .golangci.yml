@@ -19,6 +19,35 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
+  # Narrowly-scoped exclusions for findings that are false positives or
+  # deliberate on this codebase.  Everything else (and all new code) is still
+  # linted normally.
+  exclude-rules:
+    # Avahi's own C enum is spelled AVAHI_ENTRY_GROUP_UNCOMMITED (an upstream
+    # typo).  The Go code references C.AVAHI_ENTRY_GROUP_UNCOMMITED and the log
+    # string mirrors that symbol, so it must keep Avahi's spelling.
+    - path: dnssd_avahi.go
+      linters: [misspell]
+      text: "UNCOMMITED"
+
+    # cgo callback / function-pointer casts (libusb_*_cb_fn, device-handle
+    # pointer types).  unconvert cannot see the C side and reports these
+    # required conversions as redundant.
+    - path: usbio_libusb.go
+      linters: [unconvert]
+
+    # Deliberate: a USB transport has no external cancellation channel, so the
+    # (deprecated) http.Request.Cancel field is explicitly cleared on purpose.
+    - path: usbtransport.go
+      linters: [staticcheck]
+      text: "SA1019: outreq.Cancel"
+
+    # DNSSdTxtRecord.export is exercised by ipp_test.go; the unused linter does
+    # not count that test-only user.
+    - path: dnssd.go
+      linters: [unused]
+      text: "DNSSdTxtRecord.export"
+
 linters:
   disable-all: true
   enable:

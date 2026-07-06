@@ -193,12 +193,15 @@ jobs:
             /var/ipp-usb/dev/* 2>/dev/null | grep -oE '[0-9]+' | head -1)"
           port="${port:-$(grep -oE 'localhost:[0-9]+' ippusb.log | head -1 | cut -d: -f2)}"
           port="${port:-60000}"
-          echo "Querying ipp-usb on 127.0.0.1:${port}"
+          # Use the "localhost" hostname, not 127.0.0.1: ipp-usb 302-redirects
+          # IP-address requests to the hostname (it keys per-client auth off the
+          # Host header).  -L follows the redirect as a safety net.
+          echo "Querying ipp-usb on localhost:${port}"
 
           code=000
           for i in $(seq 1 10); do
-            code="$(curl -s -o caps.xml -w '%{http_code}' \
-              "http://127.0.0.1:${port}/eSCL/ScannerCapabilities" || echo 000)"
+            code="$(curl -sL -o caps.xml -w '%{http_code}' \
+              "http://localhost:${port}/eSCL/ScannerCapabilities" || echo 000)"
             [ "$code" = "200" ] && break
             sleep 1
           done

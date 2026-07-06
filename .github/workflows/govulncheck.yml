@@ -1,0 +1,56 @@
+# =============================================================================
+# Vulnerability scanning for ipp-usb
+#
+# govulncheck (from golang.org/x/vuln) reports known vulnerabilities from the
+# Go vulnerability database that are actually reachable from this code - both
+# in the module's dependencies and in the Go standard library / toolchain the
+# binary is built with.  It loads packages, so the cgo -dev packages must be
+# present.  A weekly schedule catches newly disclosed CVEs even without a push.
+# =============================================================================
+name: govulncheck
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  schedule:
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOFLAGS: "-mod=vendor"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cgo dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 \
+            gcc pkg-config libusb-1.0-0-dev libavahi-client-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck -tags nethttpomithttp2 ./...

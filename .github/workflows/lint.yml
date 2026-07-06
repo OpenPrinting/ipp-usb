@@ -71,10 +71,16 @@ jobs:
           sudo apt-get install -y -o Acquire::Retries=3 \
             gcc pkg-config libusb-1.0-0-dev libavahi-client-dev
 
+      # Pin to 1.24: golangci-lint ships a binary built with a specific Go
+      # release and can only type-check a standard library of that version or
+      # older.  'stable' installs a newer Go than the linter was built with,
+      # which fails with "file requires newer Go version".  1.24 matches the
+      # linter's build toolchain and stays valid as that toolchain only moves
+      # forward.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.24'
           cache-dependency-path: go.sum
 
       - name: Run golangci-lint

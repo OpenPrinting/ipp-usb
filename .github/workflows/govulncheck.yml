@@ -32,8 +32,6 @@ jobs:
     name: govulncheck
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      GOFLAGS: "-mod=vendor"
     steps:
       - uses: actions/checkout@v4
 
@@ -49,8 +47,14 @@ jobs:
           go-version: stable
           cache-dependency-path: go.sum
 
+      # Installed WITHOUT -mod=vendor: `go install <module>@latest` resolves a
+      # module outside this repo and is incompatible with vendor mode.
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # The scan itself must match how the daemon is built, so use the vendored
+      # dependencies here via GOFLAGS.
       - name: Run govulncheck
+        env:
+          GOFLAGS: "-mod=vendor"
         run: govulncheck -tags nethttpomithttp2 ./...

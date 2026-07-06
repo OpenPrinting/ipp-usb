@@ -183,17 +183,25 @@ jobs:
           fi
           echo "OK: ipp-usb discovered the printer and completed an HTTP-over-USB round-trip."
 
-      - name: Route a client request through ipp-usb (client -> ipp-usb -> USB)
-        run: |
-          # ipp-usb exposes each device on a local TCP port (from http-min-port,
-          # default 60000).  Read the actual port from its debug log and query
-          # the scanner capabilities *through* ipp-usb.
-          port="$(grep -oE 'localhost:[0-9]+' ippusb.log | head -1 | cut -d: -f2)"
+          # Assertion 3 - done in THIS step so the background ipp-usb is still
+          # running (a backgrounded process does not survive into the next step).
+          # Route a client request *through* ipp-usb's TCP listener:
+          #     client -> ipp-usb (TCP) -> USB -> emulator
+          # The device port comes from http-min-port (default 60000); prefer the
+          # persisted state file, fall back to the debug log, then to 60000.
+          port="$(sudo grep -hoE 'http-port[[:space:]]*=[[:space:]]*[0-9]+' \
+            /var/ipp-usb/dev/* 2>/dev/null | grep -oE '[0-9]+' | head -1)"
+          port="${port:-$(grep -oE 'localhost:[0-9]+' ippusb.log | head -1 | cut -d: -f2)}"
           port="${port:-60000}"
           echo "Querying ipp-usb on 127.0.0.1:${port}"
 
-          code="$(curl -s -o caps.xml -w '%{http_code}' \
-            "http://127.0.0.1:${port}/eSCL/ScannerCapabilities" || true)"
+          code=000
+          for i in $(seq 1 10); do
+            code="$(curl -s -o caps.xml -w '%{http_code}' \
+              "http://127.0.0.1:${port}/eSCL/ScannerCapabilities" || echo 000)"
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
           echo "HTTP status: ${code}"
           head -c 400 caps.xml || true
           echo

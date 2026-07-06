@@ -1,0 +1,220 @@
+# =============================================================================
+# Emulator integration test for ipp-usb
+#
+# This workflow exercises ipp-usb against a *virtual* IPP-over-USB printer,
+# with no physical hardware, using the go-mfp MFP simulator written by
+# Alexander Pevzner (https://github.com/OpenPrinting/go-mfp).
+#
+# The chain under test is the real thing end to end:
+#
+#     mfp-virtual --usbip   (emulated printer, speaks the USB/IP protocol)
+#          |  TCP :3240
+#     usbip attach + vhci_hcd   (kernel exposes it as a local USB device)
+#          |
+#     libusb  ->  ipp-usb   (discovers the device, tunnels HTTP over USB)
+#
+# What we assert:
+#   1. ipp-usb discovers the emulated device (VID:PID dead:beaf).
+#   2. ipp-usb completes an HTTP-over-USB round-trip - the eSCL
+#      ScannerCapabilities probe returns 200 OK from the simulator.
+#   3. A client request routed *through* ipp-usb's TCP listener reaches the
+#      emulated device and comes back 200 OK (client -> ipp-usb -> USB).
+#
+# Notes:
+#   * The simulator currently ships a built-in eSCL (scanner) responder, so
+#     the scanner path needs no model file.  A printer model (for exercising
+#     the IPP print path) can be added later as a second assertion.
+#   * The go-mfp commit is pinned for reproducibility - bump GO_MFP_REF to
+#     pick up newer emulator behaviour.
+# =============================================================================
+name: Emulator Test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # go-mfp (the IPP-over-USB emulator) - pinned for reproducibility.
+  GO_MFP_REPO: https://github.com/OpenPrinting/go-mfp.git
+  GO_MFP_REF: 0043fde818453b9d82abf8e56d569b60d043aa4f
+  # Build deps for ipp-usb (libusb + avahi) and for the go-mfp emulator
+  # (adds Python/JPEG/PNG for its cgo bits).  usbutils/linux-tools provide
+  # lsusb and the usbip client; avahi-daemon lets ipp-usb publish over DNS-SD.
+  APT_DEPS: >-
+    gcc pkg-config make
+    libusb-1.0-0-dev libavahi-client-dev
+    libjpeg-dev libpng-dev python3-dev
+    linux-tools-generic linux-tools-common linux-tools-virtual
+    usbutils avahi-daemon
+
+jobs:
+  emulator-test:
+    name: ipp-usb vs. virtual IPP-over-USB printer
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out ipp-usb
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 ${{ env.APT_DEPS }}
+
+      - name: Load the USB/IP kernel module (vhci_hcd)
+        run: |
+          # The virtual device is attached through the vhci_hcd driver.  On
+          # GitHub-hosted runners the module lives in linux-modules-extra for
+          # the running kernel; install it on demand if the first load fails.
+          if ! sudo modprobe vhci-hcd 2>/dev/null; then
+            sudo apt-get install -y -o Acquire::Retries=3 \
+              "linux-modules-extra-$(uname -r)"
+            sudo modprobe vhci-hcd
+          fi
+          lsmod | grep -q vhci_hcd
+          echo "vhci_hcd loaded."
+
+      - name: Put the usbip client on PATH
+        run: |
+          # Ubuntu ships the usbip client inside linux-tools, not as a
+          # standalone package.  It is a userspace tool and works regardless
+          # of the running kernel version.
+          usbip_bin="$(ls /usr/lib/linux-tools-*/usbip 2>/dev/null | head -1)"
+          test -n "$usbip_bin"
+          sudo ln -sf "$usbip_bin" /usr/local/bin/usbip
+          usbip version
+
+      - name: Build ipp-usb
+        run: |
+          go build -tags nethttpomithttp2 -mod=vendor -o ipp-usb .
+          ./ipp-usb -h >/dev/null 2>&1 || true
+
+      - name: Build the go-mfp emulator (mfp-virtual)
+        run: |
+          git clone "${GO_MFP_REPO}" go-mfp
+          git -C go-mfp checkout --quiet "${GO_MFP_REF}"
+          ( cd go-mfp && go build -o mfp-virtual ./cmd/mfp-virtual )
+          test -x go-mfp/mfp-virtual
+
+      - name: Start the emulator and attach it as a USB device
+        run: |
+          # Start the emulated IPP-over-USB printer (USB/IP server on :3240).
+          ./go-mfp/mfp-virtual --usbip -d > emulator.log 2>&1 &
+          echo $! | sudo tee /tmp/emulator.pid >/dev/null
+
+          # Wait for the USB/IP server to advertise the device.
+          for i in $(seq 1 30); do
+            if usbip list -r localhost 2>/dev/null | grep -q '1-1'; then
+              break
+            fi
+            sleep 1
+          done
+          usbip list -r localhost
+
+          # Attach it - now it is a real local USB device.
+          sudo usbip attach -r localhost -b 1-1
+          sleep 2
+          lsusb
+          if ! lsusb | grep -qi 'dead:beaf'; then
+            echo "::error::emulated printer did not attach as a USB device"
+            cat emulator.log
+            exit 1
+          fi
+          echo "Virtual IPP-over-USB printer attached."
+
+      - name: Start DNS-SD stack (avahi) for ipp-usb
+        run: |
+          sudo systemctl start dbus || sudo service dbus start || true
+          sudo systemctl start avahi-daemon || sudo service avahi-daemon start || true
+
+      - name: Run ipp-usb against the emulated printer
+        run: |
+          sudo mkdir -p /var/ipp-usb/dev
+
+          # Run ipp-usb in debug mode (console logging) in the background,
+          # pointed at the repo's own conf + quirks so no /etc install is
+          # needed.  It hot-plug-discovers the attached virtual printer.
+          sudo ./ipp-usb debug \
+            -path-conf-files-srch   "$PWD" \
+            -path-quirks-files-srch "$PWD/ipp-usb-quirks" \
+            > ippusb.log 2>&1 &
+          echo $! | sudo tee /tmp/ippusb.pid >/dev/null
+
+          # Wait (up to 40s) for discovery + the HTTP-over-USB probe.
+          ok=0
+          for i in $(seq 1 40); do
+            if grep -q 'ScannerCapabilities - 200 OK' ippusb.log; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+
+          echo "===================== ipp-usb log ====================="
+          cat ippusb.log
+          echo "======================================================="
+
+          # Assertion 1: ipp-usb found the emulated device.
+          if ! grep -q 'Found new device. VID:PID = dead:beaf' ippusb.log; then
+            echo "::error::ipp-usb did not discover the emulated printer"
+            exit 1
+          fi
+
+          # Assertion 2: an HTTP request was tunnelled over USB and answered.
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::HTTP-over-USB round-trip did not complete (no 200 OK)"
+            exit 1
+          fi
+          echo "OK: ipp-usb discovered the printer and completed an HTTP-over-USB round-trip."
+
+      - name: Route a client request through ipp-usb (client -> ipp-usb -> USB)
+        run: |
+          # ipp-usb exposes each device on a local TCP port (from http-min-port,
+          # default 60000).  Read the actual port from its debug log and query
+          # the scanner capabilities *through* ipp-usb.
+          port="$(grep -oE 'localhost:[0-9]+' ippusb.log | head -1 | cut -d: -f2)"
+          port="${port:-60000}"
+          echo "Querying ipp-usb on 127.0.0.1:${port}"
+
+          code="$(curl -s -o caps.xml -w '%{http_code}' \
+            "http://127.0.0.1:${port}/eSCL/ScannerCapabilities" || true)"
+          echo "HTTP status: ${code}"
+          head -c 400 caps.xml || true
+          echo
+
+          if [ "$code" != "200" ] || ! grep -qi 'ScannerCapabilities' caps.xml; then
+            echo "::error::client request through ipp-usb did not succeed"
+            exit 1
+          fi
+          echo "OK: client -> ipp-usb -> USB round-trip returned 200 OK."
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "----- emulator.log -----"; cat emulator.log 2>/dev/null || true
+          echo "----- ippusb.log -----";   cat ippusb.log 2>/dev/null || true
+          echo "----- usbip port -----";    usbip port 2>/dev/null || true
+          echo "----- lsusb -----";         lsusb 2>/dev/null || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          sudo kill "$(cat /tmp/ippusb.pid 2>/dev/null)"   2>/dev/null || true
+          sudo usbip detach -p 00                          2>/dev/null || true
+          kill "$(cat /tmp/emulator.pid 2>/dev/null)"      2>/dev/null || true

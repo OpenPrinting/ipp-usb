@@ -413,8 +413,8 @@ func (attrs ippAttrs) getPaperMax() string {
 					xDimMax = int(dim)
 				}
 			case goipp.Range:
-				if int(dim.Upper) > xDimMax {
-					xDimMax = int(dim.Upper)
+				if dim.Upper > xDimMax {
+					xDimMax = dim.Upper
 				}
 			}
 		}
@@ -426,8 +426,8 @@ func (attrs ippAttrs) getPaperMax() string {
 					yDimMax = int(dim)
 				}
 			case goipp.Range:
-				if int(dim.Upper) > yDimMax {
-					yDimMax = int(dim.Upper)
+				if dim.Upper > yDimMax {
+					yDimMax = dim.Upper
 				}
 			}
 		}

@@ -19,11 +19,13 @@
 #      ScannerCapabilities probe returns 200 OK from the simulator.
 #   3. A client request routed *through* ipp-usb's TCP listener reaches the
 #      emulated device and comes back 200 OK (client -> ipp-usb -> USB).
+#   4. A real IPP Get-Printer-Attributes, sent through ipp-usb to the printer
+#      path, returns successful-ok with the model's make-and-model.
 #
 # Notes:
-#   * The simulator currently ships a built-in eSCL (scanner) responder, so
-#     the scanner path needs no model file.  A printer model (for exercising
-#     the IPP print path) can be added later as a second assertion.
+#   * The emulator is driven by an example MFP model (Kyocera ECOSYS M2040dn)
+#     shipped in go-mfp, which provides both the eSCL (scanner) and IPP
+#     (printer) endpoints, so both the scan and print paths are exercised.
 #   * The go-mfp commit is pinned for reproducibility - bump GO_MFP_REF to
 #     pick up newer emulator behaviour.
 # =============================================================================
@@ -48,16 +50,19 @@ permissions:
 env:
   # go-mfp (the IPP-over-USB emulator) - pinned for reproducibility.
   GO_MFP_REPO: https://github.com/OpenPrinting/go-mfp.git
-  GO_MFP_REF: 0043fde818453b9d82abf8e56d569b60d043aa4f
+  GO_MFP_REF: 7e0ec8c4b411a111a1cee631ba3cc3c48a3a5403
+  # Example MFP model shipped in go-mfp (provides the IPP + eSCL endpoints).
+  GO_MFP_MODEL: modeling/examples/Kyocera-ECOSYS-M2040dn.py
   # Build deps for ipp-usb (libusb + avahi) and for the go-mfp emulator
   # (adds Python/JPEG/PNG for its cgo bits).  usbutils/linux-tools provide
-  # lsusb and the usbip client; avahi-daemon lets ipp-usb publish over DNS-SD.
+  # lsusb and the usbip client; avahi-daemon lets ipp-usb publish over DNS-SD;
+  # cups-ipp-utils provides ipptool for the IPP round-trip assertion.
   APT_DEPS: >-
     gcc pkg-config make
     libusb-1.0-0-dev libavahi-client-dev
     libjpeg-dev libpng-dev python3-dev
     linux-tools-generic linux-tools-common linux-tools-virtual
-    usbutils avahi-daemon
+    usbutils avahi-daemon cups-ipp-utils
 
 jobs:
   emulator-test:
@@ -114,8 +119,10 @@ jobs:
 
       - name: Start the emulator and attach it as a USB device
         run: |
-          # Start the emulated IPP-over-USB printer (USB/IP server on :3240).
-          ./go-mfp/mfp-virtual --usbip -d > emulator.log 2>&1 &
+          # Start the emulated IPP-over-USB printer (USB/IP server on :3240),
+          # driven by the example MFP model (IPP printer + eSCL scanner).
+          ./go-mfp/mfp-virtual -m "go-mfp/${GO_MFP_MODEL}" --usbip -d \
+            > emulator.log 2>&1 &
           echo $! | sudo tee /tmp/emulator.pid >/dev/null
 
           # Wait for the USB/IP server to advertise the device.
@@ -215,11 +222,30 @@ jobs:
           fi
           echo "OK: client -> ipp-usb -> USB round-trip returned 200 OK."
 
+          # Assertion 4 - drive the IPP *print* path end to end.  Send a real
+          # Get-Printer-Attributes through ipp-usb to /ipp/print; require the
+          # standard ipptool test to PASS (status successful-ok) and the
+          # response to carry the model's make-and-model.
+          echo "Running ipptool Get-Printer-Attributes on ipp://localhost:${port}/ipp/print"
+          if ! ipptool -tv "ipp://localhost:${port}/ipp/print" \
+                get-printer-attributes.test > ipptool.log 2>&1; then
+            echo "::error::IPP Get-Printer-Attributes through ipp-usb failed"
+            cat ipptool.log
+            exit 1
+          fi
+          cat ipptool.log
+          if ! grep -q 'ECOSYS M2040dn' ipptool.log; then
+            echo "::error::IPP response did not carry the expected printer model"
+            exit 1
+          fi
+          echo "OK: IPP Get-Printer-Attributes round-trip returned the Kyocera model."
+
       - name: Collect logs on failure
         if: failure()
         run: |
           echo "----- emulator.log -----"; cat emulator.log 2>/dev/null || true
           echo "----- ippusb.log -----";   cat ippusb.log 2>/dev/null || true
+          echo "----- ipptool.log -----";  cat ipptool.log 2>/dev/null || true
           echo "----- usbip port -----";    usbip port 2>/dev/null || true
           echo "----- lsusb -----";         lsusb 2>/dev/null || true
 

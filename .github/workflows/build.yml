@@ -1,0 +1,161 @@
+# =============================================================================
+# Build & Test workflow for ipp-usb
+#
+# ipp-usb is a Go daemon that uses cgo to link two system libraries:
+#   * libusb-1.0      (raw USB access)     -> // #cgo pkg-config: libusb-1.0
+#   * libavahi-client (DNS-SD / mDNS)      -> // #cgo pkg-config: avahi-client
+# so every build/test environment needs gcc, pkg-config and the matching
+# -dev packages in addition to the Go toolchain.  The binary is built exactly
+# like the Makefile: with the `nethttpomithttp2` build tag and vendored deps.
+#
+# Coverage of this workflow:
+#   * build-native : Go-version matrix on amd64 (oldstable -> stable) with the
+#                    race detector, `go vet` and a coverage profile.
+#   * build-arch   : multi-architecture matrix - arm64 (native runner) plus
+#                    armhf and riscv64 under QEMU - the arches ipp-usb ships on.
+# =============================================================================
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # System libraries required by the cgo bindings (libusb + Avahi).
+  CGO_DEPS: "gcc pkg-config libusb-1.0-0-dev libavahi-client-dev"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Native amd64 build + test across several Go toolchains.
+  # The race detector and coverage run here, where cgo + race are fully
+  # supported, so toolchain drift and data races are caught early.
+  # ---------------------------------------------------------------------------
+  build-native:
+    name: Build & Test (amd64, Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.21', '1.22', '1.23', 'stable' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cgo dependencies
+        run: |
+          # Retry to ride out transient Ubuntu mirror sync failures.
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 $CGO_DEPS
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Show toolchain
+        run: |
+          go version
+          pkg-config --modversion libusb-1.0 avahi-client
+
+      - name: Build
+        run: go build -v -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor ./...
+
+      - name: Vet
+        run: go vet -tags nethttpomithttp2 -mod=vendor ./...
+
+      - name: Test (race + coverage)
+        run: |
+          go test -mod=vendor -race \
+            -covermode=atomic -coverprofile=coverage.out -v ./...
+
+      - name: Coverage summary
+        if: always()
+        continue-on-error: true
+        run: go tool cover -func=coverage.out | tail -n 1
+
+      - name: Upload coverage profile
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-go-${{ matrix.go }}
+          path: coverage.out
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Multi-architecture build + test.
+  #   arm64  : native runner (ubuntu-24.04-arm)
+  #   armhf  : QEMU (armv7)
+  #   riscv64: QEMU
+  # The race detector is amd64/arm64-only and slow under emulation, so the
+  # emulated legs run a plain `go test`.
+  # ---------------------------------------------------------------------------
+  build-arch:
+    name: Build & Test (${{ matrix.arch }})
+    runs-on: ${{ matrix.runs-on }}
+    # Compiling under QEMU (riscv64 especially) is slow; allow head-room.
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+            use-qemu: false
+          - arch: armhf
+            runs-on: ubuntu-latest
+            use-qemu: true
+            qemu-arch: armv7
+          - arch: riscv64
+            runs-on: ubuntu-latest
+            use-qemu: true
+            qemu-arch: riscv64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- native arm64 -----------------------------------------------------
+      - name: Build & Test (native)
+        if: matrix.use-qemu == false
+        run: |
+          set -ex
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 golang-go $CGO_DEPS
+          go version
+          go build -v -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor ./...
+          go vet -tags nethttpomithttp2 -mod=vendor ./...
+          go test -mod=vendor -v ./...
+
+      # ---- emulated armhf / riscv64 ----------------------------------------
+      - name: Build & Test (emulated)
+        if: matrix.use-qemu == true
+        uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: ${{ matrix.qemu-arch }}
+          distro: ubuntu24.04
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update --fix-missing -y
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+              golang-go gcc pkg-config \
+              libusb-1.0-0-dev libavahi-client-dev \
+              ca-certificates
+          run: |
+            set -ex
+            go version
+            go build -v -tags nethttpomithttp2 -mod=vendor ./...
+            go test -mod=vendor -v ./...

@@ -1,0 +1,36 @@
+# golangci-lint configuration for ipp-usb
+#
+# The linter set is deliberately curated rather than "everything on":
+# ipp-usb is a cgo daemon, so we enable the checks that are reliable and
+# high-signal on this codebase and leave the noisier style linters off.
+# Add more over time as the tree is cleaned up.
+
+run:
+  # Build the same way the daemon is built so cgo files are analysed.
+  build-tags:
+    - nethttpomithttp2
+  timeout: 5m
+
+# The vendored tree is third-party code; never lint it.
+issues:
+  exclude-dirs:
+    - vendor
+  # Show every issue rather than golangci-lint's default per-linter caps.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  disable-all: true
+  enable:
+    - govet         # suspicious constructs (also run standalone in CI)
+    - staticcheck   # extensive correctness / bug checks
+    - ineffassign   # ineffectual assignments
+    - unused        # unused code
+    - misspell      # common English misspellings in comments/strings
+    - unconvert     # unnecessary type conversions
+    - gofmt         # canonical formatting
+    - goimports     # import grouping / formatting
+
+linters-settings:
+  gofmt:
+    simplify: true

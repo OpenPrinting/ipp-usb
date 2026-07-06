@@ -1,0 +1,73 @@
+# =============================================================================
+# Module & vendor integrity check for ipp-usb  (optional / supplementary)
+#
+# ipp-usb vendors its dependencies and builds with -mod=vendor, so the vendor
+# tree, go.mod and go.sum must stay trustworthy and in sync.
+#
+#   * go mod verify  - HARD gate: the cached modules match the hashes in
+#                      go.sum (i.e. nothing was tampered with).
+#   * tidy / vendor drift - INFORMATIONAL: newer Go toolchains legitimately
+#                      reformat go.mod / vendor/modules.txt (e.g. adding the
+#                      `## explicit` annotations), which would make a strict
+#                      diff flaky.  We surface any drift in the log without
+#                      failing the build.
+# =============================================================================
+name: Modules
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  modules:
+    name: Verify modules & vendor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Verify module checksums
+        run: go mod verify
+
+      - name: Report go.mod / go.sum drift (informational)
+        continue-on-error: true
+        run: |
+          cp go.mod go.mod.orig
+          cp go.sum go.sum.orig
+          go mod tidy
+          if ! diff -u go.mod.orig go.mod || ! diff -u go.sum.orig go.sum; then
+            echo "::warning::go.mod/go.sum are not tidy for this toolchain (see diff above)."
+          else
+            echo "go.mod/go.sum are tidy."
+          fi
+          mv go.mod.orig go.mod
+          mv go.sum.orig go.sum
+
+      - name: Report vendor drift (informational)
+        continue-on-error: true
+        run: |
+          go mod vendor
+          if ! git diff --quiet -- vendor; then
+            echo "::warning::vendor/ differs from 'go mod vendor' output for this toolchain."
+            git --no-pager diff --stat -- vendor || true
+          else
+            echo "vendor/ is in sync."
+          fi

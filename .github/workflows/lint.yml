@@ -1,0 +1,106 @@
+# =============================================================================
+# Lint workflow for ipp-usb
+#
+# Three independent gates:
+#   * gofmt        - source must be canonically formatted (fast, no cgo).
+#   * golangci-lint - aggregate linter (govet, staticcheck, ineffassign, ...);
+#                     needs the cgo -dev packages because it type-checks the
+#                     package, which imports libusb/Avahi via cgo.
+#   * govet        - `go vet` with the production build tag (belt-and-braces;
+#                     also covered inside golangci-lint).
+#
+# Linter selection lives in .golangci.yml at the repo root.
+# =============================================================================
+name: Lint
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gofmt:
+    name: gofmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Check formatting
+        run: |
+          # All tracked Go files except the vendored tree.
+          files=$(git ls-files '*.go' | grep -v '^vendor/' || true)
+          unformatted=$(gofmt -l $files)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            echo "Run 'gofmt -w' on them and commit the result."
+            exit 1
+          fi
+          echo "All Go files are gofmt-clean."
+
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Lint the vendored build exactly as it is compiled.
+      GOFLAGS: "-mod=vendor"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cgo dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 \
+            gcc pkg-config libusb-1.0-0-dev libavahi-client-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --build-tags nethttpomithttp2 --timeout 5m
+
+  govet:
+    name: go vet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cgo dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 \
+            gcc pkg-config libusb-1.0-0-dev libavahi-client-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: go vet
+        run: go vet -tags nethttpomithttp2 -mod=vendor ./...

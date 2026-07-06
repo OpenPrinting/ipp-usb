@@ -1,0 +1,71 @@
+# =============================================================================
+# CodeQL security analysis for ipp-usb (Go)
+#
+# ipp-usb is cgo code, so CodeQL's autobuild cannot resolve the libusb/Avahi
+# headers on its own.  We use build-mode: manual and compile the daemon
+# ourselves (with the cgo -dev packages installed and the production build
+# tag) so CodeQL traces the real build.
+# =============================================================================
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  schedule:
+    # Weekly scan to catch newly published query updates.
+    - cron: '27 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'go' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cgo dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 \
+            gcc pkg-config libusb-1.0-0-dev libavahi-client-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: manual
+          queries: +security-and-quality
+
+      - name: Build
+        run: go build -v -tags nethttpomithttp2 -mod=vendor ./...
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -158,4 +158,10 @@ jobs:
             set -ex
             go version
             go build -v -tags nethttpomithttp2 -mod=vendor ./...
-            go test -mod=vendor -v ./...
+            # TestTCPClientUID* resolve a peer's UID via the NETLINK_SOCK_DIAG
+            # netlink API, which is not available inside the QEMU-in-Docker
+            # emulation ("sock_diag: socket(): protocol not supported").  They
+            # are run for real on the native amd64 and arm64 legs; skip them
+            # here so the emulated build/test coverage stays green.
+            echo "note: skipping TestTCPClientUID* (sock_diag unavailable under emulation)"
+            go test -mod=vendor -skip 'TestTCPClientUID' -v ./...

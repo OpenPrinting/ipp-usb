@@ -111,6 +111,22 @@ jobs:
           sudo apt-get install -y -o Acquire::Retries=3 ${{ env.APT_DEPS }}
 
       # -----------------------------------------------------------------------
+      # The snap's ipp-usb part pulls `source: .` at a fixed git tag, and
+      # `version: git` runs `git describe`.  GitHub forks do NOT inherit tags,
+      # so that tag is absent in CI and the build's git clone fails.  Create it
+      # at HEAD so the snap builds from *this branch's* code.  Read the pinned
+      # value from snapcraft.yaml (the bare-semver ipp-usb tag, not goipp's
+      # 'v1.2.0') so it stays correct when the auto-update bot bumps the version.
+      # -----------------------------------------------------------------------
+      - name: Pin the snap source to the current checkout
+        run: |
+          tag="$(grep -oE "source-tag:[[:space:]]*'?[0-9]+\.[0-9]+\.[0-9]+'?" \
+            snap/snapcraft.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          test -n "$tag"
+          echo "Tagging HEAD as ${tag} for the snap build"
+          git tag -f "$tag"
+
+      # -----------------------------------------------------------------------
       # Build the snap (isolated LXD build), matching the repo's existing use
       # of canonical/craft-actions in registry-actions.yml.
       # -----------------------------------------------------------------------

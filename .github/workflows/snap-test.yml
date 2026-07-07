@@ -116,7 +116,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build the ipp-usb snap
         id: snapcraft
-        uses: canonical/craft-actions/snapcraft-pack@main
+        uses: canonical/craft-actions/snapcraft/pack@main
         with:
           path: .
 

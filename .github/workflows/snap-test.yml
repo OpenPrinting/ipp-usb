@@ -1,0 +1,320 @@
+# =============================================================================
+# Snap integration test for ipp-usb
+#
+# This workflow builds the ipp-usb snap and runs it, under *strict
+# confinement*, against a virtual IPP-over-USB printer - no physical hardware.
+# The virtual printer is the go-mfp MFP simulator by Alexander Pevzner
+# (https://github.com/OpenPrinting/go-mfp), the same emulator used by
+# emulator-test.yml.
+#
+# Why a separate snap job (vs. emulator-test.yml):
+#   emulator-test.yml runs the *unconfined* `go build` binary.  This job runs
+#   the packaged snap with its interfaces, so it is the only place that proves
+#   the snap's confinement is correct - i.e. that a strictly-confined daemon can
+#   actually reach a USB device through the `raw-usb` plug, publish over DNS-SD
+#   through `avahi-control`, and bind its HTTP listener through `network-bind`.
+#   Snap confinement is only enforced on a real runner with AppArmor (GitHub's
+#   ubuntu-24.04 images), which is why this is validated in CI rather than
+#   locally.
+#
+# The chain under test:
+#
+#     mfp-virtual --usbip   (emulated printer, speaks the USB/IP protocol)
+#          |  TCP :3240
+#     usbip attach + vhci_hcd   (kernel exposes it as a local USB device)
+#          |
+#     libusb  ->  ipp-usb  (SNAP, strict confinement, raw-usb plug)
+#
+# What we assert:
+#   A. `snap run ipp-usb check` lists the emulated device (dead:beaf) with the
+#      model make-and-model - the confined binary reaches USB via `raw-usb`.
+#   B. The confined `ipp-usb-server` daemon discovers the device and completes
+#      an HTTP-over-USB round-trip (per-device log shows dead:beaf + 200 OK).
+#   C. A client request routed *through* the confined daemon's TCP listener
+#      comes back 200 OK (client -> ipp-usb snap -> USB).
+#
+# Notes:
+#   * Only amd64 and arm64 are exercised here: the test needs to *run* the
+#     confined daemon against a natively-attached USB device, which is not
+#     possible under qemu-user emulation.  armhf/riscv64 snap builds are
+#     validated by the Snap Store build service.
+#   * Every gotcha learned on the cups-snap CI is folded in up front: start
+#     avahi+dbus before anything DNS-SD, a --dangerous sideload does NOT
+#     auto-connect the manual plugs (connect them explicitly), no argument to a
+#     snap app may contain spaces, and give the daemon a settle-wait/retry.
+# =============================================================================
+name: Snap Test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # go-mfp (the IPP-over-USB emulator) - pinned for reproducibility, same as
+  # emulator-test.yml.
+  GO_MFP_REPO: https://github.com/OpenPrinting/go-mfp.git
+  GO_MFP_REF: 7e0ec8c4b411a111a1cee631ba3cc3c48a3a5403
+  # Example MFP model shipped in go-mfp (provides the IPP + eSCL endpoints).
+  GO_MFP_MODEL: modeling/examples/Kyocera-ECOSYS-M2040dn.py
+  # Host deps: the go-mfp emulator needs Python/JPEG/PNG for its cgo bits;
+  # usbutils/linux-tools provide lsusb and the usbip client; avahi-daemon lets
+  # the confined snap publish over DNS-SD.  The snap itself is built in an
+  # isolated LXD container, so its build deps are not installed here.
+  APT_DEPS: >-
+    gcc pkg-config make
+    libjpeg-dev libpng-dev python3-dev
+    linux-tools-generic linux-tools-common linux-tools-virtual
+    usbutils avahi-daemon
+
+jobs:
+  snap-test:
+    name: ipp-usb snap vs. virtual IPP-over-USB printer (${{ matrix.arch }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-24.04
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out ipp-usb
+        uses: actions/checkout@v4
+        with:
+          # The snap builds from `source: .` at git tag 0.9.29, so the full
+          # history and tags must be present.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 ${{ env.APT_DEPS }}
+
+      # -----------------------------------------------------------------------
+      # Build the snap (isolated LXD build), matching the repo's existing use
+      # of canonical/craft-actions in registry-actions.yml.
+      # -----------------------------------------------------------------------
+      - name: Build the ipp-usb snap
+        id: snapcraft
+        uses: canonical/craft-actions/snapcraft-pack@main
+        with:
+          path: .
+
+      # -----------------------------------------------------------------------
+      # Stand up the virtual USB printer - identical to emulator-test.yml.
+      # -----------------------------------------------------------------------
+      - name: Load the USB/IP kernel module (vhci_hcd)
+        run: |
+          if ! sudo modprobe vhci-hcd 2>/dev/null; then
+            sudo apt-get install -y -o Acquire::Retries=3 \
+              "linux-modules-extra-$(uname -r)"
+            sudo modprobe vhci-hcd
+          fi
+          lsmod | grep -q vhci_hcd
+          echo "vhci_hcd loaded."
+
+      - name: Put the usbip client on PATH
+        run: |
+          # Ubuntu ships the usbip client inside linux-tools, not as a
+          # standalone package; it is a userspace tool independent of the
+          # running kernel version.
+          usbip_bin="$(ls /usr/lib/linux-tools-*/usbip 2>/dev/null | head -1)"
+          test -n "$usbip_bin"
+          sudo ln -sf "$usbip_bin" /usr/local/bin/usbip
+          usbip version
+
+      - name: Build the go-mfp emulator (mfp-virtual)
+        run: |
+          git clone "${GO_MFP_REPO}" go-mfp
+          git -C go-mfp checkout --quiet "${GO_MFP_REF}"
+          ( cd go-mfp && go build -o mfp-virtual ./cmd/mfp-virtual )
+          test -x go-mfp/mfp-virtual
+
+      - name: Start the emulator and attach it as a USB device
+        run: |
+          # Start the emulated IPP-over-USB printer (USB/IP server on :3240),
+          # driven by the example MFP model (IPP printer + eSCL scanner).
+          ./go-mfp/mfp-virtual -m "go-mfp/${GO_MFP_MODEL}" --usbip -d \
+            > emulator.log 2>&1 &
+          echo $! | sudo tee /tmp/emulator.pid >/dev/null
+
+          # Wait for the USB/IP server to advertise the device.
+          for i in $(seq 1 30); do
+            if usbip list -r localhost 2>/dev/null | grep -q '1-1'; then
+              break
+            fi
+            sleep 1
+          done
+          usbip list -r localhost
+
+          # Attach it - now it is a real local USB device.
+          sudo usbip attach -r localhost -b 1-1
+          sleep 2
+          lsusb
+          if ! lsusb | grep -qi 'dead:beaf'; then
+            echo "::error::emulated printer did not attach as a USB device"
+            cat emulator.log
+            exit 1
+          fi
+          echo "Virtual IPP-over-USB printer attached."
+
+      - name: Start DNS-SD stack (avahi) for the snap
+        run: |
+          # Must be up before anything DNS-SD touches it (cups-snap lesson).
+          sudo systemctl start dbus || sudo service dbus start || true
+          sudo systemctl start avahi-daemon || sudo service avahi-daemon start || true
+
+      # -----------------------------------------------------------------------
+      # Install the snap under strict confinement and wire up its interfaces.
+      # -----------------------------------------------------------------------
+      - name: Install the snap and connect its interfaces
+        run: |
+          snap_file="${{ steps.snapcraft.outputs.snap }}"
+          test -n "$snap_file" && test -f "$snap_file"
+          echo "Installing ${snap_file}"
+          sudo snap install --dangerous "$snap_file"
+
+          # A --dangerous sideload does NOT auto-connect the manual plugs
+          # (raw-usb / hardware-observe / avahi-control); connect them now.
+          # network / network-bind are auto-connect and need no action.
+          for plug in raw-usb hardware-observe avahi-control; do
+            sudo snap connect "ipp-usb:${plug}" || {
+              echo "::error::could not connect ipp-usb:${plug}"
+              exit 1
+            }
+          done
+          echo "Interfaces:"
+          snap connections ipp-usb
+
+      # -----------------------------------------------------------------------
+      # Assertion A - the confined binary reaches USB through the raw-usb plug.
+      # `ipp-usb check` is lock-free and needs no listener, so it is the most
+      # direct possible test of the confinement/plug question.  Stop the
+      # auto-started daemon first so the two do not contend for the device.
+      # -----------------------------------------------------------------------
+      - name: Assertion A - confined `ipp-usb check` sees the device
+        run: |
+          sudo snap stop ipp-usb.ipp-usb-server 2>/dev/null || true
+          sleep 1
+
+          echo "Running: snap run ipp-usb check"
+          sudo snap run ipp-usb check > check.log 2>&1 || true
+          cat check.log
+
+          if ! grep -q 'IPP over USB devices:' check.log; then
+            echo "::error::confined 'ipp-usb check' found no IPP-over-USB device (raw-usb plug blocked?)"
+            exit 1
+          fi
+          if ! grep -qi 'dead:beaf' check.log; then
+            echo "::error::confined 'ipp-usb check' did not report the emulated VID:PID"
+            exit 1
+          fi
+          echo "OK: the strictly-confined ipp-usb reached the USB device via raw-usb."
+
+      # -----------------------------------------------------------------------
+      # Assertions B and C - the confined daemon serves the device end to end.
+      # Both must run while the daemon is up, so they share one step.
+      # -----------------------------------------------------------------------
+      - name: Assertions B and C - confined daemon serves the device
+        run: |
+          log_dir=/var/snap/ipp-usb/common/var/log
+          dev_dir=/var/snap/ipp-usb/common/var/dev
+
+          # Start the daemon fresh now that the plugs are connected and the
+          # device is attached; its startup udev scan picks up the device.
+          sudo snap start ipp-usb.ipp-usb-server
+          # The snapped daemon can churn briefly after (re)start; give it a
+          # settle-wait rather than a single check (cups-snap lesson).
+          sleep 3
+
+          # Assertion B - wait (up to 40s) for discovery + the HTTP-over-USB
+          # probe in the per-device log.
+          ok=0
+          for i in $(seq 1 40); do
+            if sudo grep -rqs 'Found new device. VID:PID = dead:beaf' "$log_dir" 2>/dev/null \
+               && sudo grep -rqs '200 OK' "$log_dir" 2>/dev/null; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+
+          echo "===================== snap logs ====================="
+          sudo snap logs ipp-usb.ipp-usb-server -n 50 || true
+          echo "================== ipp-usb device log ==============="
+          sudo find "$log_dir" -type f -name '*.log' -exec cat {} + 2>/dev/null || true
+          echo "====================================================="
+
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::confined daemon did not complete an HTTP-over-USB round-trip"
+            exit 1
+          fi
+          echo "OK: the confined daemon discovered the printer and answered over USB."
+
+          # Assertion C - route a client request *through* the confined daemon's
+          # TCP listener: client -> ipp-usb (TCP) -> USB -> emulator.  Resolve
+          # the per-device port from the state dir, fall back to the log, then
+          # to 60000.
+          port="$(sudo grep -rhoE 'http-port[[:space:]]*=[[:space:]]*[0-9]+' \
+            "$dev_dir" 2>/dev/null | grep -oE '[0-9]+' | head -1)"
+          port="${port:-$(sudo grep -rhoE 'localhost:[0-9]+' "$log_dir" 2>/dev/null | head -1 | cut -d: -f2)}"
+          port="${port:-60000}"
+          # Use the "localhost" hostname, not 127.0.0.1: ipp-usb 302-redirects
+          # IP-address requests to the hostname; -L follows it as a safety net.
+          echo "Querying the confined daemon on localhost:${port}"
+
+          code=000
+          for i in $(seq 1 15); do
+            code="$(curl -sL -o caps.xml -w '%{http_code}' \
+              "http://localhost:${port}/eSCL/ScannerCapabilities" || echo 000)"
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          echo "HTTP status: ${code}"
+          head -c 400 caps.xml || true
+          echo
+
+          if [ "$code" != "200" ] || ! grep -qi 'ScannerCapabilities' caps.xml; then
+            echo "::error::client request through the confined daemon did not succeed"
+            exit 1
+          fi
+          echo "OK: client -> ipp-usb snap -> USB round-trip returned 200 OK."
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "----- emulator.log -----"; cat emulator.log 2>/dev/null || true
+          echo "----- check.log -----";    cat check.log 2>/dev/null || true
+          echo "----- snap services -----"; snap services ipp-usb 2>/dev/null || true
+          echo "----- snap logs -----";     sudo snap logs ipp-usb.ipp-usb-server -n 100 2>/dev/null || true
+          echo "----- device logs -----"
+          sudo find /var/snap/ipp-usb/common/var/log -type f -exec cat {} + 2>/dev/null || true
+          echo "----- usbip port -----";     usbip port 2>/dev/null || true
+          echo "----- lsusb -----";          lsusb 2>/dev/null || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          sudo snap stop ipp-usb.ipp-usb-server 2>/dev/null || true
+          sudo usbip detach -p 00               2>/dev/null || true
+          kill "$(cat /tmp/emulator.pid 2>/dev/null)" 2>/dev/null || true

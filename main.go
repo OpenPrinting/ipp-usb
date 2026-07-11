@@ -276,7 +276,7 @@ func main() {
 
 		if err != nil {
 			InitLog.Info(0, "Can't read list of USB devices: %s", err)
-		} else if descs == nil || len(descs) == 0 {
+		} else if len(descs) == 0 {
 			InitLog.Info(0, "No IPP over USB devices found")
 		} else {
 			// Repack into the sorted list

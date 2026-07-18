@@ -94,7 +94,7 @@ jobs:
 
     steps:
       - name: Check out ipp-usb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # The snap builds from `source: .` at git tag 0.9.29, so the full
           # history and tags must be present.

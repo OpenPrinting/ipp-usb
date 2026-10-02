@@ -1,5 +1,4 @@
 //go:build linux || freebsd
-// +build linux freebsd
 
 /* ipp-usb - HTTP reverse proxy, backed by IPP-over-USB connection to device
  *
@@ -76,10 +75,10 @@ func newDnssdSysdep(log *Logger, instance string,
 	}
 
 	// Obtain index of loopback interface
-	loopback, err := Loopback()
-	if err != nil {
-		goto ERROR // Very unlikely to happen
-	}
+	// loopback, err := Loopback()
+	// if err != nil {
+	// 	goto ERROR // Very unlikely to happen
+	// }
 
 	// Obtain AvahiPoll
 	poll, err = avahiGetPoll()
@@ -124,14 +123,7 @@ func newDnssdSysdep(log *Logger, instance string,
 	avahiEgroupMap[sysdep.egroup] = sysdep
 
 	// Compute iface and proto, adjust fqdn
-	iface = C.AVAHI_IF_UNSPEC
-	if Conf.LoopbackOnly {
-		iface = loopback
-		old := sysdep.fqdn
-		sysdep.fqdn = "localhost"
-		sysdep.log.Debug(' ', "DNS-SD: FQDN: %q->%q", old, sysdep.fqdn)
-	}
-
+	iface = Conf.Interface
 	proto = C.AVAHI_PROTO_UNSPEC
 	if !Conf.IPV6Enable {
 		proto = C.AVAHI_PROTO_INET
@@ -156,16 +148,10 @@ func newDnssdSysdep(log *Logger, instance string,
 			cInstance = C.CString(instance)
 		}
 
-		// Handle loopback-only mode
-		ifaceInUse := iface
-		if svc.Loopback {
-			ifaceInUse = loopback
-		}
-
 		// Register service type
 		rc = C.avahi_entry_group_add_service_strlst(
 			sysdep.egroup,
-			C.AvahiIfIndex(ifaceInUse),
+			C.AvahiIfIndex(iface),
 			C.AvahiProtocol(proto),
 			0,
 			cInstance,
@@ -187,7 +173,7 @@ func newDnssdSysdep(log *Logger, instance string,
 			cSubtype := C.CString(subtype)
 			rc = C.avahi_entry_group_add_service_subtype(
 				sysdep.egroup,
-				C.AvahiIfIndex(ifaceInUse),
+				C.AvahiIfIndex(iface),
 				C.AvahiProtocol(proto),
 				0,
 				cInstance,

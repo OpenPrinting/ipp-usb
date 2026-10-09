@@ -116,7 +116,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 	msg.Operation.Add(goipp.MakeAttribute("attributes-charset",
 		goipp.TagCharset, goipp.String("utf-8")))
 	msg.Operation.Add(goipp.MakeAttribute("attributes-natural-language",
-		goipp.TagLanguage, goipp.String("en-US")))
+		goipp.TagLanguage, goipp.String("en-us")))
 	msg.Operation.Add(goipp.MakeAttribute("printer-uri",
 		goipp.TagURI, goipp.String(uri)))
 

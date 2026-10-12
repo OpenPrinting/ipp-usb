@@ -2,6 +2,8 @@ MANDIR    = /usr/share/man/
 QUIRKSDIR = /usr/share/ipp-usb/quirks
 MANPAGE   = ipp-usb.8
 
+.DELETE_ON_ERROR:
+
 # Merge DESTDIR and PREFIX
 PREFIX := $(abspath $(DESTDIR)/$(PREFIX))
 ifeq ($(PREFIX),/)
@@ -14,8 +16,8 @@ all:
 
 man:	$(MANPAGE)
 
-$(MANPAGE): $(MANPAGE).md
-	ronn --roff --manual=$@ $<
+$(MANPAGE): $(MANPAGE).scdoc
+	scdoc < $< > $@
 
 install: all
 	install -s -D -t $(PREFIX)/sbin ipp-usb

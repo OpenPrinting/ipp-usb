@@ -1,6 +1,6 @@
-MANDIR    = /usr/share/man/
-QUIRKSDIR = /usr/share/ipp-usb/quirks
-MANPAGE   = ipp-usb.8
+MANDIR      = /usr/share/man/
+QUIRKSDIR   = /usr/share/ipp-usb/quirks
+MANPAGES    = ipp-usb.8 ipp-usb-api.7
 
 .DELETE_ON_ERROR:
 
@@ -14,9 +14,12 @@ all:
 	-ctags -R
 	go build -ldflags "-s -w" -tags nethttpomithttp2 -mod=vendor
 
-man:	$(MANPAGE)
+man:	$(MANPAGES)
 
-$(MANPAGE): $(MANPAGE).scdoc
+%.8: %.8.scdoc
+	scdoc < $< > $@
+
+%.7: %.7.scdoc
 	scdoc < $< > $@
 
 install: all

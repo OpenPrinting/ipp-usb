@@ -1,0 +1,68 @@
+ipp-usb-api(7) "Control API for ipp-usb"
+
+# NAME
+
+ipp-usb-api - Control API for *ipp-usb* daemon
+
+# DESCRIPTION
+
+The *ipp-usb* control API provides a way for local client
+applications to communicate with the running *ipp-usb* daemon.
+
+The API uses a UNIX domain socket.
+
+# PROTOCOL
+
+The control API uses HTTP over a UNIX domain socket. Requests are
+sent using the HTTP GET and POST methods.
+
+The protocol is versioned independently of the *ipp-usb* software
+release. The protocol version identifies the *ipp-usb* release in
+which the latest protocol changes were introduced. It remains
+unchanged across software releases that do not change the protocol.
+
+The protocol is backward compatible. New endpoints and request
+parameters may be introduced in later protocol versions without
+breaking existing clients.
+
+The protocol version in which each endpoint and each request or
+response field was introduced is documented below.
+
+# REQUESTS
+
+## GET /status (since 0.9.22)
+
+This is a legacy request. It returns a formatted status page
+containing the same information as the output of the ipp-usb status
+command.
+
+## GET /version (since 0.9.35)
+
+Returns the protocol version as a plain-text string.
+
+The version identifies the *ipp-usb* release in which the latest
+protocol changes were introduced. For example:
+
+```
+0.9.35
+```
+
+The returned version does not necessarily match the version of the
+running ipp-usb daemon.
+
+# FILES
+
+*/var/ipp-usb/ctrl*
+	*ipp-usb* control socket
+
+# COPYRIGHT
+
+Copyright (c) by Alexander Pevzner (pzz@apevzner.com, pzz@pzz.msk.ru)
+All rights reserved.
+
+This program is licensed under 2-Clause BSD license. See LICENSE file for
+details.
+
+## SEE ALSO
+
+*ipp-usb(8)*

@@ -17,11 +17,26 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"syscall"
+)
+
+const (
+	// CtrlsockAddrVersion is the current ipp-usb API version.
+	//
+	// The protocol is versioned independently of the *ipp-usb* software
+	// release. The protocol version identifies the *ipp-usb* release in
+	// which the latest protocol changes were introduced. It remains
+	// unchanged across software releases that do not change the protocol.
+	CtrlsockAddrVersion = "0.9.35"
+
+	// Common MIME types
+	ctrlSockMIMEJSON = "application/json"
+	ctrlSockMIMEText = "text/plain; charset=utf-8"
 )
 
 var (
@@ -51,23 +66,54 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Check request method
-	if r.Method != "GET" {
+	if r.Method != "GET" && r.Method != "POST" {
 		http.Error(w, r.Method+": method not supported",
 			http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Check request path
-	if r.URL.Path != "/status" {
+	// Dispatch the request
+	var mime string
+	var data []byte
+	var err error
+
+	switch {
+	case r.Method == "GET" && r.URL.Path == "/devices":
+		mime, data, err = ctrlsockGETDevices()
+	case r.Method == "GET" && r.URL.Path == "/status":
+		mime, data, err = ctrlsockGETStatus()
+	case r.Method == "GET" && r.URL.Path == "/version":
+		mime, data, err = ctrlsockGETVersion()
+	default:
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 
-	// Handle the request
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	// Send the response
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", mime)
 	httpNoCache(w)
 	w.WriteHeader(http.StatusOK)
-	w.Write(StatusFormat())
+	w.Write(data)
+}
+
+// ctrlsockGETDevices handles the GET /devices request
+func ctrlsockGETDevices() (string, []byte, error) {
+	return "", nil, errors.New("not implemented")
+}
+
+// ctrlsockGETStatus handles the GET /status request
+func ctrlsockGETStatus() (string, []byte, error) {
+	return ctrlSockMIMEText, StatusFormat(), nil
+}
+
+// ctrlsockGETVersion handles the GET /version request
+func ctrlsockGETVersion() (string, []byte, error) {
+	return ctrlSockMIMEText, []byte(CtrlsockAddrVersion), nil
 }
 
 // CtrlsockStart starts control socket server

@@ -19,8 +19,8 @@ import (
 	"sync"
 )
 
-// statusOfDevice represents a status of the particular device
-type statusOfDevice struct {
+// StatusOfDevice represents a status of the particular device
+type StatusOfDevice struct {
 	desc     UsbDeviceDesc // Device descriptor
 	init     error         // Initialization error, nil if none
 	HTTPPort int           // Assigned http port for the device
@@ -29,7 +29,7 @@ type statusOfDevice struct {
 var (
 	// statusTable maintains a per-device status,
 	// indexed by the UsbAddr
-	statusTable = make(map[UsbAddr]*statusOfDevice)
+	statusTable = make(map[UsbAddr]*StatusOfDevice)
 
 	// statusLock protects access to the statusTable
 	statusLock sync.RWMutex
@@ -71,7 +71,7 @@ func StatusFormat() []byte {
 	buf.WriteString("ipp-usb daemon: running\n")
 
 	// Sort devices by address
-	devs := make([]*statusOfDevice, len(statusTable))
+	devs := make([]*StatusOfDevice, len(statusTable))
 
 	i := 0
 	for _, status := range statusTable {
@@ -119,7 +119,7 @@ func StatusFormat() []byte {
 // of the already known device
 func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
 	statusLock.Lock()
-	statusTable[addr] = &statusOfDevice{
+	statusTable[addr] = &StatusOfDevice{
 		desc:     desc,
 		init:     init,
 		HTTPPort: HTTPPort,

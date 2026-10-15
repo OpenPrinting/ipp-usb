@@ -310,7 +310,23 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	for _, id := range strings.Split(attrs.strSingle("printer-device-id"), ";") {
 		keyval := strings.SplitN(id, ":", 2)
 		if len(keyval) == 2 {
-			devid[keyval[0]] = keyval[1]
+			// Canonicalize Device ID key name
+			key := strings.ToUpper(keyval[0])
+			switch key {
+			case "MANUFACTURER":
+				key = "MFG"
+			case "MODEL":
+				key = "MDL"
+			case "COMMAND SET":
+				key = "CMD"
+			case "SERIALNUMBER", "SERN":
+				key = "SN"
+			}
+
+			// Save, if not duplicate
+			if _, found := devid[key]; !found {
+				devid[key] = keyval[1]
+			}
 		}
 	}
 

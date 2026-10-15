@@ -58,30 +58,33 @@ func StatusRetrieve() ([]byte, error) {
 	return ioutil.ReadAll(rsp.Body)
 }
 
+// StatusGet returns snapshot of the current status table
+func StatusGet() []*StatusOfDevice {
+	// Snapshot the table
+	statusLock.RLock()
+	statuses := make([]*StatusOfDevice, 0, len(statusTable))
+	for _, status := range statusTable {
+		statuses = append(statuses, status)
+	}
+	statusLock.RUnlock()
+
+	// Sort statuses by address
+	sort.Slice(statuses, func(i, j int) bool {
+		return statuses[i].desc.UsbAddr.Less(statuses[j].desc.UsbAddr)
+	})
+
+	return statuses
+}
+
 // StatusFormat formats ipp-usb status as a text
 func StatusFormat() []byte {
-	buf := &bytes.Buffer{}
-
-	// Lock the statusTable
-	statusLock.RLock()
-	defer statusLock.RUnlock()
+	// Snapshot the statusTable
+	statuses := StatusGet()
 
 	// Dump ipp-usb daemon status. If we are here, we are
 	// definitely running :-)
+	buf := &bytes.Buffer{}
 	buf.WriteString("ipp-usb daemon: running\n")
-
-	// Sort devices by address
-	devs := make([]*StatusOfDevice, len(statusTable))
-
-	i := 0
-	for _, status := range statusTable {
-		devs[i] = status
-		i++
-	}
-
-	sort.Slice(devs, func(i, j int) bool {
-		return devs[i].desc.UsbAddr.Less(devs[j].desc.UsbAddr)
-	})
 
 	// Format per-device status
 	buf.WriteString("ipp-usb devices:")
@@ -90,7 +93,7 @@ func StatusFormat() []byte {
 	} else {
 		buf.WriteString("\n")
 		fmt.Fprintf(buf, " Num  Device              Vndr:Prod  Port  Model\n")
-		for i, status := range devs {
+		for i, status := range statuses {
 			info, _ := status.desc.GetUsbDeviceInfo()
 
 			s := "-"
@@ -105,7 +108,7 @@ func StatusFormat() []byte {
 
 			s = "OK"
 			if status.init != nil {
-				s = devs[i].init.Error()
+				s = status.init.Error()
 			}
 
 			fmt.Fprintf(buf, "      status: %s\n", s)

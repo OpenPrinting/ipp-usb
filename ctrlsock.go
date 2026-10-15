@@ -128,7 +128,7 @@ func CtrlsockStart() error {
 		return err
 	}
 
-	// Make socket accessible to everybody. Error is ignores,
+	// Make socket accessible to everybody. Error is ignored,
 	// it's not a reason to abort ipp-usb
 	os.Chmod(PathControlSocket, 0777)
 

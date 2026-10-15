@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"syscall"
 )
 
 const usageText = `Usage:
@@ -320,6 +321,26 @@ func main() {
 	if params.Mode == RunCheck {
 		os.Exit(0)
 	}
+
+	// Adjust umask and DefaultPathProgState permissions
+	//
+	// Previously I've made mistake not adjusting the program umask.
+	// Umask for the root daemons was 0000 that time, so it didn't cause
+	// any visible problems.
+	//
+	// Later major distros has changed default umask for daemons to 0022,
+	// so the directory that contains the ipp-usb control socket became
+	// unreadable for regular users.
+	//
+	// It makes control socket not accessible for users, which is
+	// against the design. Here we have to fix it.
+	//
+	// Note, the control socket path can be changed with the command-line
+	// option. This is commonly used in containers, but not in the
+	// normal host-based installation. Here we only fix access rights
+	// for the default path, which should be safe in any case.
+	syscall.Umask(0)
+	os.Chmod(DefaultPathProgState, 0755)
 
 	// If background run is requested, it's time to fork
 	if params.Background {

@@ -319,7 +319,7 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 				key = "MDL"
 			case "COMMAND SET":
 				key = "CMD"
-			case "SERIALNUMBER", "SERN":
+			case "SERIALNUMBER", "SERN", "SER":
 				key = "SN"
 			}
 

@@ -55,8 +55,6 @@ var (
 // ctrlsockHandler handles HTTP requests that come over the
 // control socket
 func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
-	Log.Debug(' ', "ctrlsock: %s %s", r.Method, r.URL)
-
 	// Catch panics to log
 	defer func() {
 		v := recover()
@@ -67,8 +65,8 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check request method
 	if r.Method != "GET" && r.Method != "POST" {
-		http.Error(w, r.Method+": method not supported",
-			http.StatusMethodNotAllowed)
+		message := r.Method + ": method not supported"
+		ctrlsockRequestError(w, r, http.StatusMethodNotAllowed, message)
 		return
 	}
 
@@ -85,20 +83,49 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && r.URL.Path == "/version":
 		mime, data, err = ctrlsockGETVersion()
 	default:
-		http.Error(w, "Not found", http.StatusNotFound)
+		ctrlsockRequestError(w, r, http.StatusNotFound, "Not found")
 		return
 	}
 
 	// Send the response
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		ctrlsockRequestError(w, r,
+			http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	ctrlsockRequestComplete(w, r, http.StatusOK, data, mime)
+}
+
+// ctrlsockRequestComplete completes the control socket request
+func ctrlsockRequestComplete(w http.ResponseWriter, r *http.Request,
+	status int, data []byte, mime string) {
+
+	ctrlsockRequestLog(r, status, "")
 
 	w.Header().Set("Content-Type", mime)
 	httpNoCache(w)
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
+}
+
+// ctrlsockRequestError completes control socket request with the error.
+func ctrlsockRequestError(w http.ResponseWriter, r *http.Request,
+	status int, message string) {
+
+	if message == "" {
+		message = http.StatusText(status)
+	}
+
+	ctrlsockRequestLog(r, status, message)
+	http.Error(w, message, http.StatusInternalServerError)
+}
+
+// ctrlsockRequestLog writes logging information related to
+// the request processing.
+func ctrlsockRequestLog(r *http.Request, status int, message string) {
+	Log.Debug(' ', "ctrlsock: %s %s -- %3.3d %s",
+		r.Method, r.URL, status, message)
 }
 
 // ctrlsockGETDevices handles the GET /devices request

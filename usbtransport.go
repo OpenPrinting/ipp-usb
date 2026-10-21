@@ -758,6 +758,9 @@ type usbConn struct {
 	transport     *UsbTransport   // Transport that owns the connection
 	index         int             // Connection index (for logging)
 	iface         *UsbInterface   // Underlying interface
+	rdbuf         []byte          // Read buffer for USB bulk reads
+	rdnext        int             // Next position in the buffer
+	rdbuffered    int             // Total available bytes in the buffer
 	reader        *bufio.Reader   // For http.ReadResponse
 	rwctx         context.Context // For usbConn.Read and usbConn.Write
 	delayUntil    time.Time       // Delay till this time before next request
@@ -783,6 +786,7 @@ func (transport *UsbTransport) openUsbConn(
 		delayInterval: quirks.GetRequestDelay(),
 	}
 
+	conn.rdbuf = make([]byte, USBReadBufferSize)
 	conn.reader = bufio.NewReader(conn)
 
 	// Obtain interface
@@ -821,43 +825,42 @@ func (conn *usbConn) setRWCtx(ctx context.Context) {
 
 // Read from USB
 func (conn *usbConn) Read(b []byte) (int, error) {
+	// Return buffered data, if available
+	if conn.rdnext < conn.rdbuffered {
+		n := copy(b, conn.rdbuf[conn.rdnext:conn.rdbuffered])
+		conn.rdnext += n
+		return n, nil
+	}
+
+	// Mark connection as being reading, for observability
 	conn.transport.connstate.beginRead(conn)
 	defer conn.transport.connstate.doneRead(conn)
 
 	// Drop conn.eofSeenn flag
 	conn.eofSeen = false
 
-	// Note, to avoid LIBUSB_TRANSFER_OVERFLOW errors
-	// from libusb, input buffer size must always
-	// be aligned by 1024 bytes for USB 3.0, 512 bytes
-	// for USB 2.0, so 1024 bytes alignment is safe for
-	// both
-	//
-	// However if caller requests less that 1024 bytes, we
-	// can't align here simply by shrinking the buffer,
-	// because it will result a zero-size buffer. At
-	// this case we assume caller knows what it is
-	// doing (actually bufio never behaves this way)
-	if n := len(b); n >= 1024 {
-		n &= ^1023
-		b = b[0:n]
-	}
-
 	// zlp-recv-hack handling
 	zlpRecvHack := conn.transport.quirks.GetZlpRecvHack()
-	zlpRecv := false
+	zlpSeen := false
 
 	// Setup deadline
 	backoff := time.Millisecond * 10
 	for {
-		n, err := conn.iface.Recv(conn.rwctx, b)
+		n, err := conn.iface.Recv(conn.rwctx, conn.rdbuf)
 		conn.cntRecv += n
 
 		conn.transport.log.Add(LogTraceHTTP, '<',
 			"USB[%d]: read: wanted %d got %d total %d",
-			conn.index, len(b), n, conn.cntRecv)
+			conn.index, len(conn.rdbuf), n, conn.cntRecv)
 
-		conn.transport.log.HexDump(LogTraceUSB, '<', b[:n])
+		conn.transport.log.HexDump(LogTraceUSB, '<', conn.rdbuf[:n])
+
+		if n > 0 {
+			conn.rdbuffered = n
+			n = copy(b, conn.rdbuf[:conn.rdbuffered])
+			conn.rdnext = n
+			return n, nil
+		}
 
 		if err != nil {
 			conn.transport.log.Error('!',
@@ -867,7 +870,7 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 				// If we've got read timeout preceded
 				// by the zero-length packet, interpret
 				// is as body EOF condition
-				if zlpRecvHack && zlpRecv {
+				if zlpRecvHack && zlpSeen {
 					conn.eofSeen = true
 					return 0, io.EOF
 				}
@@ -875,13 +878,11 @@ func (conn *usbConn) Read(b []byte) (int, error) {
 				atomic.StoreUint32(
 					&conn.transport.timeoutExpired, 1)
 			}
+
+			return 0, err
 		}
 
-		if n != 0 || err != nil {
-			return n, err
-		}
-
-		zlpRecv = true
+		zlpSeen = true
 		conn.transport.log.Debug(' ',
 			"USB[%d]: zero-size read", conn.index)
 

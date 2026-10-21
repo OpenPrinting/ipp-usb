@@ -862,17 +862,6 @@ func (iface *UsbInterface) Recv(ctx context.Context,
 		return 0, ctx.Err()
 	}
 
-	// Some versions of Linux kernel don't allow bulk transfers to
-	// be larger that 16kb per URB, and libusb uses some smart-ass
-	// mechanism to avoid this limitation.
-	//
-	// This mechanism seems not to work very reliable on Raspberry Pi
-	// (see #3 for details). So just limit bulk reads to 16kb
-	const MaxBulkRead = 16384
-	if len(data) > MaxBulkRead {
-		data = data[0:MaxBulkRead]
-	}
-
 	// Allocate a libusb_transfer.
 	xfer, doneChan, err := libusbTransferAlloc()
 	if err != nil {

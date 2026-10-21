@@ -28,4 +28,18 @@ const (
 	// DNSSdRetryInterval specifies the retry interval in a case
 	// of failed DNS-SD operation
 	DNSSdRetryInterval = 2 * time.Second
+
+	// USBReadBufferSize defines buffer size of USB bulk reads
+	// from the printer.
+	//
+	// Some versions of Linux kernel don't allow bulk transfers to
+	// be larger that 16kb per URB, and libusb uses some smart-ass
+	// mechanism to avoid this limitation.
+	//
+	// This mechanism seems not to work very reliable on Raspberry Pi
+	// (see #3 for details). So just limit bulk reads to 16kb
+	//
+	// Note also, this size must be multiple of USB packet size,
+	// which is 1024, if USB 3.0 is considered.
+	USBReadBufferSize = 16384
 )

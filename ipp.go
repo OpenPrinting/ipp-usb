@@ -306,30 +306,9 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	}
 
 	// Obtain and parse IEEE 1284 device ID
-	devid := make(map[string]string)
-	for _, id := range strings.Split(attrs.strSingle("printer-device-id"), ";") {
-		keyval := strings.SplitN(id, ":", 2)
-		if len(keyval) == 2 {
-			// Canonicalize Device ID key name
-			key := strings.ToUpper(keyval[0])
-			switch key {
-			case "MANUFACTURER":
-				key = "MFG"
-			case "MODEL":
-				key = "MDL"
-			case "COMMAND SET":
-				key = "CMD"
-			case "SERIALNUMBER", "SERN", "SER":
-				key = "SN"
-			}
+	devid := DeviceIDParse(attrs.strSingle("printer-device-id"))
 
-			// Save, if not duplicate
-			if _, found := devid[key]; !found {
-				devid[key] = keyval[1]
-			}
-		}
-	}
-
+	// Fill TXT record
 	svc.Txt.Add("air", "none")
 	svc.Txt.IfNotEmpty("mopria-certified", attrs.strSingle("mopria-certified"))
 	svc.Txt.Add("rp", "ipp/print")
@@ -337,16 +316,16 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	svc.Txt.IfNotEmpty("kind", attrs.strJoined("printer-kind"))
 	svc.Txt.IfNotEmpty("PaperMax", attrs.getPaperMax())
 	if !svc.Txt.IfNotEmpty("URF", attrs.strJoined("urf-supported")) {
-		svc.Txt.IfNotEmpty("URF", devid["URF"])
+		svc.Txt.IfNotEmpty("URF", devid.GetString("URF"))
 	}
 	svc.Txt.IfNotEmpty("UUID", ippinfo.UUID)
 	svc.Txt.IfNotEmpty("Color", attrs.getBool("color-supported"))
 	svc.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
 	svc.Txt.Add("note", attrs.strSingle("printer-location"))
 	svc.Txt.Add("qtotal", "1")
-	svc.Txt.IfNotEmpty("usb_MDL", devid["MDL"])
-	svc.Txt.IfNotEmpty("usb_MFG", devid["MFG"])
-	svc.Txt.IfNotEmpty("usb_CMD", devid["CMD"])
+	svc.Txt.IfNotEmpty("usb_MDL", devid.Model())
+	svc.Txt.IfNotEmpty("usb_MFG", devid.Manufacturer())
+	svc.Txt.IfNotEmpty("usb_CMD", strings.Join(devid.CommandSet(), ","))
 	svc.Txt.IfNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))
 	svc.Txt.AddPDL("pdl", attrs.strJoined("document-format-supported"))

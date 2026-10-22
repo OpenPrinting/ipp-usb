@@ -101,6 +101,16 @@ func (devid *DeviceID) Get(key string) *DeviceIDRecord {
 	return nil
 }
 
+// GetString returns DeviceID record as a whole string.
+// If record is not found, "" is returned.
+func (devid *DeviceID) GetString(key string) string {
+	if rec := devid.Get(key); rec != nil {
+		return rec.RawData
+	}
+
+	return ""
+}
+
 // Manufacturer returns the manufacturer name.
 func (devid *DeviceID) Manufacturer() string {
 	return devid.find("MANUFACTURER", "MFG")

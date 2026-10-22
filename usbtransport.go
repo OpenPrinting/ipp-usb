@@ -517,7 +517,7 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	transport.log.HTTPDebug(' ', session, "connection %d allocated", conn.index)
 
 	// Make an inter-request (or initial) delay, if needed
-	if delay := conn.delayUntil.Sub(time.Now()); delay > 0 {
+	if delay := time.Until(conn.delayUntil); delay > 0 {
 		transport.log.HTTPDebug(' ', session, "Pausing for %s", delay)
 		time.Sleep(delay)
 	}

@@ -86,20 +86,6 @@ func (txt *DNSSdTxtRecord) URLIfNotEmpty(key, value string) bool {
 	return false
 }
 
-// export DNSSdTxtRecord into Avahi format
-func (txt DNSSdTxtRecord) export() [][]byte {
-	var exported [][]byte
-
-	// Note, for a some strange reason, Avahi published
-	// TXT record in reverse order, so compensate it here
-	for i := len(txt) - 1; i >= 0; i-- {
-		item := txt[i]
-		exported = append(exported, []byte(item.Key+"="+item.Value))
-	}
-
-	return exported
-}
-
 // DNSSdSvcInfo represents a DNS-SD service information
 type DNSSdSvcInfo struct {
 	Instance string         // If not "", override common instance name

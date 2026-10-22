@@ -433,6 +433,8 @@ func (transport *UsbTransport) RoundTripWithSession(session int,
 	// doesn't drain buffered data that server is
 	// about to send to client
 	outreq := rq.WithContext(context.Background())
+
+	//lint:ignore SA1019 clearing deprecated field to be safe
 	outreq.Cancel = nil
 
 	// Remove Expect: 100-continue, if any

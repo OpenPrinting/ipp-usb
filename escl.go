@@ -177,6 +177,7 @@ func (decoder *esclCapsDecoder) decode(in io.Reader) error {
 
 	var path bytes.Buffer
 	var lenStack []int
+	var nameStack []string
 
 	for {
 		token, err := xmlDecoder.RawToken()
@@ -186,17 +187,32 @@ func (decoder *esclCapsDecoder) decode(in io.Reader) error {
 
 		switch t := token.(type) {
 		case xml.StartElement:
+			name := t.Name.Space + ":" + t.Name.Local
 			lenStack = append(lenStack, path.Len())
+			nameStack = append(nameStack, name)
+
 			path.WriteByte('/')
-			path.WriteString(t.Name.Space)
-			path.WriteByte(':')
-			path.WriteString(t.Name.Local)
+			path.WriteString(name)
 			decoder.element(path.String())
 
 		case xml.EndElement:
+			name := t.Name.Space + ":" + t.Name.Local
 			last := len(lenStack) - 1
+
+			if last < 0 {
+				err = fmt.Errorf("unexpected end element </%s>", name)
+				return err
+			}
+
+			if nameStack[last] != name {
+				err = fmt.Errorf("element <%s> closed by </%s>", nameStack[last], name)
+				return err
+			}
+
 			path.Truncate(lenStack[last])
+
 			lenStack = lenStack[:last]
+			nameStack = nameStack[:last]
 
 		case xml.CharData:
 			data := bytes.TrimSpace(t)

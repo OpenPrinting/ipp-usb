@@ -271,7 +271,7 @@ func TestQuirksPrioritization(t *testing.T) {
 				quirks.PullByHWID(qdb, hwid.vid, hwid.pid)
 			}
 			if ex.model != "" {
-				quirks.PullByModelName(qdb, ex.model)
+				quirks.PullByModelName(qdb, ex.model, ex.model)
 			}
 
 			q := quirks.Get(ex.name)
@@ -506,7 +506,7 @@ func TestQuirksLookup(t *testing.T) {
 
 	for _, test := range tests {
 		quirks := NewQuirks()
-		quirks.PullByModelName(qdb, test.model)
+		quirks.PullByModelName(qdb, test.model, test.model)
 		q := quirks.Get(test.param)
 		v := test.get(quirks)
 

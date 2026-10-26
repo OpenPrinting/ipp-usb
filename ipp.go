@@ -264,8 +264,6 @@ func (attrs ippAttrs) export() goipp.Attributes {
 //	                    prefix "one" or "two"
 //	  note:             "printer-location"
 //	  qtotal:           hardcoded as "1"
-//	  usb_MDL:          MDL, extracted from "printer-device-id"
-//	  usb_MFG:          MFG, extracted from "printer-device-id"
 //	  usb_CMD:          CMD, extracted from "printer-device-id"
 //	  ty:               "printer-make-and-model"
 //	  priority:         hardcoded as "50"
@@ -295,9 +293,6 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	if ippinfo.DNSSdName == "" {
 		ippinfo.DNSSdName = attrs.strSingle("printer-info")
 	}
-	if ippinfo.DNSSdName == "" {
-		ippinfo.DNSSdName = usbinfo.MakeAndModel()
-	}
 
 	// Obtain UUID
 	ippinfo.UUID = attrs.getUUID()
@@ -323,8 +318,6 @@ func (attrs ippAttrs) decode(usbinfo UsbDeviceInfo) (
 	svc.Txt.IfNotEmpty("Duplex", attrs.getDuplex())
 	svc.Txt.Add("note", attrs.strSingle("printer-location"))
 	svc.Txt.Add("qtotal", "1")
-	svc.Txt.IfNotEmpty("usb_MDL", devid.Model())
-	svc.Txt.IfNotEmpty("usb_MFG", devid.Manufacturer())
 	svc.Txt.IfNotEmpty("usb_CMD", strings.Join(devid.CommandSet(), ","))
 	svc.Txt.IfNotEmpty("ty", attrs.strSingle("printer-make-and-model"))
 	svc.Txt.IfNotEmpty("product", attrs.strBrackets("printer-make-and-model"))

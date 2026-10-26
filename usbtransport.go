@@ -20,7 +20,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -141,9 +140,11 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 
 	// Load match-by-model quirks
-	model := transport.info.MakeAndModel()
+	model := transport.info.CUPSMakeAndModel()
+	legacy := transport.info.LegacyMakeAndModel()
 	transport.log.Debug(' ', "Loading quirks for model: %q", model)
-	quirks.PullByModelName(Conf.Quirks, model)
+	transport.log.Debug(' ', "Legacy model name:        %q", legacy)
+	quirks.PullByModelName(Conf.Quirks, model, legacy)
 	transport.quirks = quirks
 
 	transport.quirks.WriteLog("Device quirks", transport.log)
@@ -294,14 +295,7 @@ func (transport *UsbTransport) Manufacturer() string {
 		mfg = transport.info.Manufacturer
 	}
 
-	switch {
-	case strings.EqualFold(mfg, "Hewlett-Packard"):
-		mfg = "HP"
-	case strings.EqualFold(mfg, "Lexmark International"):
-		mfg = "Lexmark"
-	}
-
-	return mfg
+	return CUPSManufacturer(mfg)
 }
 
 // Model returns the manufacturer name.
@@ -328,12 +322,7 @@ func (transport *UsbTransport) MakeAndModel() string {
 	mfg := transport.Manufacturer()
 	mdl := transport.Model()
 
-	makeModel := mdl
-	if mfg != "" && !strings.HasPrefix(mdl, mfg) {
-		makeModel = mfg + " " + mdl
-	}
-
-	return makeModel
+	return MakeAndModel(mfg, mdl)
 }
 
 // hardReset performs device hard reset.

@@ -365,7 +365,7 @@ func (quirks *Quirks) PullByHWID(qdb QuirksDb, vid, pid uint16) {
 // Match is performed by the model name.
 //
 // Matches quirks are saved into the receiver.
-func (quirks *Quirks) PullByModelName(qdb QuirksDb, model string) {
+func (quirks *Quirks) PullByModelName(qdb QuirksDb, model, legacy string) {
 	for _, dbquirks := range qdb {
 		for _, q := range dbquirks.byName {
 			if !q.isHWID() {
@@ -383,7 +383,16 @@ func (quirks *Quirks) PullByModelName(qdb QuirksDb, model string) {
 				//     the non-wildcard matched part and
 				//     it is between the wildcard and exact
 				//     HWID match.
-				weight := 2 * GlobMatch(model, q.Match)
+				w1 := GlobMatch(model, q.Match)
+				w2 := GlobMatch(legacy, q.Match)
+
+				weight := w1
+				if w2 > weight {
+					weight = w2
+				}
+
+				weight *= 2
+
 				if weight >= 0 {
 					quirks.prioritizeAndSave(q, weight)
 				}

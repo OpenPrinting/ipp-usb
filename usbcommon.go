@@ -259,18 +259,24 @@ func (info UsbDeviceInfo) CheckMissed() error {
 	return nil
 }
 
-// MakeAndModel returns device Make and Model as a single
-// string
-func (info UsbDeviceInfo) MakeAndModel() string {
+// LegacyMakeAndModel returns device Make and Model as a single string.
+//
+// It is compatible with ipp-usb version 0.9.34 and earlier.
+func (info UsbDeviceInfo) LegacyMakeAndModel() string {
 	mfg := info.Manufacturer
-	prod := info.ProductName
+	mdl := info.ProductName
 
-	makeModel := prod
-	if mfg != "" && !strings.HasPrefix(prod, mfg) {
-		makeModel = mfg + " " + prod
-	}
+	return MakeAndModel(mfg, mdl)
+}
 
-	return makeModel
+// CUPSMakeAndModel returns device Make and Model as a single string.
+//
+// It is consistent with CUPS USB backend.
+func (info UsbDeviceInfo) CUPSMakeAndModel() string {
+	mfg := CUPSManufacturer(info.Manufacturer)
+	mdl := info.ProductName
+
+	return MakeAndModel(mfg, mdl)
 }
 
 // Ident returns device identification string, suitable as
@@ -282,7 +288,7 @@ func (info UsbDeviceInfo) Ident() string {
 		id += "-" + info.SerialNumber
 	}
 
-	if model := info.MakeAndModel(); model != "" {
+	if model := info.LegacyMakeAndModel(); model != "" {
 		id += "-" + model
 	}
 
@@ -330,5 +336,5 @@ func (info UsbDeviceInfo) UUID() string {
 
 // Comment returns a short comment, describing a device
 func (info UsbDeviceInfo) Comment() string {
-	return info.MakeAndModel() + " serial=" + info.SerialNumber
+	return info.LegacyMakeAndModel() + " serial=" + info.SerialNumber
 }

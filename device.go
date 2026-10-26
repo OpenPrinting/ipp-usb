@@ -128,8 +128,10 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	// Obtain DNS-SD name
 	if ippinfo != nil {
 		dnssdName = ippinfo.DNSSdName
-	} else {
-		dnssdName = info.MakeAndModel()
+	}
+
+	if dnssdName == "" {
+		dnssdName = dev.UsbTransport.MakeAndModel()
 	}
 
 	// Update device state, if name changed
@@ -192,10 +194,14 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Add common TXT records:
-	//   - usb_SER=VCF9192281  ; Device USB serial number
-	//   - usb_HWID=0482&069d  ; Its vendor and device ID
+	//   - usb_MFG=Kyocera        ; Device manufacturer
+	//   - usb_MDL=ECOSYS M2040dn ; Model name
+	//   - usb_SER=VCF9192281     ; Device USB serial number
+	//   - usb_HWID=0482&069d     ; Its vendor and device ID
 	for i := range dnssdServices {
 		svc := &dnssdServices[i]
+		svc.Txt.Add("usb_MFG", dev.UsbTransport.Manufacturer())
+		svc.Txt.Add("usb_MDL", dev.UsbTransport.Model())
 		svc.Txt.Add("usb_SER", info.SerialNumber)
 		svc.Txt.Add("usb_HWID", hwid)
 	}

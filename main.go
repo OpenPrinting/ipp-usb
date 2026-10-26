@@ -298,7 +298,7 @@ func main() {
 				fmt.Fprintf(&buf, "%3d. %s", i+1, dev.UsbAddr)
 				if info, err := dev.GetUsbDeviceInfo(); err == nil {
 					fmt.Fprintf(&buf, "  %4.4x:%.4x  %q",
-						info.Vendor, info.Product, info.MakeAndModel())
+						info.Vendor, info.Product, info.CUPSMakeAndModel())
 				}
 
 				InitLog.Info(0, " %s", buf.String())

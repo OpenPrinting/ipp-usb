@@ -20,6 +20,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +33,7 @@ type UsbTransport struct {
 	info           UsbDeviceInfo // USB device info
 	log            *Logger       // Device's own logger
 	dev            *UsbDevHandle // Underlying USB device
+	devid          *DeviceID     // IEEE-1284 device ID (may be nil)
 	doneHardReset  bool          // True, if done hard reset
 	connPool       chan *usbConn // Pool of idle connections
 	connList       []*usbConn    // List of all connections
@@ -209,6 +211,17 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		goto ERROR
 	}
 
+	// Obtain IEEE-1284 Device ID
+	if devidStr := dev.GetDeviceIDString(); devidStr != "" {
+		transport.devid = DeviceIDParse(devidStr)
+	}
+
+	transport.log.Debug(' ', "IEEE-1284 Device ID: %q", transport.GetDeviceIDString())
+	transport.log.Debug(' ', "Manufacturer:        %q", transport.Manufacturer())
+	transport.log.Debug(' ', "Model:               %q", transport.Model())
+	transport.log.Debug(' ', "Make and Model:      %q", transport.MakeAndModel())
+	transport.log.Nl(LogDebug)
+
 	// Open connections
 	maxconn = transport.quirks.GetUsbMaxInterfaces()
 	if maxconn == 0 {
@@ -247,6 +260,80 @@ ERROR:
 
 	dev.Close()
 	return nil, err
+}
+
+// GetDeviceIDString returns IEEE-1284 device ID string,
+// or "" id device ID is not available.
+func (transport *UsbTransport) GetDeviceIDString() string {
+	if transport.devid != nil {
+		return transport.devid.RawData
+	}
+
+	return ""
+}
+
+// Manufacturer returns the manufacturer name.
+//
+// To be consistent with CUPS USB backend, it looks for the
+// manufacturer name in the device IEEE-1284 ID string with
+// fallback to the USB manufacturer name.
+//
+// Also, for the CUPS compatibility reasons, some manufacturer
+// names mapped as following:
+//
+//	Hewlett-Packard -> HP
+//	Lexmark International -> Lexmark
+func (transport *UsbTransport) Manufacturer() string {
+	var mfg string
+
+	if transport.devid != nil {
+		mfg = transport.devid.Manufacturer()
+	}
+
+	if mfg == "" {
+		mfg = transport.info.Manufacturer
+	}
+
+	switch {
+	case strings.EqualFold(mfg, "Hewlett-Packard"):
+		mfg = "HP"
+	case strings.EqualFold(mfg, "Lexmark International"):
+		mfg = "Lexmark"
+	}
+
+	return mfg
+}
+
+// Model returns the manufacturer name.
+//
+// To be consistent with CUPS USB backend, it looks for the
+// Model name in the device IEEE-1284 ID string with fallback
+// to the USB Product name.
+func (transport *UsbTransport) Model() string {
+	var mdl string
+
+	if transport.devid != nil {
+		mdl = transport.devid.Model()
+	}
+
+	if mdl == "" {
+		mdl = transport.info.ProductName
+	}
+
+	return mdl
+}
+
+// MakeAndModel returns device Make and Model as a single string
+func (transport *UsbTransport) MakeAndModel() string {
+	mfg := transport.Manufacturer()
+	mdl := transport.Model()
+
+	makeModel := mdl
+	if mfg != "" && !strings.HasPrefix(mdl, mfg) {
+		makeModel = mfg + " " + mdl
+	}
+
+	return makeModel
 }
 
 // hardReset performs device hard reset.

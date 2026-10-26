@@ -139,10 +139,12 @@ func (devid *DeviceID) SerialNumber() string {
 	return devid.find("SERIALNUMBER", "SERN", "SN")
 }
 
+// find returns device parameter (e.g., MFG) by name.
+// If parameter cannot be found, "" is returned.
 func (devid *DeviceID) find(keys ...string) string {
 	for _, key := range keys {
 		if rec := devid.Get(key); rec != nil {
-			return rec.RawData
+			return strings.TrimSpace(rec.RawData)
 		}
 	}
 

@@ -262,8 +262,8 @@ func (info UsbDeviceInfo) CheckMissed() error {
 // MakeAndModel returns device Make and Model as a single
 // string
 func (info UsbDeviceInfo) MakeAndModel() string {
-	mfg := strings.TrimSpace(info.Manufacturer)
-	prod := strings.TrimSpace(info.ProductName)
+	mfg := info.Manufacturer
+	prod := info.ProductName
 
 	makeModel := prod
 	if mfg != "" && !strings.HasPrefix(prod, mfg) {

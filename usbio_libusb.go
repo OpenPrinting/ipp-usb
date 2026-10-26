@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -714,7 +715,7 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 
 	buf := make([]byte, 256)
 
-	strings := []struct {
+	usbstrings := []struct {
 		idx C.uint8_t
 		str *string
 	}{
@@ -723,7 +724,7 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 		{cDesc.iSerialNumber, &info.SerialNumber},
 	}
 
-	for _, s := range strings {
+	for _, s := range usbstrings {
 		// Some devices (notably the "Pantum BP5100DN series") may
 		// fail to return a string descriptor on the first attempt.
 		//
@@ -742,7 +743,7 @@ func (devhandle *UsbDevHandle) UsbDeviceInfo() (UsbDeviceInfo, error) {
 			)
 
 			if rc > 0 {
-				*s.str = string(buf[:rc])
+				*s.str = strings.TrimSpace(string(buf[:rc]))
 				break
 			}
 		}

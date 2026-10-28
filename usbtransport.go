@@ -221,6 +221,8 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.Debug(' ', "Manufacturer:        %q", transport.Manufacturer())
 	transport.log.Debug(' ', "Model:               %q", transport.Model())
 	transport.log.Debug(' ', "Make and Model:      %q", transport.MakeAndModel())
+	transport.log.Debug(' ', "Serial Number:       %q", transport.SerialNumber())
+	transport.log.Debug(' ', "URI:                 %q", transport.URI())
 	transport.log.Nl(LogDebug)
 
 	// Open connections
@@ -323,6 +325,31 @@ func (transport *UsbTransport) MakeAndModel() string {
 	mdl := transport.Model()
 
 	return MakeAndModel(mfg, mdl)
+}
+
+// SerialNumber returns device Serial Number
+func (transport *UsbTransport) SerialNumber() string {
+	var sn string
+
+	if transport.devid != nil {
+		sn = transport.devid.SerialNumber()
+	}
+
+	if sn == "" {
+		sn = transport.info.SerialNumber
+	}
+
+	return sn
+
+}
+
+// URI returns device URI, compatible with the CUPS USB backend
+func (transport *UsbTransport) URI() string {
+	mfg := transport.Manufacturer()
+	mdl := transport.Model()
+	sn := transport.SerialNumber()
+
+	return MakeURI(mfg, mdl, sn)
 }
 
 // hardReset performs device hard reset.

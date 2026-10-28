@@ -229,6 +229,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	transport.log.Debug(' ', "URI:                 %q", transport.URI())
 	transport.log.Nl(LogDebug)
 
+	// Update device state
+	transport.state.SetURI(transport.URI())
+
 	// Open connections
 	maxconn = transport.quirks.GetUsbMaxInterfaces()
 	if maxconn == 0 {

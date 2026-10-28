@@ -25,6 +25,7 @@ type DevState struct {
 	HTTPPort      int    // Allocated HTTP port
 	DNSSdName     string // DNS-SD name, as reported by device
 	DNSSdOverride string // DNS-SD name after collision resolution
+	URI           string // CUPS-compatible USB URI ("" is missed)
 
 	comment string // Comment in the state file
 	path    string // Path to the disk file
@@ -144,6 +145,8 @@ func (state *DevState) load(ini *IniFile) error {
 				state.DNSSdName = rec.Value
 			case "dns-sd-override":
 				state.DNSSdOverride = rec.Value
+			case "uri":
+				state.URI = rec.Value
 			}
 		}
 
@@ -189,6 +192,9 @@ func (state *DevState) Save() {
 	fmt.Fprintf(&buf, "http-port       = %d\n", state.HTTPPort)
 	fmt.Fprintf(&buf, "dns-sd-name     = %q\n", state.DNSSdName)
 	fmt.Fprintf(&buf, "dns-sd-override = %q\n", state.DNSSdOverride)
+	if state.URI != "" {
+		fmt.Fprintf(&buf, "uri             = %q\n", state.URI)
+	}
 
 	err := state.save(buf.Bytes())
 	if err != nil {
@@ -275,6 +281,14 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 	Log.Error('!', "STATE PORT: %s", err)
 
 	return nil, err
+}
+
+// SetURI sets DevState.URI and updates state on disk.
+func (state *DevState) SetURI(uri string) {
+	if state.URI != uri {
+		state.URI = uri
+		state.Save()
+	}
 }
 
 // devStatePath returns a path to the DevState file

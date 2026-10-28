@@ -202,7 +202,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		svc := &dnssdServices[i]
 		svc.Txt.Add("usb_MFG", dev.UsbTransport.Manufacturer())
 		svc.Txt.Add("usb_MDL", dev.UsbTransport.Model())
-		svc.Txt.Add("usb_SER", info.SerialNumber)
+		svc.Txt.Add("usb_SER", dev.UsbTransport.SerialNumber())
 		svc.Txt.Add("usb_HWID", hwid)
 	}
 

@@ -30,6 +30,7 @@ import (
 type UsbTransport struct {
 	addr           UsbAddr       // Device address
 	info           UsbDeviceInfo // USB device info
+	state          *DevState     // Persistent state
 	log            *Logger       // Device's own logger
 	dev            *UsbDevHandle // Underlying USB device
 	devid          *DeviceID     // IEEE-1284 device ID (may be nil)
@@ -129,6 +130,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		dev.Close()
 		return nil, err
 	}
+
+	// Load device state
+	transport.state = LoadDevState(transport.info)
 
 	// Honor mfg and model parameters from the HWID quirks, if present.
 	if mfg := quirks.GetMfg(); mfg != "" {
@@ -263,6 +267,20 @@ ERROR:
 
 	dev.Close()
 	return nil, err
+}
+
+// GetState returns the persistent state for device.
+func (transport *UsbTransport) GetState() *DevState {
+	return transport.state
+}
+
+// HTTPPort returns the HTTP port, allocated for device
+// (based on the persistent device state)
+func (transport *UsbTransport) HTTPPort() int {
+	if state := transport.GetState(); state != nil {
+		return state.HTTPPort
+	}
+	return 0
 }
 
 // GetDeviceIDString returns IEEE-1284 device ID string,

@@ -23,7 +23,6 @@ import (
 // There is one instance of Device object per USB device
 type Device struct {
 	UsbAddr        UsbAddr         // Device's USB address
-	State          *DevState       // Persistent state
 	HTTPClient     *http.Client    // HTTP client for internal queries
 	HTTPProxy      *HTTPProxy      // HTTP proxy
 	UsbTransport   *UsbTransport   // Backing USB transport
@@ -73,16 +72,13 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		canScan = false
 	}
 
-	// Load persistent state
-	dev.State = LoadDevState(info.Ident(), info.Comment())
-
 	// Create HTTP client for local queries
 	dev.HTTPClient = &http.Client{
 		Transport: dev.UsbTransport,
 	}
 
 	// Create net.Listener
-	listener, err = dev.State.HTTPListen()
+	listener, err = dev.UsbTransport.GetState().HTTPListen()
 	if err != nil {
 		goto ERROR
 	}
@@ -98,7 +94,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	defer log.Commit()
 
 	ippinfo, httpstatus, err = IppService(log, &dnssdServices,
-		dev.State.HTTPPort, info, dev.UsbTransport.Quirks(),
+		dev.UsbTransport.HTTPPort(),
+		info, dev.UsbTransport.Quirks(),
 		dev.HTTPClient)
 
 	if err != nil {
@@ -135,15 +132,16 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Update device state, if name changed
-	if dnssdName != dev.State.DNSSdName {
-		dev.State.DNSSdName = dnssdName
-		dev.State.DNSSdOverride = dnssdName
-		dev.State.Save()
+	if state := dev.UsbTransport.GetState(); dnssdName != state.DNSSdName {
+		state.DNSSdName = dnssdName
+		state.DNSSdOverride = dnssdName
+		state.Save()
 	}
 
 	// Obtain DNS-SD info for eSCL
-	httpstatus, err = EsclService(log, &dnssdServices, dev.State.HTTPPort, info,
-		ippinfo, dev.HTTPClient)
+	httpstatus, err = EsclService(log, &dnssdServices,
+		dev.UsbTransport.HTTPPort(),
+		info, ippinfo, dev.HTTPClient)
 
 	if err != nil {
 		dev.Log.Error('!', "ESCL: %s", err)
@@ -207,7 +205,10 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	// Advertise Web service. Assume it always exists
-	dnssdServices.Add(DNSSdSvcInfo{Type: "_http._tcp", Port: dev.State.HTTPPort})
+	dnssdServices.Add(DNSSdSvcInfo{
+		Type: "_http._tcp",
+		Port: dev.UsbTransport.HTTPPort(),
+	})
 
 	// Advertise service with the following parameters:
 	//   Instance: "BBPP", where BB and PP are bus and port numbers in hex
@@ -221,7 +222,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	dnssdServices.Add(DNSSdSvcInfo{
 		Instance: fmt.Sprintf("%.2X%.2x", desc.Bus, info.PortNum),
 		Type:     "_ipp-usb._tcp",
-		Port:     dev.State.HTTPPort,
+		Port:     dev.UsbTransport.HTTPPort(),
 		Loopback: true,
 	})
 
@@ -238,7 +239,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	}
 
 	if Conf.DNSSdEnable {
-		dev.DNSSdPublisher = NewDNSSdPublisher(dev.Log, dev.State,
+		dev.DNSSdPublisher = NewDNSSdPublisher(dev.Log,
+			dev.UsbTransport.GetState(),
 			dnssdServices)
 		err = dev.DNSSdPublisher.Publish()
 		if err != nil {

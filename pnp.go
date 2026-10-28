@@ -85,7 +85,7 @@ loop:
 				dev, err := NewDevice(devDescs[addr])
 				port := 0
 				if dev != nil {
-					port = dev.State.HTTPPort
+					port = dev.UsbTransport.HTTPPort()
 				}
 				StatusSet(addr, devDescs[addr], port, err)
 
@@ -120,7 +120,7 @@ loop:
 				dev, err := NewDevice(devDescs[addr])
 				port := 0
 				if dev != nil {
-					port = dev.State.HTTPPort
+					port = dev.UsbTransport.HTTPPort()
 				}
 				StatusSet(addr, devDescs[addr], port, err)
 

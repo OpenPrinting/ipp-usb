@@ -34,7 +34,10 @@ type DevState struct {
 //
 // This function always succeeds, even in a case of file i/o errors.
 // In a worst case we loose state persistence, not other functionality.
-func LoadDevState(ident, comment string) *DevState {
+func LoadDevState(info UsbDeviceInfo) *DevState {
+	ident := info.Ident()
+	comment := info.Comment()
+
 	state := &DevState{
 		Ident:   ident,
 		comment: comment,

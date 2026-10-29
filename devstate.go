@@ -35,11 +35,11 @@ type DevState struct {
 	path    string // Path to the disk file
 }
 
-// LoadDevState loads DevState from a disk file
+// DevStateLoad loads DevState from a disk file
 //
 // This function always succeeds, even in a case of file i/o errors.
 // In a worst case we loose state persistence, not other functionality.
-func LoadDevState(info UsbDeviceInfo) *DevState {
+func DevStateLoad(info UsbDeviceInfo) *DevState {
 	ident := info.Ident()
 	comment := info.Comment()
 

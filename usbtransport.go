@@ -132,7 +132,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	}
 
 	// Load device state
-	transport.state = LoadDevState(transport.info)
+	transport.state = DevStateLoad(transport.info)
 
 	// Honor mfg and model parameters from the HWID quirks, if present.
 	if mfg := quirks.GetMfg(); mfg != "" {

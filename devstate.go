@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -64,14 +65,15 @@ func LoadDevState(info UsbDeviceInfo) *DevState {
 	return state
 }
 
-// LoadUsedPorts loads ports used by some of devices.
-//
-// The returned map contains one entry per used port. The presence
-// of entry indicates that port is in use. The associated value is
-// the human-readable string, that explains who uses the port. This
-// string is suitable for logging purposes.
-func LoadUsedPorts() (ports map[int]string) {
-	ports = make(map[int]string)
+// DevStateLoadAll loads all DevState files
+func DevStateLoadAll() []*DevState {
+	return DevStateSearch("", "", "", "", "")
+}
+
+// DevStateSearch loads slice of device states that
+// match the search criteria.
+func DevStateSearch(mfg, mdl, sn, hwid, uri string) []*DevState {
+	states := []*DevState{}
 
 	// Read the PathDevStateDir (normally "/var/ipp-usb/dev")
 	// directory.
@@ -85,18 +87,14 @@ func LoadUsedPorts() (ports map[int]string) {
 	}
 
 	if err != nil {
-		Log.Error('!', "Can't load existing ports allocation")
+		Log.Error('!', "Can't %s/*", PathDevStateDir)
 		Log.Error('!', "%s", err)
-		return
-	}
-
-	if err != nil {
-		return
+		return nil
 	}
 
 	// Scan found files
 	for _, file := range files {
-		Log.Debug(' ', "== %s", file.Name())
+		Log.Debug(' ', "Loaded %s", file.Name())
 		if !file.Mode().IsRegular() {
 			continue
 		}
@@ -108,7 +106,7 @@ func LoadUsedPorts() (ports map[int]string) {
 			continue
 		}
 
-		state := &DevState{}
+		state := &DevState{path: path}
 		err = state.load(ini)
 		ini.Close()
 
@@ -117,12 +115,47 @@ func LoadUsedPorts() (ports map[int]string) {
 			continue
 		}
 
-		if state.HTTPPort != 0 {
-			ports[state.HTTPPort] = file.Name()
+		skip := false
+		switch {
+		case mfg != "" && mfg != state.MFG:
+			skip = true
+		case mdl != "" && mdl != state.MDL:
+			skip = true
+		case sn != "" && sn != state.SN:
+			skip = true
+		case hwid != "" && hwid != state.SN:
+			skip = true
+		case uri != "" && uri != state.URI():
+			skip = true
+		}
+
+		if !skip {
+			states = append(states, state)
 		}
 	}
 
-	return
+	return states
+}
+
+// LoadUsedPorts loads ports used by some of devices.
+//
+// The returned map contains one entry per used port. The presence
+// of entry indicates that port is in use. The associated value is
+// the human-readable string, that explains who uses the port. This
+// string is suitable for logging purposes.
+func LoadUsedPorts() (ports map[int]string) {
+	// Load all device states
+	states := DevStateLoadAll()
+
+	// Scan loaded files
+	ports = make(map[int]string, len(states))
+	for _, state := range states {
+		if state.HTTPPort != 0 {
+			ports[state.HTTPPort] = state.path
+		}
+	}
+
+	return ports
 }
 
 // load performs an actual work of loading the DevState file
@@ -174,8 +207,8 @@ func (state *DevState) loadTCPPort(out *int, rec *IniRecord) error {
 
 	if err != nil {
 		err = state.error("%s", err)
-	} else if port < 1 || port > 65535 {
-		err = state.error("%s: out of range", rec.Key)
+	} else if port > 65535 {
+		err = state.error(" %s = %s: out of range", rec.Key, rec.Value)
 	}
 
 	if err != nil {
@@ -320,6 +353,11 @@ func (state *DevState) SetUSBID(mfg, mdl, sn, hwid string) {
 	}
 }
 
+// URI returns the device URI (compatible to CUPS USB backend)
+func (state *DevState) URI() string {
+	return MakeURI(state.MFG, state.MDL, state.SN)
+}
+
 // devStatePath returns a path to the DevState file
 func (state *DevState) devStatePath() string {
 	return filepath.Join(PathDevStateDir, state.Ident+".state")
@@ -327,5 +365,6 @@ func (state *DevState) devStatePath() string {
 
 // error creates a state-related error
 func (state *DevState) error(format string, args ...interface{}) error {
-	return fmt.Errorf(state.Ident+": "+format, args...)
+	s := filepath.Base(state.path) + ": " + fmt.Sprintf(format, args...)
+	return errors.New(s)
 }

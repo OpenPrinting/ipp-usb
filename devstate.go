@@ -25,7 +25,10 @@ type DevState struct {
 	HTTPPort      int    // Allocated HTTP port
 	DNSSdName     string // DNS-SD name, as reported by device
 	DNSSdOverride string // DNS-SD name after collision resolution
-	URI           string // CUPS-compatible USB URI ("" is missed)
+	MFG           string // Device Manufacturer
+	MDL           string // Device Model
+	SN            string // Device setial number
+	HWID          string // Hardware ID ("vendor:product", in hex)
 
 	comment string // Comment in the state file
 	path    string // Path to the disk file
@@ -145,8 +148,14 @@ func (state *DevState) load(ini *IniFile) error {
 				state.DNSSdName = rec.Value
 			case "dns-sd-override":
 				state.DNSSdOverride = rec.Value
-			case "uri":
-				state.URI = rec.Value
+			case "usb_MFG":
+				state.MFG = rec.Value
+			case "usb_MDL":
+				state.MDL = rec.Value
+			case "usb_SN":
+				state.SN = rec.Value
+			case "usb_HWID":
+				state.HWID = rec.Value
 			}
 		}
 
@@ -192,8 +201,18 @@ func (state *DevState) Save() {
 	fmt.Fprintf(&buf, "http-port       = %d\n", state.HTTPPort)
 	fmt.Fprintf(&buf, "dns-sd-name     = %q\n", state.DNSSdName)
 	fmt.Fprintf(&buf, "dns-sd-override = %q\n", state.DNSSdOverride)
-	if state.URI != "" {
-		fmt.Fprintf(&buf, "uri             = %q\n", state.URI)
+
+	if state.MFG != "" {
+		fmt.Fprintf(&buf, "usb_MFG         = %q\n", state.MFG)
+	}
+	if state.MDL != "" {
+		fmt.Fprintf(&buf, "usb_MDL         = %q\n", state.MDL)
+	}
+	if state.SN != "" {
+		fmt.Fprintf(&buf, "usb_SN          = %q\n", state.SN)
+	}
+	if state.HWID != "" {
+		fmt.Fprintf(&buf, "usb_HWID        = %q\n", state.HWID)
 	}
 
 	err := state.save(buf.Bytes())
@@ -283,10 +302,20 @@ func (state *DevState) HTTPListen() (net.Listener, error) {
 	return nil, err
 }
 
-// SetURI sets DevState.URI and updates state on disk.
-func (state *DevState) SetURI(uri string) {
-	if state.URI != uri {
-		state.URI = uri
+// SetUSBID sets USB identification information of the
+// devcie and updates state on disk.
+func (state *DevState) SetUSBID(mfg, mdl, sn, hwid string) {
+	save := state.MFG != mfg ||
+		state.MDL != mdl ||
+		state.SN != sn ||
+		state.HWID != hwid
+
+	state.MFG = mfg
+	state.MDL = mdl
+	state.SN = sn
+	state.HWID = hwid
+
+	if save {
 		state.Save()
 	}
 }

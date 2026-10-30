@@ -572,6 +572,8 @@ func (rec *IniRecord) LoadAuthUIDRules(out *[]*AuthUIDRule) error {
 			allowed |= AuthOpsPrint
 		case "scan":
 			allowed |= AuthOpsScan
+		case "admin":
+			allowed |= AuthOpsAdmin
 		default:
 			return rec.errBadValue("invalid operation: %q", s)
 		}

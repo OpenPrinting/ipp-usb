@@ -74,8 +74,9 @@ const (
 	AuthOpsFax                        // Faxing
 	AuthOpsPrint                      // Printing
 	AuthOpsScan                       // Scanning
+	AuthOpsAdmin                      // Administration (via control sock)
 
-	// All and None of above
+	// All and None of above (except AuthOpsAdmin)
 	AuthOpsAll = AuthOpsConfig | AuthOpsFax | AuthOpsPrint |
 		AuthOpsScan
 	AuthOpsNone AuthOps = 0
@@ -103,6 +104,10 @@ func (ops AuthOps) String() string {
 
 	if ops&AuthOpsScan != 0 {
 		s = append(s, "scan")
+	}
+
+	if ops&AuthOpsAdmin != 0 {
+		s = append(s, "admin")
 	}
 
 	return strings.Join(s, ",")
@@ -338,6 +343,40 @@ func AuthHTTPRequest(log *Logger,
 	log.Debug(' ', "auth: allowed operations: %s", allowed)
 
 	if ops&allowed != AuthOpsNone {
+		log.Debug(' ', "auth: access granted")
+		return http.StatusOK, nil
+	}
+
+	err = errors.New("Operation not allowed. See ipp-usb.conf for details")
+	log.Error('!', "auth: %s", err)
+
+	return http.StatusForbidden, err
+}
+
+// AuthHTTPRequest performs authentication for the incoming
+// control socket admin request.
+//
+// On success, status is http.StatusOK and err is nil.
+// Otherwise, status is appropriate for HTTP error response,
+// and err explains the reason
+func AuthAdminRequest(log *Logger, uid int) (status int, err error) {
+	// Lookup UID info
+	info, err := AuthUIDinfoLookup(uid)
+	if err != nil {
+		err = fmt.Errorf("can't resolve UID %d: %s", uid, err)
+		log.Error('!', "auth: %s", err)
+		return http.StatusInternalServerError, err
+	}
+
+	log.Debug(' ', "auth: UID %d resolved:", uid)
+	log.Debug(' ', "  user names:  %s", strings.Join(info.UsrNames, ","))
+	log.Debug(' ', "  group names: %s", strings.Join(info.GrpNames, ","))
+
+	// Authenticate
+	allowed := AuthUID(info)
+	log.Debug(' ', "auth: allowed operations: %s", allowed)
+
+	if allowed&AuthOpsAdmin != AuthOpsNone {
 		log.Debug(' ', "auth: access granted")
 		return http.StatusOK, nil
 	}

@@ -268,11 +268,12 @@ Authentication parameters are all in the *[auth uid]* section:
   #     operations = users
   #
   # Operations are comma-separated list of following operations:
-  #     all    - all operations
+  #     all    - all operations, except admin
   #     config - configuration web-console
   #     fax    - faxing
   #     print  - printing
   #     scan   - scanning
+  #     admin  - administration (via control socket)
   #
   # Users have the following suntax:
   #     user   - user name
@@ -295,6 +296,7 @@ Authentication parameters are all in the *[auth uid]* section:
   #     scan       = *         # Allow any user to scan
   #     config     = @wheel    # Only wheel group members can do that
   all = *
+  admin = root, @root, @lpadmin, @sys, @wheel
 ```
 
 ## Logging configuration

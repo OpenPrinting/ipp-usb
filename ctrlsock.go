@@ -18,14 +18,17 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"mime"
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"syscall"
 )
 
@@ -57,6 +60,13 @@ var (
 		Handler:  http.HandlerFunc(ctrlsockHandler),
 		ErrorLog: log.New(Log.LineWriter(LogError, '!'), "", 0),
 	}
+
+	// ctrlsockConnTable tracks control socket connections,
+	// indexed by remote address
+	ctrlsockConnTable = map[string]*ctrlsockConn{}
+
+	// ctrlsockConnTableLock protects the ctrlsockConnTable
+	ctrlsockConnTableLock sync.Mutex
 )
 
 // ctrlsockCONFData is the data record for POST /get/conf and POST /set/conf
@@ -79,6 +89,141 @@ type ctrlsockJSONResponse struct {
 	Data interface{} `json:"data,omitempty"`
 }
 
+// ctrlsockConnAddress is the unique fake address for
+// the control socket connection.
+type ctrlsockConnAddress string
+
+// newCtrlsockConnAddress returns the new unique ctrlsockConnAddress.
+func newCtrlsockConnAddress() ctrlsockConnAddress {
+	var buf [16]byte
+	rand.Read(buf[:])
+
+	const format = "" +
+		"%8.8x-" +
+		"%4.4x-" +
+		"%4.4x-" +
+		"%4.4x-" +
+		"%12.12x"
+
+	s := fmt.Sprintf(
+		format,
+		buf[0:4],
+		buf[4:6],
+		buf[6:8],
+		buf[8:10],
+		buf[10:16])
+
+	return ctrlsockConnAddress(s)
+}
+
+// Network returns network name for the ctrlsockConnAddress.
+// It implements the net.Addr interface.
+func (ctrlsockConnAddress) Network() string {
+	return "unix"
+}
+
+// String returns string form of ctrlsockConnAddress.
+// It implements the net.Addr interface.
+func (addr ctrlsockConnAddress) String() string {
+	return string(addr)
+}
+
+// ctrlsockConn wraps net.UnixConn and adds unique remote
+// address.
+type ctrlsockConn struct {
+	*net.UnixConn                     // Underlying connection
+	remote        ctrlsockConnAddress // Remote address
+}
+
+// newCtrlsockConn wraps net.UnixConn into ctrlsockConn
+func newCtrlsockConn(conn *net.UnixConn) net.Conn {
+	addr := newCtrlsockConnAddress()
+	conn2 := &ctrlsockConn{UnixConn: conn, remote: addr}
+
+	Log.Debug('+', "ctrlsock: connection accepted: %s", addr)
+
+	ctrlsockConnTableLock.Lock()
+	ctrlsockConnTable[addr.String()] = conn2
+	ctrlsockConnTableLock.Unlock()
+
+	return conn2
+}
+
+// getCtrlsockConn returns ctrlsockConn for the incoming http.Request
+func getCtrlsockConn(r *http.Request) *ctrlsockConn {
+	ctrlsockConnTableLock.Lock()
+	defer ctrlsockConnTableLock.Unlock()
+
+	return ctrlsockConnTable[r.RemoteAddr]
+}
+
+// Close closes the connection.
+func (conn ctrlsockConn) Close() error {
+	addr := conn.remote
+	Log.Debug('-', "ctrlsock: connection closed: %s", addr)
+
+	ctrlsockConnTableLock.Lock()
+	delete(ctrlsockConnTable, addr.String())
+	ctrlsockConnTableLock.Unlock()
+
+	return conn.UnixConn.Close()
+}
+
+// RemoteAddr returns remote address of ctrlsockConn.
+func (conn ctrlsockConn) RemoteAddr() net.Addr {
+	return conn.remote
+}
+
+// Ucred returns peer credential for the connection
+// represented by ctrlsockConn.
+func (conn ctrlsockConn) Ucred() (*syscall.Ucred, error) {
+	rawConn, err := conn.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+
+	var ucred *syscall.Ucred
+	var err2 error
+	err = rawConn.Control(func(fd uintptr) {
+		ucred, err2 = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	})
+
+	switch {
+	case err != nil:
+		return nil, err
+	case err2 != nil:
+		return nil, err2
+	}
+
+	return ucred, nil
+}
+
+// ctrlsockListener wraps net.UnixListener and
+// adds unique remote address to each accepted connection.
+type ctrlsockListener struct {
+	*net.UnixListener // Underlying net.UnixListener
+}
+
+// ctrlsockListen returns new ctrlsockListener
+func ctrlsockListen(addr *net.UnixAddr) (net.Listener, error) {
+	l, err := net.ListenUnix("unix", CtrlsockAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return ctrlsockListener{l}, nil
+}
+
+// Accept returns new connection
+func (l ctrlsockListener) Accept() (net.Conn, error) {
+	conn, err := l.UnixListener.AcceptUnix()
+	if err != nil {
+		return nil, err
+	}
+
+	return newCtrlsockConn(conn), nil
+}
+
 // ctrlsockHandler handles HTTP requests that come over the
 // control socket
 func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +234,23 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 			Log.Panic(v)
 		}
 	}()
+
+	// Obtain peer credentials
+	conn := getCtrlsockConn(r)
+	if conn == nil {
+		ctrlsockRequestError(w, r, http.StatusInternalServerError,
+			"unknown connection from "+r.RemoteAddr)
+		return
+	}
+
+	ucred, err := conn.Ucred()
+	if err != nil {
+		ctrlsockRequestError(w, r, http.StatusInternalServerError,
+			err.Error())
+		return
+	}
+
+	Log.Debug(' ', "ctrlsock: request from UID=%v", ucred.Uid)
 
 	// Check request method
 	if r.Method != "GET" && r.Method != "POST" {
@@ -129,7 +291,6 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 	// Dispatch the request
 	var mime string
 	var data []byte
-	var err error
 
 	switch {
 	case r.Method == "GET" && r.URL.Path == "/devices":
@@ -238,7 +399,7 @@ func CtrlsockStart() error {
 	// Listen the socket
 	os.Remove(PathControlSocket)
 
-	listener, err := net.ListenUnix("unix", CtrlsockAddr)
+	listener, err := ctrlsockListen(CtrlsockAddr)
 	if err != nil {
 		return err
 	}

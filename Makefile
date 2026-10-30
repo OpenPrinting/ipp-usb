@@ -17,10 +17,10 @@ all:
 man:	$(MANPAGES)
 
 %.8: %.8.scdoc
-	scdoc < $< > $@
+	SOURCE_DATE_EPOCH=`date -r $< +%s` scdoc < $< > $@
 
 %.7: %.7.scdoc
-	scdoc < $< > $@
+	SOURCE_DATE_EPOCH=`date -r $< +%s` scdoc < $< > $@
 
 install: all
 	install -s -D -t $(PREFIX)/sbin ipp-usb

@@ -17,8 +17,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -26,17 +30,20 @@ import (
 )
 
 const (
-	// CtrlsockAddrVersion is the current ipp-usb API version.
+	// CtrlsockAPIVersion is the current ipp-usb API version.
 	//
 	// The protocol is versioned independently of the *ipp-usb* software
 	// release. The protocol version identifies the *ipp-usb* release in
 	// which the latest protocol changes were introduced. It remains
 	// unchanged across software releases that do not change the protocol.
-	CtrlsockAddrVersion = "0.9.35"
+	CtrlsockAPIVersion = "0.9.35"
 
 	// Common MIME types
 	ctrlSockMIMEJSON = "application/json"
 	ctrlSockMIMEText = "text/plain; charset=utf-8"
+
+	// ctrlSockMAXRequestSize is the size limit for the POST request body
+	ctrlSockMAXRequestSize = 65536
 )
 
 var (
@@ -51,6 +58,26 @@ var (
 		ErrorLog: log.New(Log.LineWriter(LogError, '!'), "", 0),
 	}
 )
+
+// ctrlsockCONFData is the data record for POST /get/conf and POST /set/conf
+// requests and response.
+type ctrlsockCONFData struct {
+	// Device identification
+	MFG  string `json:"usb_MFG,omitempty"`
+	MDL  string `json:"usb_MDL,omitempty"`
+	SN   string `json:"usb_SN,omitempty" `
+	HWID string `json:"usb_HWID,omitempty"`
+	URI  string `json:"usb_URI,omitempty"`
+
+	// Device configuration
+	Disables bool `json:"disabled,omitempty"`
+}
+
+// ctrlsockJSONResponse is the common structure for all JSON responses.
+type ctrlsockJSONResponse struct {
+	Err  string      `json:"err,omitempty"`
+	Data interface{} `json:"data,omitempty"`
+}
 
 // ctrlsockHandler handles HTTP requests that come over the
 // control socket
@@ -70,6 +97,35 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse POST request parameters
+	var rq ctrlsockCONFData
+
+	if r.Method == "POST" {
+		// Validate content type
+		contentType := r.Header.Get("Content-Type")
+		mediatype, _, err := mime.ParseMediaType(contentType)
+
+		if err != nil {
+			ctrlsockRequestError(w, r, http.StatusBadRequest,
+				"Invalid or missing Content-Type")
+			return
+		}
+
+		if mediatype != "application/json" {
+			ctrlsockRequestError(w, r, http.StatusUnsupportedMediaType,
+				"Content-Type must be application/json")
+			return
+		}
+
+		// Parse body
+		rd := io.LimitReader(r.Body, ctrlSockMAXRequestSize)
+		err = json.NewDecoder(rd).Decode(&rq)
+		if err != nil {
+			ctrlsockRequestError(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
 	// Dispatch the request
 	var mime string
 	var data []byte
@@ -82,6 +138,8 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 		mime, data, err = ctrlsockGETStatus()
 	case r.Method == "GET" && r.URL.Path == "/version":
 		mime, data, err = ctrlsockGETVersion()
+	case r.Method == "POST" && r.URL.Path == "/get/conf":
+		mime, data, err = ctrlsockPOSTGetconf(rq)
 	default:
 		ctrlsockRequestError(w, r, http.StatusNotFound, "Not found")
 		return
@@ -118,7 +176,7 @@ func ctrlsockRequestError(w http.ResponseWriter, r *http.Request,
 	}
 
 	ctrlsockRequestLog(r, status, message)
-	http.Error(w, message, http.StatusInternalServerError)
+	http.Error(w, message, status)
 }
 
 // ctrlsockRequestLog writes logging information related to
@@ -140,7 +198,37 @@ func ctrlsockGETStatus() (string, []byte, error) {
 
 // ctrlsockGETVersion handles the GET /version request
 func ctrlsockGETVersion() (string, []byte, error) {
-	return ctrlSockMIMEText, []byte(CtrlsockAddrVersion), nil
+	return ctrlSockMIMEText, []byte(CtrlsockAPIVersion), nil
+}
+
+// ctrlsockPOSTGetconf handles the POST /get/conf request
+func ctrlsockPOSTGetconf(rq ctrlsockCONFData) (string, []byte, error) {
+	states := DevStateSearch(rq.MFG, rq.MDL, rq.SN, rq.HWID, rq.URI)
+	items := make([]ctrlsockCONFData, 0, len(states))
+
+	for _, state := range states {
+		if state.MDL == "" || state.MFG == "" || state.SN == "" {
+			continue
+		}
+
+		item := ctrlsockCONFData{
+			MDL:  state.MDL,
+			MFG:  state.MFG,
+			SN:   state.SN,
+			HWID: state.HWID,
+			URI:  state.URI(),
+		}
+
+		items = append(items, item)
+	}
+
+	response := ctrlsockJSONResponse{Data: items}
+	buf := bytes.Buffer{}
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	encoder.Encode(response)
+
+	return ctrlSockMIMEJSON, buf.Bytes(), nil
 }
 
 // CtrlsockStart starts control socket server

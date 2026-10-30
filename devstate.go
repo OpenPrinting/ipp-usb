@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // DevState manages a per-device persistent state (such as HTTP
@@ -123,7 +124,7 @@ func DevStateSearch(mfg, mdl, sn, hwid, uri string) []*DevState {
 			skip = true
 		case sn != "" && sn != state.SN:
 			skip = true
-		case hwid != "" && hwid != state.SN:
+		case hwid != "" && !strings.EqualFold(hwid, state.HWID):
 			skip = true
 		case uri != "" && uri != state.URI():
 			skip = true

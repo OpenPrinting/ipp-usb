@@ -5,7 +5,7 @@
 .nh
 .ad l
 .\" Begin generated content:
-.TH "ipp-usb-api" "7" "2026-10-13" "Control API for ipp-usb"
+.TH "ipp-usb-api" "7" "2026-10-30" "Control API for ipp-usb"
 .PP
 .SH NAME
 .PP
@@ -19,6 +19,8 @@ applications to communicate with the running \fBipp-usb\fR daemon.\&
 The API uses a UNIX domain socket.\&
 .PP
 .SH PROTOCOL
+.PP
+.SS Overview
 .PP
 The control API uses HTTP over a UNIX domain socket.\& Requests are
 sent using the HTTP GET and POST methods.\&
@@ -39,11 +41,19 @@ response field was introduced is documented below.\&
 .PP
 .SS GET /status (since 0.9.22)
 .PP
+\fBAuthentication required\fR: none
+.br
+\fBResponse Content-Type:\fR text/plain
+.PP
 This is a legacy request.\& It returns a formatted status page
 containing the same information as the output of the ipp-usb status
 command.\&
 .PP
 .SS GET /version (since 0.9.35)
+.PP
+\fBAuthentication required\fR: none
+.br
+\fBResponse Content-Type:\fR text/plain
 .PP
 Returns the protocol version as a plain-text string.\&
 .PP
@@ -58,6 +68,65 @@ protocol changes were introduced.\& For example:
 .PP
 The returned version does not necessarily match the version of the
 running ipp-usb daemon.\&
+.PP
+Assume version \fB0.\&9.\&22\fR if \fB404 Not found\fR error is returned.\&
+.PP
+.SS POST /get/conf (since 0.9.35)
+.PP
+\fBAuthentication required\fR: none
+.br
+\fBRequest Content-Type:\fR application/json
+.br
+\fBResponse Content-Type:\fR application/json
+.PP
+\fBRequest data:\fR
+.nf
+.RS 4
+    {
+      // Device identification; all fields are optional
+      "usb_MFG"  : "Xerox",
+      "usb_MDL"  : "B235 MFP",
+      "usb_SN"   : "34004H030206H",
+      "usb_HWID" : "0924&9d3b",
+      "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+    }
+.fi
+.RE
+.PP
+\fBError response:\fR
+.nf
+.RS 4
+    {
+      "err": "error message"
+    }
+.fi
+.RE
+.PP
+\fBData response:\fR
+.nf
+.RS 4
+    {
+      // Array of devices, matching the search criteria
+      "data": [
+        {
+          // Device identification
+          "usb_MFG"  : "Xerox",
+          "usb_MDL"  : "B235 MFP",
+          "usb_SN"   : "34004H030206H",
+          "usb_HWID" : "0924&9d3b",
+          "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+          // Settings
+          "disabled" : false,
+        },
+      ]
+    }
+.fi
+.RE
+.PP
+This request returns array of per-device configuration records.\&
+Parameters of request specify search criteria.\& If no matching
+devices were found, empty array is returned.\&
 .PP
 .SH FILES
 .PP

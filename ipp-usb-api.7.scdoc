@@ -13,6 +13,8 @@ The API uses a UNIX domain socket.
 
 # PROTOCOL
 
+## Overview
+
 The control API uses HTTP over a UNIX domain socket. Requests are
 sent using the HTTP GET and POST methods.
 
@@ -32,11 +34,17 @@ response field was introduced is documented below.
 
 ## GET /status (since 0.9.22)
 
+*Authentication required*: none++
+*Response Content-Type:* text/plain
+
 This is a legacy request. It returns a formatted status page
 containing the same information as the output of the ipp-usb status
 command.
 
 ## GET /version (since 0.9.35)
+
+*Authentication required*: none++
+*Response Content-Type:* text/plain
 
 Returns the protocol version as a plain-text string.
 
@@ -49,6 +57,57 @@ protocol changes were introduced. For example:
 
 The returned version does not necessarily match the version of the
 running ipp-usb daemon.
+
+Assume version *0.9.22* if *404 Not found* error is returned.
+
+## POST /get/conf (since 0.9.35)
+
+*Authentication required*: none++
+*Request Content-Type:* application/json++
+*Response Content-Type:* application/json
+
+*Request data:*
+```
+    {
+      // Device identification; all fields are optional
+      "usb_MFG"  : "Xerox",
+      "usb_MDL"  : "B235 MFP",
+      "usb_SN"   : "34004H030206H",
+      "usb_HWID" : "0924&9d3b",
+      "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+    }
+```
+
+*Error response:*
+```
+    {
+      "err": "error message"
+    }
+```
+
+*Data response:*
+```
+    {
+      // Array of devices, matching the search criteria
+      "data": [
+        {
+          // Device identification
+          "usb_MFG"  : "Xerox",
+          "usb_MDL"  : "B235 MFP",
+          "usb_SN"   : "34004H030206H",
+          "usb_HWID" : "0924&9d3b",
+          "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+          // Settings
+          "disabled" : false,
+        },
+      ]
+    }
+```
+
+This request returns array of per-device configuration records.
+Parameters of request specify search criteria. If no matching
+devices were found, empty array is returned.
 
 # FILES
 

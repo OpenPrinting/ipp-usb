@@ -353,7 +353,7 @@ func AuthHTTPRequest(log *Logger,
 	return http.StatusForbidden, err
 }
 
-// AuthHTTPRequest performs authentication for the incoming
+// AuthAdminRequest performs authentication for the incoming
 // control socket admin request.
 //
 // On success, status is http.StatusOK and err is nil.

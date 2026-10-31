@@ -80,7 +80,22 @@ type ctrlsockCONFData struct {
 	URI  string `json:"usb_URI,omitempty"`
 
 	// Device configuration
-	Disables bool `json:"disabled,omitempty"`
+	Disabled *bool `json:"disabled,omitempty"`
+}
+
+// ctrlsockCONFDatafromDevState fills ctrlsockCONFData from
+// the DevState structure
+func ctrlsockCONFDatafromDevState(state *DevState) ctrlsockCONFData {
+	disabled := state.Disabled
+	data := ctrlsockCONFData{
+		MDL:      state.MDL,
+		MFG:      state.MFG,
+		SN:       state.SN,
+		HWID:     state.HWID,
+		URI:      state.URI(),
+		Disabled: &disabled,
+	}
+	return data
 }
 
 // ctrlsockJSONResponse is the common structure for all JSON responses.
@@ -291,16 +306,22 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 	// Dispatch the request
 	var mime string
 	var data []byte
+	var status int
 
 	switch {
 	case r.Method == "GET" && r.URL.Path == "/devices":
-		mime, data, err = ctrlsockGETDevices()
+		mime, data, status, err = ctrlsockGETDevices()
 	case r.Method == "GET" && r.URL.Path == "/status":
-		mime, data, err = ctrlsockGETStatus()
+		mime, data, status, err = ctrlsockGETStatus()
 	case r.Method == "GET" && r.URL.Path == "/version":
-		mime, data, err = ctrlsockGETVersion()
+		mime, data, status, err = ctrlsockGETVersion()
 	case r.Method == "POST" && r.URL.Path == "/get/conf":
-		mime, data, err = ctrlsockPOSTGetconf(rq)
+		mime, data, status, err = ctrlsockPOSTGetConf(rq)
+	case r.Method == "POST" && r.URL.Path == "/set/conf":
+		status, err = AuthAdminRequest(Log, int(ucred.Uid))
+		if err == nil {
+			mime, data, status, err = ctrlsockPOSTSetConf(rq)
+		}
 	default:
 		ctrlsockRequestError(w, r, http.StatusNotFound, "Not found")
 		return
@@ -308,8 +329,7 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Send the response
 	if err != nil {
-		ctrlsockRequestError(w, r,
-			http.StatusInternalServerError, err.Error())
+		ctrlsockRequestError(w, r, status, err.Error())
 		return
 	}
 
@@ -348,22 +368,22 @@ func ctrlsockRequestLog(r *http.Request, status int, message string) {
 }
 
 // ctrlsockGETDevices handles the GET /devices request
-func ctrlsockGETDevices() (string, []byte, error) {
-	return "", nil, errors.New("not implemented")
+func ctrlsockGETDevices() (string, []byte, int, error) {
+	return "", nil, http.StatusNotImplemented, errors.New("not implemented")
 }
 
 // ctrlsockGETStatus handles the GET /status request
-func ctrlsockGETStatus() (string, []byte, error) {
-	return ctrlSockMIMEText, StatusFormat(), nil
+func ctrlsockGETStatus() (string, []byte, int, error) {
+	return ctrlSockMIMEText, StatusFormat(), http.StatusOK, nil
 }
 
 // ctrlsockGETVersion handles the GET /version request
-func ctrlsockGETVersion() (string, []byte, error) {
-	return ctrlSockMIMEText, []byte(CtrlsockAPIVersion), nil
+func ctrlsockGETVersion() (string, []byte, int, error) {
+	return ctrlSockMIMEText, []byte(CtrlsockAPIVersion), http.StatusOK, nil
 }
 
-// ctrlsockPOSTGetconf handles the POST /get/conf request
-func ctrlsockPOSTGetconf(rq ctrlsockCONFData) (string, []byte, error) {
+// ctrlsockPOSTGetConf handles the POST /get/conf request
+func ctrlsockPOSTGetConf(rq ctrlsockCONFData) (string, []byte, int, error) {
 	states := DevStateSearch(rq.MFG, rq.MDL, rq.SN, rq.HWID, rq.URI)
 	items := make([]ctrlsockCONFData, 0, len(states))
 
@@ -372,14 +392,7 @@ func ctrlsockPOSTGetconf(rq ctrlsockCONFData) (string, []byte, error) {
 			continue
 		}
 
-		item := ctrlsockCONFData{
-			MDL:  state.MDL,
-			MFG:  state.MFG,
-			SN:   state.SN,
-			HWID: state.HWID,
-			URI:  state.URI(),
-		}
-
+		item := ctrlsockCONFDatafromDevState(state)
 		items = append(items, item)
 	}
 
@@ -389,7 +402,53 @@ func ctrlsockPOSTGetconf(rq ctrlsockCONFData) (string, []byte, error) {
 	encoder.SetEscapeHTML(false)
 	encoder.Encode(response)
 
-	return ctrlSockMIMEJSON, buf.Bytes(), nil
+	return ctrlSockMIMEJSON, buf.Bytes(), http.StatusOK, nil
+}
+
+// ctrlsockPOSTSetConf handles the POST /get/conf request
+func ctrlsockPOSTSetConf(rq ctrlsockCONFData) (string, []byte, int, error) {
+	var err error
+
+	switch {
+	case rq.MFG != "" && rq.MDL != "" && rq.SN != "":
+	case rq.HWID != "" && rq.SN != "":
+	case rq.URI != "":
+	default:
+		err = errors.New("ambiguous request")
+	}
+
+	response := ctrlsockJSONResponse{}
+	if err == nil {
+		states := DevStateSearch(rq.MFG, rq.MDL, rq.SN, rq.HWID, rq.URI)
+		if len(states) == 0 {
+			err = errors.New("device not found")
+		} else {
+			state := states[0]
+			save := false
+
+			if rq.Disabled != nil {
+				state.Disabled = *rq.Disabled
+				save = true
+			}
+
+			response.Data = ctrlsockCONFDatafromDevState(state)
+
+			if save {
+				state.Save()
+			}
+		}
+	}
+
+	if err != nil {
+		response.Err = err.Error()
+	}
+
+	buf := bytes.Buffer{}
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	encoder.Encode(response)
+
+	return ctrlSockMIMEJSON, buf.Bytes(), http.StatusOK, nil
 }
 
 // CtrlsockStart starts control socket server

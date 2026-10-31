@@ -30,6 +30,21 @@ breaking existing clients.
 The protocol version in which each endpoint and each request or
 response field was introduced is documented below.
 
+## Authentication
+
+Information requests are available to everyone. Administrative
+requests require authentication.
+
+Since all communication takes place over an **AF_UNIX** socket,
+the server uses the **SO_PEERCRED** socket option to obtain the
+UID of the calling user.
+
+To authorize administrative requests, the calling user must be
+granted **admin** permission in the **ipp-usb.conf** file.
+
+See the **Authentication** section in *ipp-usb(8)* for details
+on configuring authentication.
+
 # REQUESTS
 
 ## GET /status (since 0.9.22)
@@ -99,7 +114,7 @@ Assume version *0.9.22* if *404 Not found* error is returned.
           "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
 
           // Settings
-          "disabled" : false,
+          "disabled" : true | false,
         },
       ]
     }
@@ -109,6 +124,75 @@ This request returns array of per-device configuration records.
 Parameters of request specify search criteria. If no matching
 devices were found, empty array is returned.
 
+## POST /set/conf (since 0.9.35)
+
+*Authentication required*: admin++
+*Request Content-Type:* application/json++
+*Response Content-Type:* application/json
+
+*Request data:*
+```
+    {
+      // Device identification; all fields are optional
+      "usb_MFG"  : "Xerox",
+      "usb_MDL"  : "B235 MFP",
+      "usb_SN"   : "34004H030206H",
+      "usb_HWID" : "0924&9d3b",
+      "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+      // Settings -- supply only parameters that
+      // should be changed.
+      "disabled" : true | false,
+    }
+```
+
+*Error response:*
+```
+    {
+      "err": "error message"
+    }
+```
+
+*Data response:*
+```
+    {
+      // Empty
+      "data": {
+        // Device identification
+        "usb_MFG"  : "Xerox",
+        "usb_MDL"  : "B235 MFP",
+        "usb_SN"   : "34004H030206H",
+        "usb_HWID" : "0924&9d3b",
+        "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+        // Settings
+        "disabled" : true | false,
+      },
+    }
+```
+
+Device identification in the request should be unambigous,
+which means that at least any combibation of the identification
+parameters is provided:
+
+- usb_MFG + usb_MDL + usb_SN
+- usb_HWID + usb_SN
+- usb_URI
+
+Note, this definition of unambigous identification doesn't
+depend on amount of known devices and only depend on
+request parameters.
+
+Only those setting parameters that intendent to be changed
+should be provided in the request. Multiple parameters
+can be changed by a single request.
+
+Upon succesful completion, settings are persisted on disk
+and the state of already connected devices are updated
+appropriately.
+
+This request returns an updated device configuration record.
+
 # FILES
 
 */var/ipp-usb/ctrl*
@@ -116,11 +200,11 @@ devices were found, empty array is returned.
 
 # COPYRIGHT
 
-Copyright (c) by Alexander Pevzner (pzz@apevzner.com, pzz@pzz.msk.ru)
+Copyright (c) by Alexander Pevzner (pzz@apevzner.com, pzz@pzz.msk.ru)++
 All rights reserved.
 
-This program is licensed under 2-Clause BSD license. See LICENSE file for
-details.
+This program is licensed under 2-Clause BSD license.++
+See LICENSE file for details.
 
 ## SEE ALSO
 

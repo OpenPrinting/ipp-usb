@@ -5,7 +5,7 @@
 .nh
 .ad l
 .\" Begin generated content:
-.TH "ipp-usb-api" "7" "2026-10-30" "Control API for ipp-usb"
+.TH "ipp-usb-api" "7" "2026-10-31" "Control API for ipp-usb"
 .PP
 .SH NAME
 .PP
@@ -36,6 +36,21 @@ breaking existing clients.\&
 .PP
 The protocol version in which each endpoint and each request or
 response field was introduced is documented below.\&
+.PP
+.SS Authentication
+.PP
+Information requests are available to everyone.\& Administrative
+requests require authentication.\&
+.PP
+Since all communication takes place over an \fB\fRAF_UNIX\fB\fR socket,
+the server uses the \fB\fRSO_PEERCRED\fB\fR socket option to obtain the
+UID of the calling user.\&
+.PP
+To authorize administrative requests, the calling user must be
+granted \fB\fRadmin\fB\fR permission in the \fB\fRipp-usb.\&conf\fB\fR file.\&
+.PP
+See the \fB\fRAuthentication\fB\fR section in \fBipp-usb(8)\fR for details
+on configuring authentication.\&
 .PP
 .SH REQUESTS
 .PP
@@ -117,7 +132,7 @@ Assume version \fB0.\&9.\&22\fR if \fB404 Not found\fR error is returned.\&
           "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
 
           // Settings
-          "disabled" : false,
+          "disabled" : true | false,
         },
       ]
     }
@@ -127,6 +142,88 @@ Assume version \fB0.\&9.\&22\fR if \fB404 Not found\fR error is returned.\&
 This request returns array of per-device configuration records.\&
 Parameters of request specify search criteria.\& If no matching
 devices were found, empty array is returned.\&
+.PP
+.SS POST /set/conf (since 0.9.35)
+.PP
+\fBAuthentication required\fR: admin
+.br
+\fBRequest Content-Type:\fR application/json
+.br
+\fBResponse Content-Type:\fR application/json
+.PP
+\fBRequest data:\fR
+.nf
+.RS 4
+    {
+      // Device identification; all fields are optional
+      "usb_MFG"  : "Xerox",
+      "usb_MDL"  : "B235 MFP",
+      "usb_SN"   : "34004H030206H",
+      "usb_HWID" : "0924&9d3b",
+      "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+      // Settings -- supply only parameters that
+      // should be changed\&.
+      "disabled" : true | false,
+    }
+.fi
+.RE
+.PP
+\fBError response:\fR
+.nf
+.RS 4
+    {
+      "err": "error message"
+    }
+.fi
+.RE
+.PP
+\fBData response:\fR
+.nf
+.RS 4
+    {
+      // Empty
+      "data": {
+        // Device identification
+        "usb_MFG"  : "Xerox",
+        "usb_MDL"  : "B235 MFP",
+        "usb_SN"   : "34004H030206H",
+        "usb_HWID" : "0924&9d3b",
+        "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+        // Settings
+        "disabled" : true | false,
+      },
+    }
+.fi
+.RE
+.PP
+Device identification in the request should be unambigous,
+which means that at least any combibation of the identification
+parameters is provided:
+.PP
+.PD 0
+.IP \(bu 4
+usb_MFG + usb_MDL + usb_SN
+.IP \(bu 4
+usb_HWID + usb_SN
+.IP \(bu 4
+usb_URI
+.PD
+.PP
+Note, this definition of unambigous identification doesn'\&t
+depend on amount of known devices and only depend on
+request parameters.\&
+.PP
+Only those setting parameters that intendent to be changed
+should be provided in the request.\& Multiple parameters
+can be changed by a single request.\&
+.PP
+Upon succesful completion, settings are persisted on disk
+and the state of already connected devices are updated
+appropriately.\&
+.PP
+This request returns an updated device configuration record.\&
 .PP
 .SH FILES
 .PP
@@ -138,10 +235,12 @@ devices were found, empty array is returned.\&
 .SH COPYRIGHT
 .PP
 Copyright (c) by Alexander Pevzner (pzz@apevzner.\&com, pzz@pzz.\&msk.\&ru)
+.br
 All rights reserved.\&
 .PP
-This program is licensed under 2-Clause BSD license.\& See LICENSE file for
-details.\&
+This program is licensed under 2-Clause BSD license.\&
+.br
+See LICENSE file for details.\&
 .PP
 .SS SEE ALSO
 .PP

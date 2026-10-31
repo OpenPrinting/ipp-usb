@@ -29,8 +29,9 @@ type DevState struct {
 	DNSSdOverride string // DNS-SD name after collision resolution
 	MFG           string // Device Manufacturer
 	MDL           string // Device Model
-	SN            string // Device setial number
-	HWID          string // Hardware ID ("vendor:product", in hex)
+	SN            string // Device serial number
+	HWID          string // Hardware ID ("vendor&product", in hex)
+	Disabled      bool   // Device is disabled
 
 	comment string // Comment in the state file
 	path    string // Path to the disk file
@@ -190,6 +191,8 @@ func (state *DevState) load(ini *IniFile) error {
 				state.SN = rec.Value
 			case "usb_HWID":
 				state.HWID = rec.Value
+			case "disabled":
+				rec.LoadBool(&state.Disabled)
 			}
 		}
 
@@ -249,10 +252,14 @@ func (state *DevState) Save() {
 		fmt.Fprintf(&buf, "usb_HWID        = %q\n", state.HWID)
 	}
 
+	fmt.Fprintf(&buf, "disabled        = %v\n", state.Disabled)
+
 	err := state.save(buf.Bytes())
 	if err != nil {
 		err = state.error("%s", err)
-		Log.Error('!', "STATE SAVE: %s", err)
+		Log.Error('!', "Save %s: %s", filepath.Base(state.path), err)
+	} else {
+		Log.Debug(' ', "Save %s: OK", filepath.Base(state.path))
 	}
 }
 

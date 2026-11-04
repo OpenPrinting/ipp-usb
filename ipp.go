@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -105,6 +106,17 @@ func IppService(log *LogMessage, services *DNSSdServices,
 // closes the body cannot fill memory.
 const deviceResponseLimit = 8 << 20
 
+func readDeviceBody(r io.Reader) ([]byte, error) {
+	data, err := ioutil.ReadAll(io.LimitReader(r, deviceResponseLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > deviceResponseLimit {
+		return nil, fmt.Errorf("response exceeds %d bytes", deviceResponseLimit)
+	}
+	return data, nil
+}
+
 // ippGetPrinterAttributes performs GetPrinterAttributes query,
 // using the specified http.Client and uri
 //
@@ -174,7 +186,7 @@ func ippGetPrinterAttributes(log *LogMessage, c *http.Client, quirks *Quirks,
 	}
 
 	// Decode IPP response message
-	respData, err := ioutil.ReadAll(resp.Body)
+	respData, err := readDeviceBody(resp.Body)
 	if err != nil {
 		err = fmt.Errorf("HTTP: %s", err)
 		return

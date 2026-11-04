@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
@@ -53,7 +52,7 @@ func EsclService(log *LogMessage, services *DNSSdServices,
 		goto ERROR
 	}
 
-	xmlData, err = ioutil.ReadAll(resp.Body)
+	xmlData, err = readDeviceBody(resp.Body)
 	resp.Body.Close()
 	if err != nil {
 		goto ERROR

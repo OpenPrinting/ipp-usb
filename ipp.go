@@ -100,10 +100,6 @@ func IppService(log *LogMessage, services *DNSSdServices,
 	return
 }
 
-// deviceResponseLimit is the most a device may send for
-// Get-Printer-Attributes or ScannerCapabilities. A real device
-// document fits. Stop after this many bytes so a device that never
-// closes the body cannot fill memory.
 const deviceResponseLimit = 8 << 20
 
 func readDeviceBody(r io.Reader) ([]byte, error) {

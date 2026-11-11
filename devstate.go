@@ -127,7 +127,7 @@ func DevStateSearch(mfg, mdl, sn, hwid, uri string) []*DevState {
 			skip = true
 		case hwid != "" && !strings.EqualFold(hwid, state.HWID):
 			skip = true
-		case uri != "" && uri != state.URI():
+		case uri != "" && uri != state.URIString():
 			skip = true
 		}
 
@@ -361,9 +361,18 @@ func (state *DevState) SetUSBID(mfg, mdl, sn, hwid string) {
 	}
 }
 
-// URI returns the device URI (compatible to CUPS USB backend)
-func (state *DevState) URI() string {
-	return MakeURI(state.MFG, state.MDL, state.SN)
+// URI returns the parsed CUPS-compatible device URI
+func (state *DevState) URI() *URI {
+	return &URI{
+		MFG: state.MFG,
+		MDL: state.MDL,
+		SN:  state.SN,
+	}
+}
+
+// URIString returns the device URI string
+func (state *DevState) URIString() string {
+	return state.URI().String()
 }
 
 // devStatePath returns a path to the DevState file

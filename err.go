@@ -20,6 +20,7 @@ var (
 	ErrNoMemory     = errors.New("Not enough memory")
 	ErrShutdown     = errors.New("Shutdown requested")
 	ErrBlackListed  = errors.New("Device is blacklisted")
+	ErrDisabled     = errors.New("Device is disabled")
 	ErrInitTimedOut = errors.New("Device initialization timed out")
 	ErrUnusable     = errors.New("Device doesn't implement print or scan service")
 	ErrNoIppUsb     = errors.New("ipp-usb daemon not running")

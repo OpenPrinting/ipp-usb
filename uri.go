@@ -13,19 +13,27 @@ import (
 	"strings"
 )
 
-// MakeURI builds device URI string.
+// URI contains information, encoded into the CUPS-compatible
+// USB device URI
+type URI struct {
+	MFG string // Device Manufacturer
+	MDL string // Device Model
+	SN  string // Device serial number
+}
+
+// String converts information, represented by URIData,
+// into the URI string:
 //
-// The returned string is compatible for the CUPS USB backend
-// for the same device.
-func MakeURI(mfg, mdl, sn string) string {
+//	usb://Xerox/B235%20MFP?serial=34004H030206H
+func (u URI) String() string {
 	buf := strings.Builder{}
 
 	buf.WriteString("usb://")
-	uriEncode(&buf, mfg, "\"#/:<>?@[\\]^`{|}")
+	uriEncode(&buf, u.MFG, "\"#/:<>?@[\\]^`{|}")
 	buf.WriteByte('/')
-	uriEncode(&buf, mdl, "")
+	uriEncode(&buf, u.MDL, "")
 	buf.WriteString("?serial=")
-	uriEncode(&buf, sn, "")
+	uriEncode(&buf, u.SN, "")
 
 	return buf.String()
 }

@@ -45,12 +45,17 @@ type UsbTransport struct {
 	timeoutExpired uint32        // Atomic non-zero, if timeout expired
 }
 
-// NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB
-func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
+// NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB.
+//
+// This function may return an error and the nil UsbTransport but
+// non-nil URI. In particular, it can happen if device is disabled
+// by configuration. At this case, the returned URI provides enough
+// information to re-enable the device dynamically.
+func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, *URI, error) {
 	// Open the device
 	dev, err := UsbOpenDevice(desc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create UsbTransport
@@ -101,7 +106,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 	if quirks.GetBlacklist() {
 		err = ErrBlackListed
 		dev.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	if quirks.GetInitReset() == QuirkResetHard {
@@ -128,11 +133,17 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 
 	if err != nil {
 		dev.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Load device state
 	transport.state = DevStateLoad(transport.info)
+	uri := transport.state.URI()
+
+	if transport.state.Disabled {
+		dev.Close()
+		return nil, uri, ErrDisabled
+	}
 
 	// Honor mfg and model parameters from the HWID quirks, if present.
 	if mfg := quirks.GetMfg(); mfg != "" {
@@ -265,7 +276,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, error) {
 		transport.connPool <- conn
 	}
 
-	return transport, nil
+	return transport, uri, nil
 
 	// Error: cleanup and exit
 ERROR:
@@ -274,7 +285,7 @@ ERROR:
 	}
 
 	dev.Close()
-	return nil, err
+	return nil, uri, err
 }
 
 // GetState returns the persistent state for device.
@@ -370,12 +381,12 @@ func (transport *UsbTransport) SerialNumber() string {
 }
 
 // URI returns device URI, compatible with the CUPS USB backend
-func (transport *UsbTransport) URI() string {
-	mfg := transport.Manufacturer()
-	mdl := transport.Model()
-	sn := transport.SerialNumber()
-
-	return MakeURI(mfg, mdl, sn)
+func (transport *UsbTransport) URI() URI {
+	return URI{
+		MFG: transport.Manufacturer(),
+		MDL: transport.Model(),
+		SN:  transport.SerialNumber(),
+	}
 }
 
 // hardReset performs device hard reset.

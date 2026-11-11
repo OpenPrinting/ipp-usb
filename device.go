@@ -30,8 +30,13 @@ type Device struct {
 	Log            *Logger         // Device's logger
 }
 
-// NewDevice creates new Device object
-func NewDevice(desc UsbDeviceDesc) (*Device, error) {
+// NewDevice creates new Device object.
+//
+// This function may return an error and the nil Device, but
+// non-nil URI. In particular, it can happen if device is disabled
+// by configuration. At this case, the returned URI provides enough
+// information to re-enable the device dynamically.
+func NewDevice(desc UsbDeviceDesc) (*Device, *URI, error) {
 	dev := &Device{
 		UsbAddr: desc.UsbAddr,
 	}
@@ -50,7 +55,8 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 	var canScan bool
 
 	// Create USB transport
-	dev.UsbTransport, err = NewUsbTransport(desc)
+	var uri *URI
+	dev.UsbTransport, uri, err = NewUsbTransport(desc)
 	if err != nil {
 		goto ERROR
 	}
@@ -248,7 +254,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, error) {
 		}
 	}
 
-	return dev, nil
+	return dev, uri, nil
 
 ERROR:
 	if dev.HTTPProxy != nil {
@@ -268,7 +274,7 @@ ERROR:
 		listener.Close()
 	}
 
-	return nil, err
+	return nil, uri, err
 }
 
 // Shutdown gracefully shuts down the device. If provided context

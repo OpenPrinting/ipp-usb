@@ -92,7 +92,7 @@ func ctrlsockCONFDatafromDevState(state *DevState) ctrlsockCONFData {
 		MFG:      state.MFG,
 		SN:       state.SN,
 		HWID:     state.HWID,
-		URI:      state.URI(),
+		URI:      state.URIString(),
 		Disabled: &disabled,
 	}
 	return data

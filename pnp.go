@@ -82,7 +82,7 @@ loop:
 			// Handle added devices
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
-				dev, err := NewDevice(devDescs[addr])
+				dev, _, err := NewDevice(devDescs[addr])
 				port := 0
 				if dev != nil {
 					port = dev.UsbTransport.HTTPPort()
@@ -117,7 +117,7 @@ loop:
 				}
 
 				Log.Debug('+', "PNP %s: retry", addr)
-				dev, err := NewDevice(devDescs[addr])
+				dev, _, err := NewDevice(devDescs[addr])
 				port := 0
 				if dev != nil {
 					port = dev.UsbTransport.HTTPPort()

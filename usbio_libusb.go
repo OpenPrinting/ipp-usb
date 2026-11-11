@@ -493,17 +493,38 @@ func (devhandle *UsbDevHandle) Configure(desc UsbDeviceDesc) error {
 // GetDeviceIDString returns IEEE-1284 Device ID string.
 // If Device ID cannot be obtained, it returns "".
 //
-// Device needs to be configured before this function can
-// be used.
+// Note, this function may have a side effect by changing the USB
+// device configuration. This is unlikely to cause any problems,
+// because printers rarely have more that 1 configuration.
 func (devhandle *UsbDevHandle) GetDeviceIDString() string {
 	dev := C.libusb_get_device((*C.libusb_device_handle)(devhandle))
 
-	// Get current configuration
-	var config C.int
-	rc := C.libusb_get_configuration((*C.libusb_device_handle)(devhandle), &config)
+	// Save current configuration
+	var oldConfig C.int
+
+	rc := C.libusb_get_configuration(
+		(*C.libusb_device_handle)(devhandle),
+		&oldConfig)
 	if rc < 0 {
-		return ""
+		// If configuration cannot be read, assume device
+		// is not configured
+		oldConfig = C.int(-1)
 	}
+
+	// Make sure configuration is restored on return
+	curConfig := oldConfig
+	defer func() {
+		if oldConfig != -1 && curConfig != -1 &&
+			oldConfig != curConfig {
+			// If the old configuration cannot be restored,
+			// we can't do anything with that.
+			//
+			// So just do ours best and ignore any possible error.
+			C.libusb_set_configuration(
+				(*C.libusb_device_handle)(devhandle),
+				oldConfig)
+		}
+	}()
 
 	// Obtain device descriptor
 	var cDesc C.libusb_device_descriptor_struct
@@ -512,7 +533,7 @@ func (devhandle *UsbDevHandle) GetDeviceIDString() string {
 		return ""
 	}
 
-	// Roll over all interfaces
+	// Roll over all configurations
 	for cfgNum := 0; cfgNum < int(cDesc.bNumConfigurations); cfgNum++ {
 		// Obtain configuration descriptor
 		var conf *C.libusb_config_descriptor_struct
@@ -521,65 +542,76 @@ func (devhandle *UsbDevHandle) GetDeviceIDString() string {
 			continue
 		}
 
-		// Make sure we use the current configuration
-		if config == C.int(conf.bConfigurationValue) {
-			// Roll over interfaces
-			ifcnt := conf.bNumInterfaces
-			ifaces := (*[256]C.libusb_interface_struct)(
-				unsafe.Pointer(conf._interface))[:ifcnt:ifcnt]
+		defer C.libusb_free_config_descriptor(conf)
 
-			for _, iface := range ifaces {
-				altcnt := iface.num_altsetting
-				alts := (*[256]C.libusb_interface_descriptor_struct)(
-					unsafe.Pointer(iface.altsetting))[:altcnt:altcnt]
+		config := C.int(conf.bConfigurationValue)
 
-				// Roll over alt settings
-				for _, alt := range alts {
-					// We are only interested in printer interfaces,
-					// I.e., Class == 7, SubClass == 1
-					if alt.bInterfaceClass != 7 || alt.bInterfaceSubClass != 1 {
+		// Roll over interfaces
+		ifcnt := conf.bNumInterfaces
+		ifaces := (*[256]C.libusb_interface_struct)(
+			unsafe.Pointer(conf._interface))[:ifcnt:ifcnt]
+
+		for _, iface := range ifaces {
+			altcnt := iface.num_altsetting
+			alts := (*[256]C.libusb_interface_descriptor_struct)(
+				unsafe.Pointer(iface.altsetting))[:altcnt:altcnt]
+
+			// Roll over alt settings
+			for _, alt := range alts {
+				// We are only interested in printer interfaces,
+				// I.e., Class == 7, SubClass == 1
+				if alt.bInterfaceClass != 7 || alt.bInterfaceSubClass != 1 {
+					continue
+				}
+
+				// Set device configuration, if not yet
+				if config != curConfig {
+					rc = C.libusb_set_configuration(
+						(*C.libusb_device_handle)(devhandle),
+						config)
+					if rc < 0 {
 						continue
 					}
 
-					// Fetch IEEE-1284 Device ID string
-					var buf [2048]byte
-
-					ifno := alt.bInterfaceNumber
-					altno := alt.bAlternateSetting
-
-					rc = C.libusb_control_transfer(
-						(*C.libusb_device_handle)(devhandle),
-						C.LIBUSB_REQUEST_TYPE_CLASS|C.LIBUSB_ENDPOINT_IN|
-							C.LIBUSB_RECIPIENT_INTERFACE,
-						0,
-						C.uint16_t(cfgNum),
-						(C.uint16_t(ifno)<<8)|C.uint16_t(altno),
-						(*C.uchar)(unsafe.Pointer(&buf[0])), C.uint16_t(len(buf)),
-						1000)
-
-					// According to the IEEE-1284, the length of the Device ID string
-					// is saved in the first two bytes of returned data, MSB first.
-					//
-					// If length is out of range, assume that vendor incorrectly
-					// implemented the IEEE-1284 spec and retry with the LSB first.
-					//
-					// If that fails too, use count of transferred bytes instead.
-					if rc > 2 {
-						length := (C.int(buf[0]) << 8) | C.int(buf[1])
-						if length < 2 || length > rc {
-							length = (C.int(buf[1]) << 8) | C.int(buf[0])
-						}
-						if length < 2 || length > rc {
-							length = rc
-						}
-
-						return string(buf[2:length])
-					}
+					curConfig = config
 				}
 
+				// Fetch IEEE-1284 Device ID string
+				var buf [2048]byte
+
+				ifno := alt.bInterfaceNumber
+				altno := alt.bAlternateSetting
+
+				rc = C.libusb_control_transfer(
+					(*C.libusb_device_handle)(devhandle),
+					C.LIBUSB_REQUEST_TYPE_CLASS|C.LIBUSB_ENDPOINT_IN|
+						C.LIBUSB_RECIPIENT_INTERFACE,
+					0,
+					C.uint16_t(cfgNum),
+					(C.uint16_t(ifno)<<8)|C.uint16_t(altno),
+					(*C.uchar)(unsafe.Pointer(&buf[0])), C.uint16_t(len(buf)),
+					1000)
+
+				// According to the IEEE-1284, the length of the Device ID string
+				// is saved in the first two bytes of returned data, MSB first.
+				//
+				// If length is out of range, assume that vendor incorrectly
+				// implemented the IEEE-1284 spec and retry with the LSB first.
+				//
+				// If that fails too, use count of transferred bytes instead.
+				if rc > 2 {
+					length := (C.int(buf[0]) << 8) | C.int(buf[1])
+					if length < 2 || length > rc {
+						length = (C.int(buf[1]) << 8) | C.int(buf[0])
+					}
+					if length < 2 || length > rc {
+						length = rc
+					}
+
+					return string(buf[2:length])
+				}
 			}
 
-			C.libusb_free_config_descriptor(conf)
 		}
 	}
 

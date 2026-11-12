@@ -431,10 +431,15 @@ func ctrlsockPOSTSetConf(rq ctrlsockCONFData) (string, []byte, int, error) {
 				save = true
 			}
 
-			response.Data = ctrlsockCONFDatafromDevState(state)
-
 			if save {
-				state.Save()
+				err = PnPUpdateState(state)
+				if err == nil {
+					state.Save()
+				}
+			}
+
+			if err == nil {
+				response.Data = ctrlsockCONFDatafromDevState(state)
 			}
 		}
 	}

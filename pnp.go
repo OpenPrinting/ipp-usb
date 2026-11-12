@@ -26,20 +26,28 @@ const (
 	PnPTerm                      // Terminating signal received
 )
 
-// pnpRetryTime returns time of next retry of failed device initialization
-func pnpRetryTime(err error) time.Time {
-	if err == ErrBlackListed || err == ErrUnusable {
-		// These errors are unrecoverable.
-		// Forget about device for the next million hours :-)
-		return time.Now().Add(time.Hour * 1e6)
-	}
+// pnpUpdateStateRequestChan used to send pnpUpdateStateRequest
+// messages to the PnP manager.
+var pnpUpdateStateRequestChan = make(chan pnpUpdateStateRequest)
 
-	return time.Now().Add(DevInitRetryInterval)
+// pnpUpdateStateRequest is the synchronous request to update
+// state of running device.
+type pnpUpdateStateRequest struct {
+	state    *DevState
+	response chan error
 }
 
-// pnpRetryExpired checks if device initialization retry time expired
-func pnpRetryExpired(tm time.Time) bool {
-	return !time.Now().Before(tm)
+// PnPUpdateState updates state of running device, such as
+func PnPUpdateState(state *DevState) error {
+	rq := pnpUpdateStateRequest{
+		state:    state,
+		response: make(chan error),
+	}
+
+	pnpUpdateStateRequestChan <- rq
+	err := <-rq.response
+
+	return err
 }
 
 // PnPStart start PnP manager
@@ -154,6 +162,9 @@ loop:
 		select {
 		case <-UsbHotPlugChan:
 		case <-ticker.C:
+		case rq := <-pnpUpdateStateRequestChan:
+			Log.Debug('+', "PNP %s: state update", rq.state.URIString())
+			close(rq.response)
 		case sig := <-sigChan:
 			Log.Info(' ', "%s signal received, exiting", sig)
 			break loop
@@ -178,4 +189,20 @@ loop:
 
 	done.Wait()
 	return PnPTerm
+}
+
+// pnpRetryTime returns time of next retry of failed device initialization
+func pnpRetryTime(err error) time.Time {
+	if err == ErrBlackListed || err == ErrUnusable {
+		// These errors are unrecoverable.
+		// Forget about device for the next million hours :-)
+		return time.Now().Add(time.Hour * 1e6)
+	}
+
+	return time.Now().Add(DevInitRetryInterval)
+}
+
+// pnpRetryExpired checks if device initialization retry time expired
+func pnpRetryExpired(tm time.Time) bool {
+	return !time.Now().Before(tm)
 }

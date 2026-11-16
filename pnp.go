@@ -73,6 +73,38 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 		defer CtrlsockStop()
 	}
 
+	// addDevice handles adding a device
+	addDevice := func(desc UsbDeviceDesc) {
+		addr := desc.UsbAddr
+		dev, _, err := NewDevice(desc)
+
+		port := 0
+		if dev != nil {
+			port = dev.UsbTransport.HTTPPort()
+		}
+		StatusSet(addr, desc, port, err)
+
+		if err == nil {
+			devByAddr[addr] = dev
+			delete(retryByAddr, addr)
+		} else {
+			Log.Error('!', "PNP %s: %s", addr, err)
+			retryByAddr[addr] = pnpRetryTime(err)
+		}
+	}
+
+	// delDevice handles removal of the device
+	delDevice := func(addr UsbAddr) {
+		delete(retryByAddr, addr)
+		StatusDel(addr)
+
+		dev, ok := devByAddr[addr]
+		if ok {
+			dev.Close()
+			delete(devByAddr, addr)
+		}
+	}
+
 	// Serve PnP events until terminated
 loop:
 	for {
@@ -90,32 +122,13 @@ loop:
 			// Handle added devices
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
-				dev, _, err := NewDevice(devDescs[addr])
-				port := 0
-				if dev != nil {
-					port = dev.UsbTransport.HTTPPort()
-				}
-				StatusSet(addr, devDescs[addr], port, err)
-
-				if err == nil {
-					devByAddr[addr] = dev
-				} else {
-					Log.Error('!', "PNP %s: %s", addr, err)
-					retryByAddr[addr] = pnpRetryTime(err)
-				}
+				addDevice(devDescs[addr])
 			}
 
 			// Handle removed devices
 			for _, addr := range removed {
 				Log.Debug('-', "PNP %s: removed", addr)
-				delete(retryByAddr, addr)
-				StatusDel(addr)
-
-				dev, ok := devByAddr[addr]
-				if ok {
-					dev.Close()
-					delete(devByAddr, addr)
-				}
+				delDevice(addr)
 			}
 
 			// Handle devices, waiting for retry
@@ -125,20 +138,7 @@ loop:
 				}
 
 				Log.Debug('+', "PNP %s: retry", addr)
-				dev, _, err := NewDevice(devDescs[addr])
-				port := 0
-				if dev != nil {
-					port = dev.UsbTransport.HTTPPort()
-				}
-				StatusSet(addr, devDescs[addr], port, err)
-
-				if err == nil {
-					devByAddr[addr] = dev
-					delete(retryByAddr, addr)
-				} else {
-					Log.Error('!', "PNP %s: %s", addr, err)
-					retryByAddr[addr] = pnpRetryTime(err)
-				}
+				addDevice(devDescs[addr])
 			}
 		}
 

@@ -56,8 +56,12 @@ func PnPUpdateState(state *DevState) error {
 // devices to serve
 func PnPStart(exitWhenIdle bool) PnPExitReason {
 	devices := UsbAddrList{}
+	var descByAddr map[UsbAddr]UsbDeviceDesc
 	devByAddr := make(map[UsbAddr]*Device)
 	retryByAddr := make(map[UsbAddr]time.Time)
+	addrByURI := make(map[URI]UsbAddr)
+	uriByAddr := make(map[UsbAddr]URI)
+
 	sigChan := make(chan os.Signal, 1)
 	ticker := time.NewTicker(DevInitRetryInterval / 4)
 	tickerRunning := true
@@ -74,9 +78,14 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 	}
 
 	// addDevice handles adding a device
-	addDevice := func(desc UsbDeviceDesc) {
-		addr := desc.UsbAddr
-		dev, _, err := NewDevice(desc)
+	addDevice := func(addr UsbAddr, state *DevState) error {
+		desc := descByAddr[addr]
+		dev, uri, err := NewDevice(desc, state)
+
+		if uri != nil {
+			addrByURI[*uri] = addr
+			uriByAddr[addr] = *uri
+		}
 
 		port := 0
 		if dev != nil {
@@ -89,14 +98,34 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 			delete(retryByAddr, addr)
 		} else {
 			Log.Error('!', "PNP %s: %s", addr, err)
-			retryByAddr[addr] = pnpRetryTime(err)
+			if err != ErrDisabled {
+				retryByAddr[addr] = pnpRetryTime(err)
+			}
 		}
+
+		return err
 	}
 
 	// delDevice handles removal of the device
-	delDevice := func(addr UsbAddr) {
+	//
+	// Device can be removed either due to the
+	// configuration change or physical disconnect.
+	//
+	// If disconnect flag is set, which indicates the
+	// physical removal of device, it will be removed
+	// from the uriByAddr and addrByURI tables.
+	delDevice := func(addr UsbAddr, disconnect bool) {
 		delete(retryByAddr, addr)
-		StatusDel(addr)
+
+		if disconnect {
+			if uri, found := uriByAddr[addr]; found {
+				delete(uriByAddr, addr)
+				delete(addrByURI, uri)
+			}
+			StatusDel(addr)
+		} else {
+			StatusUpdateInitError(addr, ErrDisabled)
+		}
 
 		dev, ok := devByAddr[addr]
 		if ok {
@@ -105,14 +134,37 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 		}
 	}
 
+	// updateDeviceState handles DevState update request on
+	// a context of the PnP manager
+	updateDeviceState := func(state *DevState) error {
+		addr, found := addrByURI[*state.URI()]
+		if !found {
+			return nil
+		}
+
+		dev := devByAddr[addr]
+		switch {
+		case dev != nil && state.Disabled:
+			Log.Debug('-', "PNP %s: disabled", addr)
+			delDevice(addr, false)
+			return nil
+		case dev == nil && !state.Disabled:
+			Log.Debug('+', "PNP %s: enabled", addr)
+			err = addDevice(addr, state)
+			return err
+		}
+
+		return nil
+	}
+
 	// Serve PnP events until terminated
 loop:
 	for {
-		devDescs, err := UsbGetIppOverUsbDeviceDescs()
+		descByAddr, err = UsbGetIppOverUsbDeviceDescs()
 
 		if err == nil {
 			newdevices := UsbAddrList{}
-			for _, desc := range devDescs {
+			for _, desc := range descByAddr {
 				newdevices.Add(desc.UsbAddr)
 			}
 
@@ -122,13 +174,13 @@ loop:
 			// Handle added devices
 			for _, addr := range added {
 				Log.Debug('+', "PNP %s: added", addr)
-				addDevice(devDescs[addr])
+				addDevice(addr, nil)
 			}
 
 			// Handle removed devices
 			for _, addr := range removed {
 				Log.Debug('-', "PNP %s: removed", addr)
-				delDevice(addr)
+				delDevice(addr, true)
 			}
 
 			// Handle devices, waiting for retry
@@ -138,7 +190,7 @@ loop:
 				}
 
 				Log.Debug('+', "PNP %s: retry", addr)
-				addDevice(devDescs[addr])
+				addDevice(addr, nil)
 			}
 		}
 
@@ -163,7 +215,17 @@ loop:
 		case <-UsbHotPlugChan:
 		case <-ticker.C:
 		case rq := <-pnpUpdateStateRequestChan:
-			Log.Debug('+', "PNP %s: state update", rq.state.URIString())
+			Log.Debug('+', "PNP %s: state update: requested",
+				rq.state.URIString())
+			err := updateDeviceState(rq.state)
+			if err != nil {
+				Log.Debug('+', "PNP %s: state update: %s",
+					rq.state.URIString(), err)
+				rq.response <- err
+			} else {
+				Log.Debug('+', "PNP %s: state update: OK",
+					rq.state.URIString())
+			}
 			close(rq.response)
 		case sig := <-sigChan:
 			Log.Info(' ', "%s signal received, exiting", sig)

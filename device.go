@@ -32,11 +32,14 @@ type Device struct {
 
 // NewDevice creates new Device object.
 //
+// The optional state parameter, if not nil, allows to override device
+// state loading from disk.
+//
 // This function may return an error and the nil Device, but
 // non-nil URI. In particular, it can happen if device is disabled
 // by configuration. At this case, the returned URI provides enough
 // information to re-enable the device dynamically.
-func NewDevice(desc UsbDeviceDesc) (*Device, *URI, error) {
+func NewDevice(desc UsbDeviceDesc, state *DevState) (*Device, *URI, error) {
 	dev := &Device{
 		UsbAddr: desc.UsbAddr,
 	}
@@ -56,7 +59,7 @@ func NewDevice(desc UsbDeviceDesc) (*Device, *URI, error) {
 
 	// Create USB transport
 	var uri *URI
-	dev.UsbTransport, uri, err = NewUsbTransport(desc)
+	dev.UsbTransport, uri, err = NewUsbTransport(desc, state)
 	if err != nil {
 		goto ERROR
 	}

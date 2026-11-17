@@ -47,11 +47,16 @@ type UsbTransport struct {
 
 // NewUsbTransport creates new http.RoundTripper backed by IPP-over-USB.
 //
+// The optional state parameter, if not nil, allows to override device
+// state loading from disk.
+//
 // This function may return an error and the nil UsbTransport but
 // non-nil URI. In particular, it can happen if device is disabled
 // by configuration. At this case, the returned URI provides enough
 // information to re-enable the device dynamically.
-func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, *URI, error) {
+func NewUsbTransport(desc UsbDeviceDesc, state *DevState) (
+	*UsbTransport, *URI, error) {
+
 	// Open the device
 	dev, err := UsbOpenDevice(desc)
 	if err != nil {
@@ -61,6 +66,7 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, *URI, error) {
 	// Create UsbTransport
 	transport := &UsbTransport{
 		addr:         desc.UsbAddr,
+		state:        state,
 		log:          NewLogger(),
 		dev:          dev,
 		connReleased: make(chan struct{}, 1),
@@ -137,7 +143,9 @@ func NewUsbTransport(desc UsbDeviceDesc) (*UsbTransport, *URI, error) {
 	}
 
 	// Load device state
-	transport.state = DevStateLoad(transport.info)
+	if transport.state == nil {
+		transport.state = DevStateLoad(transport.info)
+	}
 	uri := transport.state.URI()
 
 	if transport.state.Disabled {

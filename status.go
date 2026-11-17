@@ -122,12 +122,26 @@ func StatusFormat() []byte {
 // of the already known device
 func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
 	statusLock.Lock()
+	defer statusLock.Unlock()
+
 	statusTable[addr] = &StatusOfDevice{
 		desc:     desc,
 		init:     init,
 		HTTPPort: HTTPPort,
 	}
-	statusLock.Unlock()
+}
+
+// StatusUpdateInitError updates the initialization
+// error, returned as a part of status.
+func StatusUpdateInitError(addr UsbAddr, init error) {
+	statusLock.Lock()
+	defer statusLock.Unlock()
+
+	status, found := statusTable[addr]
+	if found {
+		status.init = init
+		statusTable[addr] = status
+	}
 }
 
 // StatusDel deletes device from the status table

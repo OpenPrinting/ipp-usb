@@ -215,6 +215,14 @@ func (conn ctrlsockConn) Ucred() (*syscall.Ucred, error) {
 
 // ctrlsockListener wraps net.UnixListener and
 // adds unique remote address to each accepted connection.
+//
+// This address is later available as the http.Request.RemoteAddr
+// for every HTTP requests received from the control socket.
+//
+// It allows us to match HTTP-level requests against the
+// underlying AF_UNIX socket. It is required to implement
+// the SO_PEERCRED-based authentication of the control
+// socket clients.
 type ctrlsockListener struct {
 	*net.UnixListener // Underlying net.UnixListener
 }

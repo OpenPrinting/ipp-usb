@@ -32,6 +32,9 @@ Modes are:
 Options are
     -bg         - run in background (ignored in debug mode)
 
+    -console    - duplicate logs to console, regardless of the
+                  run mode (ignored in background mode)
+
     -path-conf-files-srch dir1[:dir2...]
         List of directories where configuration files (ipp-usb.conf)
 	are searched (%s)
@@ -101,6 +104,7 @@ func (m RunMode) String() string {
 type RunParameters struct {
 	Mode       RunMode // Run mode
 	Background bool    // Run in background
+	Console    bool    // Send logs to console
 }
 
 // usage prints detailed usage and exits
@@ -166,6 +170,8 @@ func parseArgv() (params RunParameters) {
 			modes++
 		case "-bg":
 			params.Background = true
+		case "-console":
+			params.Console = true
 
 		case "-path-log-dir":
 			optarg = &PathLogDir
@@ -206,6 +212,10 @@ func parseArgv() (params RunParameters) {
 
 	if params.Mode == RunDebug {
 		params.Background = false
+	}
+
+	if params.Background {
+		params.Console = false
 	}
 
 	return
@@ -254,7 +264,8 @@ func main() {
 	// Setup logging
 	if params.Mode != RunDebug &&
 		params.Mode != RunCheck &&
-		params.Mode != RunStatus {
+		params.Mode != RunStatus &&
+		!params.Console {
 		Console.ToNowhere()
 	} else if Conf.ColorConsole {
 		Console.ToColorConsole()
@@ -381,7 +392,7 @@ func main() {
 	InitLog.Check(err)
 
 	// Close stdin/stdout/stderr, unless running in debug mode
-	if params.Mode != RunDebug {
+	if params.Mode != RunDebug && !params.Console {
 		err = CloseStdInOutErr()
 		InitLog.Check(err)
 	}

@@ -66,6 +66,8 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 	ticker := time.NewTicker(DevInitRetryInterval / 4)
 	tickerRunning := true
 
+	idleTimer := time.NewTimer(time.Hour)
+
 	signal.Notify(sigChan,
 		os.Signal(syscall.SIGINT),
 		os.Signal(syscall.SIGTERM),
@@ -196,8 +198,27 @@ loop:
 
 		// Handle exit when idle
 		if exitWhenIdle && len(devices) == 0 {
-			Log.Info(' ', "No IPP-over-USB devices present, exiting")
-			return PnPIdle
+			CtrlsockPause()
+
+			idle, used := CtrlsockIdle()
+			var timeout time.Duration
+
+			if used {
+				timeout = UdevStayIdleAfterCtrlsockActivity - idle
+			} else {
+				timeout = UdevStayIdleAfteCtrlsockInit - idle
+			}
+
+			if timeout <= 100*time.Millisecond {
+				Log.Info(' ', "No IPP-over-USB devices present, exiting")
+				return PnPIdle
+			}
+
+			Log.Info(' ', "No IPP-over-USB devices present, idle-wait for %ss",
+				fmtDuration(timeout))
+			idleTimer.Reset(timeout)
+
+			CtrlsockResume()
 		}
 
 		// Update ticker
@@ -214,6 +235,7 @@ loop:
 		select {
 		case <-UsbHotPlugChan:
 		case <-ticker.C:
+		case <-idleTimer.C:
 		case rq := <-pnpUpdateStateRequestChan:
 			Log.Debug('+', "PNP %s: state update: requested",
 				rq.state.URIString())

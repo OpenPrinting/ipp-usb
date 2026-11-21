@@ -30,6 +30,7 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 )
 
 const (
@@ -54,8 +55,11 @@ var (
 	// a form of the net.UnixAddr structure
 	CtrlsockAddr = &net.UnixAddr{Name: PathControlSocket, Net: "unix"}
 
+	// ctrlsockSocket is the control socket's listener
+	ctrlsockSocket *ctrlsockListener
+
 	// ctrlsockServer is a HTTP server that runs on a top of
-	// the status socket
+	// the control socket
 	ctrlsockServer = http.Server{
 		Handler:  http.HandlerFunc(ctrlsockHandler),
 		ErrorLog: log.New(Log.LineWriter(LogError, '!'), "", 0),
@@ -223,28 +227,111 @@ func (conn ctrlsockConn) Ucred() (*syscall.Ucred, error) {
 // underlying AF_UNIX socket. It is required to implement
 // the SO_PEERCRED-based authentication of the control
 // socket clients.
+//
+// It also reports its idle time (time since the last incoming
+// connection accepted) and can be paused and resumed.
 type ctrlsockListener struct {
-	*net.UnixListener // Underlying net.UnixListener
+	ln          *net.UnixListener // Underlying net.UnixListener
+	cond        *sync.Cond        // Protects state
+	paused      bool              // Listener is paused
+	pauseWait   sync.WaitGroup    // To wait for active Accept
+	timestamp   time.Time         // Last successful Accept timestamp
+	wasAccepted bool              // At least one connection was accepted
 }
 
 // ctrlsockListen returns new ctrlsockListener
-func ctrlsockListen(addr *net.UnixAddr) (net.Listener, error) {
-	l, err := net.ListenUnix("unix", CtrlsockAddr)
+func ctrlsockListen(addr *net.UnixAddr) (*ctrlsockListener, error) {
+	ln, err := net.ListenUnix("unix", CtrlsockAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	return ctrlsockListener{l}, nil
+	l := &ctrlsockListener{
+		ln:        ln,
+		cond:      sync.NewCond(&sync.Mutex{}),
+		timestamp: time.Now(),
+	}
+
+	return l, nil
 }
 
-// Accept returns new connection
-func (l ctrlsockListener) Accept() (net.Conn, error) {
-	conn, err := l.UnixListener.AcceptUnix()
-	if err != nil {
-		return nil, err
-	}
+// Accept returns new connection.
+func (l *ctrlsockListener) Accept() (net.Conn, error) {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
 
-	return newCtrlsockConn(conn), nil
+	for {
+		if l.paused {
+			l.cond.Wait()
+		} else {
+			l.pauseWait.Add(1)
+			l.cond.L.Unlock()
+			conn, err := l.ln.AcceptUnix()
+			l.cond.L.Lock()
+			l.pauseWait.Done()
+
+			if err == nil {
+				l.timestamp = time.Now()
+				l.wasAccepted = true
+				return newCtrlsockConn(conn), nil
+			}
+
+			if err != nil {
+				err2, ok := err.(net.Error)
+				if ok && !err2.Timeout() {
+					return nil, err
+				}
+			}
+		}
+	}
+}
+
+// Close closes the listener.
+func (l *ctrlsockListener) Close() error {
+	err := l.ln.Close()
+	l.Resume()
+	return err
+}
+
+// Addr returns the listener's local network address.
+func (l *ctrlsockListener) Addr() net.Addr {
+	return l.ln.Addr()
+}
+
+// Pause puts listener on pause. All pending Accept calls
+// will just wait until listener is resumed.
+func (l *ctrlsockListener) Pause() {
+	// Put listener into the paused state and wake up
+	// pending l.ln.Accept(), if any
+	l.cond.L.Lock()
+	l.paused = true
+	l.ln.SetDeadline(time.Now()) // Will time-out pending Accept
+	l.cond.L.Unlock()
+
+	// Wait for pending l.ln.Accept() to return
+	l.pauseWait.Wait()
+}
+
+// Resume resumes the normal listener operations.
+func (l *ctrlsockListener) Resume() {
+	l.cond.L.Lock()
+	l.paused = false
+	l.ln.SetDeadline(time.Time{})
+	l.cond.L.Unlock()
+
+	l.cond.Signal()
+}
+
+// Idle reports how much time has elapsed since last connection
+// has been successfully accepted.
+//
+// Additionally it returns an indication if the control socket
+// connection was ever accepted at all.
+func (l *ctrlsockListener) Idle() (time.Duration, bool) {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
+
+	return time.Now().Sub(l.timestamp), l.wasAccepted
 }
 
 // ctrlsockHandler handles HTTP requests that come over the
@@ -471,7 +558,8 @@ func CtrlsockStart() error {
 	// Listen the socket
 	os.Remove(PathControlSocket)
 
-	listener, err := ctrlsockListen(CtrlsockAddr)
+	var err error
+	ctrlsockSocket, err = ctrlsockListen(CtrlsockAddr)
 	if err != nil {
 		return err
 	}
@@ -481,8 +569,9 @@ func CtrlsockStart() error {
 	os.Chmod(PathControlSocket, 0777)
 
 	// Start HTTP server on a top of the listening socket
+	ctrlsockServer.SetKeepAlivesEnabled(false)
 	go func() {
-		ctrlsockServer.Serve(listener)
+		ctrlsockServer.Serve(ctrlsockSocket)
 	}()
 
 	return nil
@@ -492,6 +581,28 @@ func CtrlsockStart() error {
 func CtrlsockStop() {
 	Log.Debug(' ', "ctrlsock: shutdown")
 	ctrlsockServer.Close()
+}
+
+// CtrlsockIdle reports how much time has elapsed since last connection
+// has been successfully accepted.
+//
+// Additionally it returns an indication if the control socket
+// connection was ever accepted at all.
+func CtrlsockIdle() (time.Duration, bool) {
+	return ctrlsockSocket.Idle()
+}
+
+// CtrlsockPause puts listener on pause. All pending Accept calls
+// will just wait until listener is resumed.
+func CtrlsockPause() {
+	Log.Debug(' ', "ctrlsock: pause")
+	ctrlsockSocket.Pause()
+}
+
+// CtrlsockResume resumes the normal listener operations.
+func CtrlsockResume() {
+	Log.Debug(' ', "ctrlsock: resume")
+	ctrlsockSocket.Resume()
 }
 
 // CtrlsockDial connects to the control socket of the running

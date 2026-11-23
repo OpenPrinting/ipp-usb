@@ -54,8 +54,6 @@ func uriEncode(buf *strings.Builder, src string, reserved string) {
 		switch c {
 		case '%', ' ', '/', '?', '#', '[', ']', '@':
 			escape = true
-		default:
-			escape = c >= 128
 		}
 
 		if escape {

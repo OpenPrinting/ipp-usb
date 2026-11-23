@@ -206,8 +206,15 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Install the snap and connect its interfaces
         run: |
-          snap_file="${{ steps.snapcraft.outputs.snap }}"
-          test -n "$snap_file" && test -f "$snap_file"
+          # The pack action's output is "snaps", a space-separated list
+          # (renamed from "snap" in canonical/craft-actions fa9cf4f9).
+          # ipp-usb builds exactly one snap.
+          snap_file="${{ steps.snapcraft.outputs.snaps }}"
+          snap_file="${snap_file%% *}"
+          if [ -z "$snap_file" ] || [ ! -f "$snap_file" ]; then
+            echo "::error::snap pack step produced no snap file"
+            exit 1
+          fi
           echo "Installing ${snap_file}"
           sudo snap install --dangerous "$snap_file"
 

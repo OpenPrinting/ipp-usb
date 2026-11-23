@@ -228,8 +228,16 @@ func AuthUID(info *AuthUIDinfo) AuthOps {
 // authUIDrequiresUID tells if UID authentication really requires UID.
 // UID is not required, if either authentication is not configured, or
 // there is no rules with non-wildcard UID.
+//
+// It is only used for HTTP requests, so rules that only grant
+// AuthOpsAdmin (which applies to the control socket) are ignored:
+// they can't change the outcome for any HTTP operation.
 func authUIDrequiresUID() bool {
 	for _, rule := range Conf.ConfAuthUID {
+		if rule.Allowed&^AuthOpsAdmin == AuthOpsNone {
+			continue
+		}
+
 		if rule.Name != "*" && rule.Name != "@*" {
 			return true
 		}

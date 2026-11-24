@@ -1,7 +1,7 @@
 [Unit]
 Description=Daemon for IPP over USB printer support
 Documentation=man:ipp-usb(8)
-After=cups.service avahi-daemon.service
+After=cups.service avahi-daemon.service network-online.target
 Wants=avahi-daemon.service
 
 [Service]

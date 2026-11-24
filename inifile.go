@@ -418,6 +418,16 @@ func (rec *IniRecord) LoadIPPort(out *int) error {
 	return nil
 }
 
+func (rec *IniRecord) LoadInetInterface(out *int) error {
+	iFaceIndex, err := InetInterface(rec.Value)
+	if err == nil {
+		Conf.LoopbackOnly = rec.Value == "lo" || rec.Value == "loopback"
+		*out = iFaceIndex
+		return err
+	}
+	return rec.errBadValue(" %s not found", rec.Value)
+}
+
 // LoadBool loads boolean value
 // The destination remains untouched in a case of an error
 func (rec *IniRecord) LoadBool(out *bool) error {

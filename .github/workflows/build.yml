@@ -52,7 +52,7 @@ jobs:
         go: [ '1.21', '1.22', '1.23', 'stable' ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install cgo dependencies
         run: |
@@ -126,7 +126,7 @@ jobs:
             qemu-arch: riscv64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # ---- native arm64 -----------------------------------------------------
       - name: Build & Test (native)

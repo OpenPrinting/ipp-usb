@@ -280,6 +280,16 @@ ERROR:
 	return nil, uri, err
 }
 
+// GetHTTPPort returns TCP/IP port, allocated for device.
+func (dev *Device) GetHTTPPort() int {
+	return dev.UsbTransport.HTTPPort()
+}
+
+// GetDNSSdServices returns DNS-SD services, associated with device.
+func (dev *Device) GetDNSSdServices() DNSSdServices {
+	return dev.DNSSdPublisher.Services
+}
+
 // Shutdown gracefully shuts down the device. If provided context
 // expires before the shutdown is complete, Shutdown returns the
 // context's error

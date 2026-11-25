@@ -143,6 +143,11 @@ type UsbDeviceDesc struct {
 	IfDescs []UsbIfDesc   // Descriptors of all interfaces
 }
 
+// HWIDString returns device hardware ID, as a string
+func (desc UsbDeviceDesc) HWIDString() string {
+	return fmt.Sprintf("%4.4x&%4.4x", desc.Vendor, desc.Product)
+}
+
 // GetUsbDeviceInfo obtains UsbDeviceInfo by UsbDeviceDesc
 // It may fail, if device cannot be opened
 func (desc UsbDeviceDesc) GetUsbDeviceInfo() (UsbDeviceInfo, error) {

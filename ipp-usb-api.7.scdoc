@@ -30,6 +30,9 @@ breaking existing clients.
 The protocol version in which each endpoint and each request or
 response field was introduced is documented below.
 
+In most cases, protocol uses JSON for data representation. Empty
+JSON can be represented as an empty object ({}) or omited at all.
+
 ## Authentication
 
 Information requests are available to everyone. Administrative
@@ -74,6 +77,59 @@ The returned version does not necessarily match the version of the
 running ipp-usb daemon.
 
 Assume version *0.9.22* if *404 Not found* error is returned.
+
+## POST /get/devices (since 0.9.35)
+
+*Authentication required*: none++
+*Request Content-Type:* application/json++
+*Response Content-Type:* application/json
+
+*Request data:* none
+
+*Error response:*
+```
+    {
+      "err": "error message"
+    }
+```
+
+*Data response:*
+```
+    {
+      // Array of connected devices
+      "data": [
+        {
+          // Device identification
+          "usb_MFG"  : "Xerox",
+          "usb_MDL"  : "B235 MFP",
+          "usb_SN"   : "34004H030206H",
+          "usb_HWID" : "0924&9d3b",
+          "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+          // Device information
+	  "port": 60005,                   // TCP port
+	  "status": "OK" | <Error message> // Device status
+
+          // Services information
+	  "_ipp._tcp": {
+	     // IPP service
+             "printer": true | false,      // IPP print supported
+             "scanner": true | false,      // IPP-scan supported
+             "faxout":  true | false,      // IPP-faxout supported
+             "TXT":     ["key=value, ...]  // IPP TXT record
+          },
+
+	  "_uscan._tcp": {
+	     // eSCL service
+             "printer": false,             // eSCL print (always false)
+             "scanner": true,              // eSCL-scan (always true)
+             "faxout":  false,             // eSCL-faxout (always false)
+             "TXT":     ["key=value, ...]  // eSCL TXT record
+          },
+        },
+      ]
+    }
+```
 
 ## POST /get/conf (since 0.9.35)
 

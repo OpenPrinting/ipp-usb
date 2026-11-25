@@ -23,7 +23,9 @@ import (
 type StatusOfDevice struct {
 	desc     UsbDeviceDesc // Device descriptor
 	init     error         // Initialization error, nil if none
+	URI      *URI          // Device URI, may be nil
 	HTTPPort int           // Assigned http port for the device
+	Services DNSSdServices // Associated DNS-SD services
 }
 
 var (
@@ -119,16 +121,27 @@ func StatusFormat() []byte {
 }
 
 // StatusSet adds device to the status table or updates status
-// of the already known device
-func StatusSet(addr UsbAddr, desc UsbDeviceDesc, HTTPPort int, init error) {
+// of the already known device.
+//
+// The dev parameter can be nil, if device creation failed.
+func StatusSet(addr UsbAddr, desc UsbDeviceDesc, uri *URI,
+	dev *Device, init error) {
+
 	statusLock.Lock()
 	defer statusLock.Unlock()
 
-	statusTable[addr] = &StatusOfDevice{
-		desc:     desc,
-		init:     init,
-		HTTPPort: HTTPPort,
+	status := &StatusOfDevice{
+		desc: desc,
+		init: init,
+		URI:  uri,
 	}
+
+	if dev != nil {
+		status.HTTPPort = dev.GetHTTPPort()
+		status.Services = dev.GetDNSSdServices()
+	}
+
+	statusTable[addr] = status
 }
 
 // StatusUpdateInitError updates the initialization

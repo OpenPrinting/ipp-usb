@@ -89,11 +89,7 @@ func PnPStart(exitWhenIdle bool) PnPExitReason {
 			uriByAddr[addr] = *uri
 		}
 
-		port := 0
-		if dev != nil {
-			port = dev.UsbTransport.HTTPPort()
-		}
-		StatusSet(addr, desc, port, err)
+		StatusSet(addr, desc, uri, dev, err)
 
 		if err == nil {
 			devByAddr[addr] = dev

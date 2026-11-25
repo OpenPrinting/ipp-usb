@@ -5,7 +5,7 @@
 .nh
 .ad l
 .\" Begin generated content:
-.TH "ipp-usb-api" "7" "2026-10-31" "Control API for ipp-usb"
+.TH "ipp-usb-api" "7" "2026-11-25" "Control API for ipp-usb"
 .PP
 .SH NAME
 .PP
@@ -36,6 +36,9 @@ breaking existing clients.\&
 .PP
 The protocol version in which each endpoint and each request or
 response field was introduced is documented below.\&
+.PP
+In most cases, protocol uses JSON for data representation.\& Empty
+JSON can be represented as an empty object ({}) or omited at all.\&
 .PP
 .SS Authentication
 .PP
@@ -85,6 +88,65 @@ The returned version does not necessarily match the version of the
 running ipp-usb daemon.\&
 .PP
 Assume version \fB0.\&9.\&22\fR if \fB404 Not found\fR error is returned.\&
+.PP
+.SS POST /get/devices (since 0.9.35)
+.PP
+\fBAuthentication required\fR: none
+.br
+\fBRequest Content-Type:\fR application/json
+.br
+\fBResponse Content-Type:\fR application/json
+.PP
+\fBRequest data:\fR none
+.PP
+\fBError response:\fR
+.nf
+.RS 4
+    {
+      "err": "error message"
+    }
+.fi
+.RE
+.PP
+\fBData response:\fR
+.nf
+.RS 4
+    {
+      // Array of connected devices
+      "data": [
+        {
+          // Device identification
+          "usb_MFG"  : "Xerox",
+          "usb_MDL"  : "B235 MFP",
+          "usb_SN"   : "34004H030206H",
+          "usb_HWID" : "0924&9d3b",
+          "usb_URI"  : "usb://Xerox/B235%20MFP?serial=34004H030206H",
+
+          // Device information
+	  "port": 60005,                   // TCP port
+	  "status": "OK" | <Error message> // Device status
+
+          // Services information
+	  "_ipp\&._tcp": {
+	     // IPP service
+             "printer": true | false,      // IPP print supported
+             "scanner": true | false,      // IPP-scan supported
+             "faxout":  true | false,      // IPP-faxout supported
+             "TXT":     ["key=value, \&.\&.\&.]  // IPP TXT record
+          },
+
+	  "_uscan\&._tcp": {
+	     // eSCL service
+             "printer": false,             // eSCL print (always false)
+             "scanner": true,              // eSCL-scan (always true)
+             "faxout":  false,             // eSCL-faxout (always false)
+             "TXT":     ["key=value, \&.\&.\&.]  // eSCL TXT record
+          },
+        },
+      ]
+    }
+.fi
+.RE
 .PP
 .SS POST /get/conf (since 0.9.35)
 .PP

@@ -253,7 +253,7 @@ func NewUsbTransport(desc UsbDeviceDesc, state *DevState) (
 		transport.Manufacturer(),
 		transport.Model(),
 		transport.SerialNumber(),
-		fmt.Sprintf("%4.4x&%4.4x", desc.Vendor, desc.Product),
+		desc.HWIDString(),
 	)
 
 	// Open connections

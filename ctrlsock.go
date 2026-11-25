@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -72,6 +73,31 @@ var (
 	// ctrlsockConnTableLock protects the ctrlsockConnTable
 	ctrlsockConnTableLock sync.Mutex
 )
+
+// ctrlsockDevice is the description of connected device.
+type ctrlsockDevice struct {
+	// Device identification
+	MFG  string `json:"usb_MFG,omitempty"`
+	MDL  string `json:"usb_MDL,omitempty"`
+	SN   string `json:"usb_SN,omitempty" `
+	HWID string `json:"usb_HWID,omitempty"`
+	URI  string `json:"usb_URI,omitempty"`
+
+	// Device state
+	HTTPPort    int                    `json:"port,omitempty"`
+	Status      string                 `json:"status,omitempty"`
+	IPPService  *ctrlsockDeviceService `json:"_ipp._tcp,omitempty"`
+	ESCLService *ctrlsockDeviceService `json:"_uscan._tcp,omitempty"`
+}
+
+// ctrlsockDeviceService describes each particular service
+// (i.e., _ipp._tcp, _uscan._tcp).
+type ctrlsockDeviceService struct {
+	TXT     []string `json:"TXT,omitempty"`
+	Printer bool     `json:"printer"` // Printing supported
+	Scanner bool     `json:"scanner"` // Scanning supported
+	Faxout  bool     `json:"faxout"`  // Faxout supported
+}
 
 // ctrlsockCONFData is the data record for POST /get/conf and POST /set/conf
 // requests and response.
@@ -392,7 +418,7 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 		// Parse body
 		rd := io.LimitReader(r.Body, ctrlSockMAXRequestSize)
 		err = json.NewDecoder(rd).Decode(&rq)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			ctrlsockRequestError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -410,6 +436,8 @@ func ctrlsockHandler(w http.ResponseWriter, r *http.Request) {
 		mime, data, status, err = ctrlsockGETStatus()
 	case r.Method == "GET" && r.URL.Path == "/version":
 		mime, data, status, err = ctrlsockGETVersion()
+	case r.Method == "POST" && r.URL.Path == "/get/devices":
+		mime, data, status, err = ctrlsockPOSTGetDevices(rq)
 	case r.Method == "POST" && r.URL.Path == "/get/conf":
 		mime, data, status, err = ctrlsockPOSTGetConf(rq)
 	case r.Method == "POST" && r.URL.Path == "/set/conf":
@@ -475,6 +503,80 @@ func ctrlsockGETStatus() (string, []byte, int, error) {
 // ctrlsockGETVersion handles the GET /version request
 func ctrlsockGETVersion() (string, []byte, int, error) {
 	return ctrlSockMIMEText, []byte(CtrlsockAPIVersion), http.StatusOK, nil
+}
+
+// ctrlsockPOSTGetDevices handles the POST /get/devices request
+func ctrlsockPOSTGetDevices(rq ctrlsockCONFData) (string, []byte, int, error) {
+	statuses := StatusGet()
+
+	// Build list of connected devices
+	devices := []ctrlsockDevice{}
+	for _, status := range statuses {
+		// If device even don't have an URI it means we failed
+		// to initialize it at the very early state.
+		//
+		// Skip these devices here. We don't control them, and
+		// can't identify them in other control requests, so
+		// just ignore.
+		if status.URI == nil {
+			continue
+		}
+
+		dev := ctrlsockDevice{
+			MFG:      status.URI.MFG,
+			MDL:      status.URI.MDL,
+			SN:       status.URI.SN,
+			HWID:     status.desc.HWIDString(),
+			URI:      status.URI.String(),
+			HTTPPort: status.HTTPPort,
+			Status:   "OK",
+		}
+
+		if status.init != nil {
+			dev.Status = status.init.Error()
+		}
+
+		for _, service := range status.Services {
+			// Skip unneeded services
+			svc := &ctrlsockDeviceService{}
+			switch service.Type {
+			case "_ipp._tcp":
+				dev.IPPService = svc
+				for _, txtRecord := range service.Txt {
+					switch strings.ToLower(txtRecord.Key) {
+					case "rp":
+						svc.Printer = true
+					case "rfo":
+						svc.Faxout = true
+					case "rs":
+						svc.Scanner = true
+					}
+				}
+
+			case "_uscan._tcp":
+				dev.ESCLService = svc
+				svc.Scanner = true
+			default:
+				continue
+			}
+
+			// Export TXT record
+			for _, txtRecord := range service.Txt {
+				svc.TXT = append(svc.TXT, txtRecord.Key+"="+txtRecord.Value)
+			}
+		}
+
+		devices = append(devices, dev)
+	}
+
+	// Convert to JSON
+	response := ctrlsockJSONResponse{Data: devices}
+	buf := bytes.Buffer{}
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	encoder.Encode(response)
+
+	return ctrlSockMIMEJSON, buf.Bytes(), http.StatusOK, nil
 }
 
 // ctrlsockPOSTGetConf handles the POST /get/conf request
